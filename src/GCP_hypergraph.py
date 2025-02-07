@@ -1,22 +1,45 @@
 from collections import defaultdict
 from src.qiskit_to_op_list import circuit_to_gate_layers, layer_list_to_dict
 from src.greedy_gate_grouping import group_distributable_packets, remove_duplicated
+from qiskit import QuantumCircuit
 
 class QuantumCircuitHyperGraph:
-    
-    def __init__(self, num_qubits, depth):
+    """
+    Class for time extended hypergraph representation of quantum circuit.
+    """
+    def __init__(self, 
+                circuit : QuantumCircuit, 
+                group_gates : bool = True, 
+                anti_diag : bool = False,
+                map_circuit : bool = True):
+        
         # Keep a set of all nodes (qubit, time)
         self.nodes = set()
         self.hyperedges = {}
         self.node2hyperedges = defaultdict(set)
         self.adjacency = defaultdict(set)
-        self.depth = depth
-        self.num_qubits = num_qubits
         self.node_attrs = {}
         self.hyperedge_attrs = {}
+        self.circuit = circuit
+        self.num_qubits = circuit.num_qubits
+        self.depth = circuit.depth()
 
-        self.add_time_neighbor_edges(depth, range(num_qubits))
-  
+        if map_circuit:
+            self.init_from_circuit(group_gates, anti_diag)
+
+    def init_from_circuit(self, group_gates=True, anti_diag=False):
+        self.add_time_neighbor_edges(self.depth, range(self.num_qubits))
+        self.layers = self.extract_layers(self.circuit, group_gates=group_gates, anti_diag=anti_diag)
+        self.map_circuit_to_hypergraph()
+
+    def extract_layers(self, circuit, group_gates=True, anti_diag=False):
+        layers = circuit_to_gate_layers(circuit)
+        if group_gates:
+            layers = group_distributable_packets(layers,num_qubits=circuit.num_qubits,anti_diag=anti_diag)
+            layers = remove_duplicated(layers)
+        layers = layer_list_to_dict(layers)
+        return layers
+
     def add_node(self, qubit, time):
         """
         Add a node (qubit, time). If it already exists, do nothing.
@@ -179,7 +202,7 @@ class QuantumCircuitHyperGraph:
         do not affect the original.
         """
         # 1) Create a blank instance (no qubits/depth needed for now)
-        new_graph = QuantumCircuitHyperGraph(num_qubits=0, depth=0)
+        new_graph = QuantumCircuitHyperGraph(circuit=self.circuit, map_circuit=False)
 
         # 2) Copy nodes
         new_graph.nodes = set(self.nodes)
@@ -216,15 +239,8 @@ class QuantumCircuitHyperGraph:
 
         return new_graph
      
-    def map_circuit_to_hypergraph(self,circuit,group_gates=True, anti_diag=True, layers=None):
-        if layers is None:
-            layers = circuit_to_gate_layers(circuit)
-            if group_gates:
-                layers = group_distributable_packets(layers,num_qubits=circuit.num_qubits,anti_diag=anti_diag)
-                layers = remove_duplicated(layers)
-            layers_dict = layer_list_to_dict(layers)
-        else:
-            layers_dict = layers
+    def map_circuit_to_hypergraph(self,):
+        layers_dict = self.layers
         for l in layers_dict:
             layer = layers_dict[l]
             for gate in layer:

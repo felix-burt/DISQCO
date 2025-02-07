@@ -277,6 +277,7 @@ class HypergraphCoarsener:
         For layer-based merges, merges might look like:
         [(255->254), (253->252), (251->250), ...]
         """
+        circuit = hypergraph.circuit
         # 1) Build the representative map: "which node does X become after merges?"
         rep = {}  # dictionary from old_node -> representative_node
         for v in hypergraph.nodes:
@@ -352,7 +353,7 @@ class HypergraphCoarsener:
             new_node_attrs[rv].update(attrs)
 
         # 8) Construct the new hypergraph object or mutate the old one
-        new_H = QuantumCircuitHyperGraph(num_qubits=hypergraph.num_qubits, depth=hypergraph.depth)
+        new_H = QuantumCircuitHyperGraph(circuit=circuit)
         new_H.nodes = new_nodes
         new_H.adjacency = new_adjacency
         new_H.node2hyperedges = new_node2hyperedges

@@ -2,6 +2,7 @@ import networkx as nx
 from src.DQC_qubit_manager import CommunicationQubitManager, ClassicalBitManager, DataQubitManager
 from qiskit import QuantumRegister, ClassicalRegister, QuantumCircuit   
 from qiskit.circuit import Qubit
+from src.GCP_hypergraph import QuantumCircuitHyperGraph
 import copy 
 
 class TeleportationManager:
@@ -316,18 +317,17 @@ class TeleportationManager:
 
 class PartitionedCircuitExtractor:
     def __init__(self, 
-                layer_dict : dict[int, list[dict]],
+                graph : QuantumCircuitHyperGraph,
                 partition_assignment : list[list[int]],
-                num_qubits : int,
                 qpu_info : list[int],
                 comm_info : list[int]) -> None:
         
-        self.layer_dict = layer_dict # Store the dictionary containing the gates for each layer
+        self.layer_dict = graph.layers # Extract the dictionary containing the gates for each layer from the hypergraph
         self.partition_assignment = partition_assignment # Store the partition assignment for each qubit at each layer
         self.layer_dict = self.remove_empty_groups()
         self.layer_dict = self.ungroup_local_gates_commute()
 
-        self.num_qubits = num_qubits # Store the total number of qubits
+        self.num_qubits = graph.num_qubits # Store the total number of qubits
         self.qpu_info = qpu_info # Store the number of data qubits in each partition
         self.comm_info = comm_info  # Store the number of communication qubits in each partition
 
