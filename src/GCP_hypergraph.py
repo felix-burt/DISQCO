@@ -215,13 +215,16 @@ class QuantumCircuitHyperGraph:
             new_graph.hyperedge_attrs[edge_id] = dict(attr_dict)
 
         return new_graph
-    
-    def map_circuit_to_hypergraph(self,circuit,group_gates=True, anti_diag=True):
-        layers = circuit_to_gate_layers(circuit)
-        if group_gates:
-            layers = group_distributable_packets(layers,num_qubits=circuit.num_qubits,anti_diag=anti_diag)
-            layers = remove_duplicated(layers)
-        layers_dict = layer_list_to_dict(layers)
+     
+    def map_circuit_to_hypergraph(self,circuit,group_gates=True, anti_diag=True, layers=None):
+        if layers is None:
+            layers = circuit_to_gate_layers(circuit)
+            if group_gates:
+                layers = group_distributable_packets(layers,num_qubits=circuit.num_qubits,anti_diag=anti_diag)
+                layers = remove_duplicated(layers)
+            layers_dict = layer_list_to_dict(layers)
+        else:
+            layers_dict = layers
         for l in layers_dict:
             layer = layers_dict[l]
             for gate in layer:
