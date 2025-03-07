@@ -1,0 +1,387 @@
+[
+  {
+    "num_qubits": 16,
+    "num_partitions": 4,
+    "iteration": 0,
+    "fgp_cost": 72,
+    "time_fgp": 0.023162841796875
+  },
+  {
+    "num_qubits": 16,
+    "num_partitions": 4,
+    "iteration": 1,
+    "fgp_cost": 72,
+    "time_fgp": 0.014124155044555664
+  },
+  {
+    "num_qubits": 16,
+    "num_partitions": 4,
+    "iteration": 2,
+    "fgp_cost": 72,
+    "time_fgp": 0.01321101188659668
+  },
+  {
+    "num_qubits": 16,
+    "num_partitions": 4,
+    "iteration": 3,
+    "fgp_cost": 72,
+    "time_fgp": 0.013137102127075195
+  },
+  {
+    "num_qubits": 16,
+    "num_partitions": 4,
+    "iteration": 4,
+    "fgp_cost": 72,
+    "time_fgp": 0.01544189453125
+  },
+  {
+    "num_qubits": 24,
+    "num_partitions": 4,
+    "iteration": 0,
+    "fgp_cost": 112,
+    "time_fgp": 0.05933403968811035
+  },
+  {
+    "num_qubits": 24,
+    "num_partitions": 4,
+    "iteration": 1,
+    "fgp_cost": 112,
+    "time_fgp": 0.06529521942138672
+  },
+  {
+    "num_qubits": 24,
+    "num_partitions": 4,
+    "iteration": 2,
+    "fgp_cost": 112,
+    "time_fgp": 0.061990976333618164
+  },
+  {
+    "num_qubits": 24,
+    "num_partitions": 4,
+    "iteration": 3,
+    "fgp_cost": 112,
+    "time_fgp": 0.060540199279785156
+  },
+  {
+    "num_qubits": 24,
+    "num_partitions": 4,
+    "iteration": 4,
+    "fgp_cost": 112,
+    "time_fgp": 0.0583348274230957
+  },
+  {
+    "num_qubits": 32,
+    "num_partitions": 4,
+    "iteration": 0,
+    "fgp_cost": 148,
+    "time_fgp": 0.17946505546569824
+  },
+  {
+    "num_qubits": 32,
+    "num_partitions": 4,
+    "iteration": 1,
+    "fgp_cost": 148,
+    "time_fgp": 0.2026231288909912
+  },
+  {
+    "num_qubits": 32,
+    "num_partitions": 4,
+    "iteration": 2,
+    "fgp_cost": 148,
+    "time_fgp": 0.18428277969360352
+  },
+  {
+    "num_qubits": 32,
+    "num_partitions": 4,
+    "iteration": 3,
+    "fgp_cost": 148,
+    "time_fgp": 0.18215394020080566
+  },
+  {
+    "num_qubits": 32,
+    "num_partitions": 4,
+    "iteration": 4,
+    "fgp_cost": 148,
+    "time_fgp": 0.17746567726135254
+  },
+  {
+    "num_qubits": 40,
+    "num_partitions": 4,
+    "iteration": 0,
+    "fgp_cost": 188,
+    "time_fgp": 0.7204949855804443
+  },
+  {
+    "num_qubits": 40,
+    "num_partitions": 4,
+    "iteration": 1,
+    "fgp_cost": 188,
+    "time_fgp": 0.3986830711364746
+  },
+  {
+    "num_qubits": 40,
+    "num_partitions": 4,
+    "iteration": 2,
+    "fgp_cost": 188,
+    "time_fgp": 0.403439998626709
+  },
+  {
+    "num_qubits": 40,
+    "num_partitions": 4,
+    "iteration": 3,
+    "fgp_cost": 188,
+    "time_fgp": 0.39655017852783203
+  },
+  {
+    "num_qubits": 40,
+    "num_partitions": 4,
+    "iteration": 4,
+    "fgp_cost": 188,
+    "time_fgp": 0.3992600440979004
+  },
+  {
+    "num_qubits": 48,
+    "num_partitions": 4,
+    "iteration": 0,
+    "fgp_cost": 224,
+    "time_fgp": 0.8361568450927734
+  },
+  {
+    "num_qubits": 48,
+    "num_partitions": 4,
+    "iteration": 1,
+    "fgp_cost": 224,
+    "time_fgp": 0.8409149646759033
+  },
+  {
+    "num_qubits": 48,
+    "num_partitions": 4,
+    "iteration": 2,
+    "fgp_cost": 224,
+    "time_fgp": 0.8671920299530029
+  },
+  {
+    "num_qubits": 48,
+    "num_partitions": 4,
+    "iteration": 3,
+    "fgp_cost": 224,
+    "time_fgp": 0.8491661548614502
+  },
+  {
+    "num_qubits": 48,
+    "num_partitions": 4,
+    "iteration": 4,
+    "fgp_cost": 224,
+    "time_fgp": 0.8469018936157227
+  },
+  {
+    "num_qubits": 56,
+    "num_partitions": 4,
+    "iteration": 0,
+    "fgp_cost": 264,
+    "time_fgp": 1.5424902439117432
+  },
+  {
+    "num_qubits": 56,
+    "num_partitions": 4,
+    "iteration": 1,
+    "fgp_cost": 264,
+    "time_fgp": 1.6245529651641846
+  },
+  {
+    "num_qubits": 56,
+    "num_partitions": 4,
+    "iteration": 2,
+    "fgp_cost": 264,
+    "time_fgp": 1.5510549545288086
+  },
+  {
+    "num_qubits": 56,
+    "num_partitions": 4,
+    "iteration": 3,
+    "fgp_cost": 264,
+    "time_fgp": 1.5445880889892578
+  },
+  {
+    "num_qubits": 56,
+    "num_partitions": 4,
+    "iteration": 4,
+    "fgp_cost": 264,
+    "time_fgp": 1.6171729564666748
+  },
+  {
+    "num_qubits": 64,
+    "num_partitions": 4,
+    "iteration": 0,
+    "fgp_cost": 304,
+    "time_fgp": 2.630873918533325
+  },
+  {
+    "num_qubits": 64,
+    "num_partitions": 4,
+    "iteration": 1,
+    "fgp_cost": 304,
+    "time_fgp": 2.552910804748535
+  },
+  {
+    "num_qubits": 64,
+    "num_partitions": 4,
+    "iteration": 2,
+    "fgp_cost": 304,
+    "time_fgp": 2.560006856918335
+  },
+  {
+    "num_qubits": 64,
+    "num_partitions": 4,
+    "iteration": 3,
+    "fgp_cost": 304,
+    "time_fgp": 2.541323184967041
+  },
+  {
+    "num_qubits": 64,
+    "num_partitions": 4,
+    "iteration": 4,
+    "fgp_cost": 304,
+    "time_fgp": 2.7729363441467285
+  },
+  {
+    "num_qubits": 72,
+    "num_partitions": 4,
+    "iteration": 0,
+    "fgp_cost": 340,
+    "time_fgp": 4.190846920013428
+  },
+  {
+    "num_qubits": 72,
+    "num_partitions": 4,
+    "iteration": 1,
+    "fgp_cost": 340,
+    "time_fgp": 4.20095682144165
+  },
+  {
+    "num_qubits": 72,
+    "num_partitions": 4,
+    "iteration": 2,
+    "fgp_cost": 340,
+    "time_fgp": 4.244262933731079
+  },
+  {
+    "num_qubits": 72,
+    "num_partitions": 4,
+    "iteration": 3,
+    "fgp_cost": 340,
+    "time_fgp": 4.169384002685547
+  },
+  {
+    "num_qubits": 72,
+    "num_partitions": 4,
+    "iteration": 4,
+    "fgp_cost": 340,
+    "time_fgp": 4.467273950576782
+  },
+  {
+    "num_qubits": 80,
+    "num_partitions": 4,
+    "iteration": 0,
+    "fgp_cost": 407,
+    "time_fgp": 6.797642946243286
+  },
+  {
+    "num_qubits": 80,
+    "num_partitions": 4,
+    "iteration": 1,
+    "fgp_cost": 407,
+    "time_fgp": 6.428146839141846
+  },
+  {
+    "num_qubits": 80,
+    "num_partitions": 4,
+    "iteration": 2,
+    "fgp_cost": 407,
+    "time_fgp": 6.649909973144531
+  },
+  {
+    "num_qubits": 80,
+    "num_partitions": 4,
+    "iteration": 3,
+    "fgp_cost": 407,
+    "time_fgp": 6.527013063430786
+  },
+  {
+    "num_qubits": 80,
+    "num_partitions": 4,
+    "iteration": 4,
+    "fgp_cost": 407,
+    "time_fgp": 6.253129959106445
+  },
+  {
+    "num_qubits": 88,
+    "num_partitions": 4,
+    "iteration": 0,
+    "fgp_cost": 449,
+    "time_fgp": 9.196180820465088
+  },
+  {
+    "num_qubits": 88,
+    "num_partitions": 4,
+    "iteration": 1,
+    "fgp_cost": 449,
+    "time_fgp": 9.157063961029053
+  },
+  {
+    "num_qubits": 88,
+    "num_partitions": 4,
+    "iteration": 2,
+    "fgp_cost": 449,
+    "time_fgp": 9.091903924942017
+  },
+  {
+    "num_qubits": 88,
+    "num_partitions": 4,
+    "iteration": 3,
+    "fgp_cost": 449,
+    "time_fgp": 9.160743236541748
+  },
+  {
+    "num_qubits": 88,
+    "num_partitions": 4,
+    "iteration": 4,
+    "fgp_cost": 449,
+    "time_fgp": 9.623756647109985
+  },
+  {
+    "num_qubits": 96,
+    "num_partitions": 4,
+    "iteration": 0,
+    "fgp_cost": 489,
+    "time_fgp": 13.41555404663086
+  },
+  {
+    "num_qubits": 96,
+    "num_partitions": 4,
+    "iteration": 1,
+    "fgp_cost": 489,
+    "time_fgp": 13.504139184951782
+  },
+  {
+    "num_qubits": 96,
+    "num_partitions": 4,
+    "iteration": 2,
+    "fgp_cost": 489,
+    "time_fgp": 13.30115795135498
+  },
+  {
+    "num_qubits": 96,
+    "num_partitions": 4,
+    "iteration": 3,
+    "fgp_cost": 489,
+    "time_fgp": 13.735954284667969
+  },
+  {
+    "num_qubits": 96,
+    "num_partitions": 4,
+    "iteration": 4,
+    "fgp_cost": 489,
+    "time_fgp": 13.64379096031189
+  }
+]

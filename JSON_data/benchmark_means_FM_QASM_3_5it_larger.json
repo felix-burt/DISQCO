@@ -1,0 +1,275 @@
+[
+  {
+    "circuit_name": "dnn_n51",
+    "num_qubits": 51,
+    "num_partitions": 2,
+    "mean_r_cost": 5.6,
+    "mean_r_time": 7.515621042251587
+  },
+  {
+    "circuit_name": "qft_n63",
+    "num_qubits": 63,
+    "num_partitions": 2,
+    "mean_r_cost": 31.0,
+    "mean_r_time": 38.32285394668579
+  },
+  {
+    "circuit_name": "cc_n64",
+    "num_qubits": 64,
+    "num_partitions": 2,
+    "mean_r_cost": 2.8,
+    "mean_r_time": 11.650952577590942
+  },
+  {
+    "circuit_name": "adder_n64",
+    "num_qubits": 64,
+    "num_partitions": 2,
+    "mean_r_cost": 3.0,
+    "mean_r_time": 17.993713521957396
+  },
+  {
+    "circuit_name": "cat_n65",
+    "num_qubits": 65,
+    "num_partitions": 2,
+    "mean_r_cost": 1.0,
+    "mean_r_time": 4.744626998901367
+  },
+  {
+    "circuit_name": "ising_n66",
+    "num_qubits": 66,
+    "num_partitions": 2,
+    "mean_r_cost": 1.0,
+    "mean_r_time": 0.2614238739013672
+  },
+  {
+    "circuit_name": "knn_n67",
+    "num_qubits": 67,
+    "num_partitions": 2,
+    "mean_r_cost": 1.0,
+    "mean_r_time": 15.005523681640625
+  },
+  {
+    "circuit_name": "bv_n70",
+    "num_qubits": 70,
+    "num_partitions": 2,
+    "mean_r_cost": 0.0,
+    "mean_r_time": 2.065694808959961
+  },
+  {
+    "circuit_name": "qugan_n71",
+    "num_qubits": 71,
+    "num_partitions": 2,
+    "mean_r_cost": 3.8,
+    "mean_r_time": 15.322670698165894
+  },
+  {
+    "circuit_name": "wstate_n76",
+    "num_qubits": 76,
+    "num_partitions": 2,
+    "mean_r_cost": 1.4,
+    "mean_r_time": 6.851033067703247
+  },
+  {
+    "circuit_name": "ghz_n78",
+    "num_qubits": 78,
+    "num_partitions": 2,
+    "mean_r_cost": 1.0,
+    "mean_r_time": 6.586875104904175
+  },
+  {
+    "circuit_name": "swap_test_n83",
+    "num_qubits": 83,
+    "num_partitions": 2,
+    "mean_r_cost": 1.0,
+    "mean_r_time": 24.362061166763304
+  },
+  {
+    "circuit_name": "ising_n98",
+    "num_qubits": 98,
+    "num_partitions": 2,
+    "mean_r_cost": 1.0,
+    "mean_r_time": 0.41153512001037595
+  },
+  {
+    "circuit_name": "dnn_n51",
+    "num_qubits": 51,
+    "num_partitions": 3,
+    "mean_r_cost": 11.6,
+    "mean_r_time": 11.320708465576171
+  },
+  {
+    "circuit_name": "qft_n63",
+    "num_qubits": 63,
+    "num_partitions": 3,
+    "mean_r_cost": 60.0,
+    "mean_r_time": 60.711627101898195
+  },
+  {
+    "circuit_name": "cc_n64",
+    "num_qubits": 64,
+    "num_partitions": 3,
+    "mean_r_cost": 15.0,
+    "mean_r_time": 13.952420806884765
+  },
+  {
+    "circuit_name": "adder_n64",
+    "num_qubits": 64,
+    "num_partitions": 3,
+    "mean_r_cost": 8.4,
+    "mean_r_time": 25.086091089248658
+  },
+  {
+    "circuit_name": "cat_n65",
+    "num_qubits": 65,
+    "num_partitions": 3,
+    "mean_r_cost": 2.0,
+    "mean_r_time": 5.737260437011718
+  },
+  {
+    "circuit_name": "ising_n66",
+    "num_qubits": 66,
+    "num_partitions": 3,
+    "mean_r_cost": 2.0,
+    "mean_r_time": 0.35468120574951173
+  },
+  {
+    "circuit_name": "knn_n67",
+    "num_qubits": 67,
+    "num_partitions": 3,
+    "mean_r_cost": 2.0,
+    "mean_r_time": 24.85590624809265
+  },
+  {
+    "circuit_name": "bv_n70",
+    "num_qubits": 70,
+    "num_partitions": 3,
+    "mean_r_cost": 11.2,
+    "mean_r_time": 2.8620940685272216
+  },
+  {
+    "circuit_name": "qugan_n71",
+    "num_qubits": 71,
+    "num_partitions": 3,
+    "mean_r_cost": 13.4,
+    "mean_r_time": 21.355264711380006
+  },
+  {
+    "circuit_name": "wstate_n76",
+    "num_qubits": 76,
+    "num_partitions": 3,
+    "mean_r_cost": 3.0,
+    "mean_r_time": 8.63608980178833
+  },
+  {
+    "circuit_name": "ghz_n78",
+    "num_qubits": 78,
+    "num_partitions": 3,
+    "mean_r_cost": 2.0,
+    "mean_r_time": 9.036054849624634
+  },
+  {
+    "circuit_name": "swap_test_n83",
+    "num_qubits": 83,
+    "num_partitions": 3,
+    "mean_r_cost": 2.0,
+    "mean_r_time": 35.499524402618405
+  },
+  {
+    "circuit_name": "ising_n98",
+    "num_qubits": 98,
+    "num_partitions": 3,
+    "mean_r_cost": 2.0,
+    "mean_r_time": 0.5780457973480224
+  },
+  {
+    "circuit_name": "dnn_n51",
+    "num_qubits": 51,
+    "num_partitions": 4,
+    "mean_r_cost": 20.0,
+    "mean_r_time": 13.544240999221802
+  },
+  {
+    "circuit_name": "qft_n63",
+    "num_qubits": 63,
+    "num_partitions": 4,
+    "mean_r_cost": 93.0,
+    "mean_r_time": 73.9486087322235
+  },
+  {
+    "circuit_name": "cc_n64",
+    "num_qubits": 64,
+    "num_partitions": 4,
+    "mean_r_cost": 27.0,
+    "mean_r_time": 17.438529777526856
+  },
+  {
+    "circuit_name": "adder_n64",
+    "num_qubits": 64,
+    "num_partitions": 4,
+    "mean_r_cost": 11.4,
+    "mean_r_time": 32.60915584564209
+  },
+  {
+    "circuit_name": "cat_n65",
+    "num_qubits": 65,
+    "num_partitions": 4,
+    "mean_r_cost": 3.0,
+    "mean_r_time": 7.5676538944244385
+  },
+  {
+    "circuit_name": "ising_n66",
+    "num_qubits": 66,
+    "num_partitions": 4,
+    "mean_r_cost": 3.0,
+    "mean_r_time": 0.47586884498596194
+  },
+  {
+    "circuit_name": "knn_n67",
+    "num_qubits": 67,
+    "num_partitions": 4,
+    "mean_r_cost": 6.0,
+    "mean_r_time": 33.804672718048096
+  },
+  {
+    "circuit_name": "bv_n70",
+    "num_qubits": 70,
+    "num_partitions": 4,
+    "mean_r_cost": 16.2,
+    "mean_r_time": 3.738866949081421
+  },
+  {
+    "circuit_name": "qugan_n71",
+    "num_qubits": 71,
+    "num_partitions": 4,
+    "mean_r_cost": 16.6,
+    "mean_r_time": 28.417614364624022
+  },
+  {
+    "circuit_name": "wstate_n76",
+    "num_qubits": 76,
+    "num_partitions": 4,
+    "mean_r_cost": 5.0,
+    "mean_r_time": 10.983082580566407
+  },
+  {
+    "circuit_name": "ghz_n78",
+    "num_qubits": 78,
+    "num_partitions": 4,
+    "mean_r_cost": 3.0,
+    "mean_r_time": 11.392710161209106
+  },
+  {
+    "circuit_name": "swap_test_n83",
+    "num_qubits": 83,
+    "num_partitions": 4,
+    "mean_r_cost": 6.0,
+    "mean_r_time": 59.98159394264221
+  },
+  {
+    "circuit_name": "ising_n98",
+    "num_qubits": 98,
+    "num_partitions": 4,
+    "mean_r_cost": 3.0,
+    "mean_r_time": 0.7597107887268066
+  }
+]
