@@ -4,3 +4,5 @@ This repository provides a framework for partitioning quantum circuits into sub-
 
 This optimisation is integrated into the Qiskit SDK, and converts single-QPU quantum circuits into partitioned sub-circuits with minimal entanglement requirements.
 
+See notebooks in Demos folder for more information.
+
