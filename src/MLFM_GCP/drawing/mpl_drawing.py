@@ -28,7 +28,7 @@ def hypergraph_to_matplotlib(
     if xscale is None:
         xscale = 10/depth
     if yscale is None:
-        yscale = 6/num_qubits
+        yscale = 6/(sum(qpu_info) + len(qpu_info))
 
     partition_offset_list = []
     cumulative = 0

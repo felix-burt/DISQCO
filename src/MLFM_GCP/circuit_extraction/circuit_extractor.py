@@ -728,7 +728,7 @@ from MLFM_GCP.circuit_extraction.DQC_qubit_manager import DataQubitManager, Comm
 # Set up a logger
 # -------------------------------------------------------------------
 logger = logging.getLogger(__name__)
-logger.setLevel(logging.CRITICAL + 1)  # Set to logging.INFO or higher to reduce verbosity
+logger.setLevel(logging.DEBUG)  # Set to logging.INFO or higher to reduce verbosity
 
 # If you want logs printed to console:
 console_handler = logging.StreamHandler()
@@ -848,7 +848,7 @@ class TeleportationManager:
 
         if p_root == p_rec:
             logger.debug("[entangle_root] Local entanglement recognized.")
-            self.entangle_root_local(root_phys, root_comm, root_q, p_root)
+            self.entangle_root_local(root_q, p_root)
             return
 
         rec_comm = self.comm_manager.find_comm_idx(p_rec)
@@ -1144,15 +1144,16 @@ class PartitionedCircuitExtractor:
     def apply_local_two_qubit_gate(self, gate: dict) -> None:
         qubit0, qubit1 = gate['qargs']
         params = gate['params']
+        logger.debug(f"[apply_local_two_qubit_gate] Gate CP({params[0]}) on logical ({qubit0}, {qubit1})") 
+        
         if isinstance(qubit0, int):
             qubit0 = self.qubit_manager.log_to_phys_idx[qubit0]
         if isinstance(qubit1, int):
             qubit1 = self.qubit_manager.log_to_phys_idx[qubit1]
-        logger.debug(f"[apply_local_two_qubit_gate] Gate CP({params[0]}) on logical ({qubit0}, {qubit1}) -> physical ({qubit0}, {qubit1})")
+        logger.debug(f" -> physical ({qubit0}, {qubit1})")
         self.qc.cp(params[0], qubit0, qubit1)
 
     def teleport_root_early(self, gate: dict, root_qubit: int, p_root: int, final_p_root: int) -> None:
-        root_qubit_phys = self.qubit_manager.log_to_phys_idx[root_qubit]
         current_t = gate['time']
         k = current_t
         old_assignment = copy.deepcopy(self.current_assignment)
@@ -1166,28 +1167,31 @@ class PartitionedCircuitExtractor:
             k += 1
 
         new_assignment = full_assignment_copy[current_t]
-        logger.debug(f"[process_group_gate] Teleporting root {root_qubit} from partition {p_root} to {final_p_root}")
+        logger.debug(f"[teleport_root_early] Teleporting root {root_qubit} from partition {p_root} to {final_p_root}")
         logger.debug(f"Active receivers: {self.qubit_manager.active_receivers}")
-        if root_qubit in self.qubit_manager.active_receivers:
-            logger.debug(f"Root qubit is active receiver: {self.qubit_manager.active_receivers[root_qubit]}")
-            end_time = current_t
-            for key in self.qubit_manager.active_receivers[root_qubit]:
-                time = self.qubit_manager.active_receivers[root_qubit][key]
-                if time > end_time:
-                    end_time = time
-            logger.debug(f"End time for root qubit {root_qubit} is {end_time}")
-            if end_time >= current_t:
-                if self.qubit_manager.linked_comm_qubits[root_qubit][p_root] != set():
-                    for comm_root in self.qubit_manager.linked_comm_qubits[root_qubit][p_root]:
-                        self.qubit_manager.groups[root_qubit][p_root] = end_time
-                        break
-                else:
-                    comm_root = self.comm_manager.find_comm_idx(p_root)
-                    self.teleportation_manager.entangle_root_local(root_qubit_phys, comm_root, root_qubit, p_root)
-                    self.comm_manager.linked_qubits[comm_root] = root_qubit
-                    self.qubit_manager.groups[root_qubit]['final_gates'][p_root] = end_time
-                self.qubit_manager.relocated_receivers[root_qubit] = (p_root, end_time)
-                logger.debug(f"Root qubit {root_qubit} is relocated to partition {p_root} at time {end_time}")
+        # if root_qubit in self.qubit_manager.active_receivers:
+        #     logger.debug(f"Root qubit is active receiver: {self.qubit_manager.active_receivers[root_qubit]}")
+        #     end_time = current_t
+        #     for key in self.qubit_manager.active_receivers[root_qubit]:
+        #         time = self.qubit_manager.active_receivers[root_qubit][key]
+        #         if time > end_time:
+        #             end_time = time
+        #     logger.debug(f"End time for root qubit {root_qubit} is {end_time}")
+        #     if end_time >= current_t:
+        #         if self.qubit_manager.linked_comm_qubits[root_qubit][p_root] != set():
+        #             for comm_root in self.qubit_manager.linked_comm_qubits[root_qubit][p_root]:
+        #                 self.qubit_manager.groups[root_qubit][p_root] = end_time
+        #                 break
+        #         else:
+        if p_root not in self.qubit_manager.linked_comm_qubits[root_qubit]:
+            if p_root in self.qubit_manager.groups[root_qubit]['final_gates']:
+                if self.qubit_manager.groups[root_qubit]['final_gates'][p_root] >= current_t:
+                    self.teleportation_manager.entangle_root_local(root_qubit, p_root)
+                    self.qubit_manager.groups[root_qubit]['linked_qubits'][p_root] = self.qubit_manager.linked_comm_qubits[root_qubit][p_root]
+        # self.comm_manager.linked_qubits[comm_root] = root_qubit
+        # self.qubit_manager.groups[root_qubit]['final_gates'][p_root] = end_time
+        # self.qubit_manager.relocated_receivers[root_qubit] = (p_root, end_time)
+        # logger.debug(f"Root qubit {root_qubit} is relocated to partition {p_root} at time {end_time}")
 
         self.teleportation_manager.teleport_qubits(old_assignment, new_assignment,
                                                     self.num_partitions, self.num_qubits)
@@ -1195,56 +1199,99 @@ class PartitionedCircuitExtractor:
         self.partition_assignment = full_assignment_copy
     
     def find_common_part(self, q0: int, q1: int) -> int:
-        group1_links = self.qubit_manager.groups[q0]['linked_qubits']
-        group2_links = self.qubit_manager.groups[q1]['linked_qubits']
-        common_p = None
-        for p in group1_links:
-            if p in group2_links:
-                common_p = p
-                break
-        return common_p
+        logger.debug(f'q0: {q0} assigned to {self.current_assignment[q0]}')
+        logger.debug(f'q1: {q1} assigned to {self.current_assignment[q1]}')
+
+
+        group0_links = self.qubit_manager.groups[q0]['linked_qubits']
+        logger.debug(f'group0 info: {self.qubit_manager.groups[q0]}')
+        logger.debug(f'Linked comms: {self.qubit_manager.linked_comm_qubits[q0]}')
+        group1_links = self.qubit_manager.groups[q1]['linked_qubits']
+        logger.debug(f'group1 info: {self.qubit_manager.groups[q1]}')
+        logger.debug(f'Linked comms: {self.qubit_manager.linked_comm_qubits[q1]}')
+
+        part_set0 = set()
+        for part in group0_links:
+            part_set0.add(int(part))
+        part_set1 = set()
+        for part in group1_links:
+            part_set1.add(int(part))
+
+        p0 = self.current_assignment[q0]
+        p1 = self.current_assignment[q1]
+
+        q0_phys = self.qubit_manager.log_to_phys_idx[q0]
+
+        if p0 in part_set1:
+            logger.debug(f'q0 in part_set1')
+            return q0_phys, self.qubit_manager.linked_comm_qubits[q1][p0]
+        if p1 in part_set0:
+            logger.debug(f'q1 in part_set0')
+            return self.qubit_manager.linked_comm_qubits[q0][p1], q1
+        for p0 in part_set0:
+            for p1 in part_set1:
+                if int(p0) == int(p1):
+                    logger.debug(f'Common partition found: {p0}')
+                    logger.debug(f'Linked comm qubit q0: {self.qubit_manager.linked_comm_qubits[q0][p0]}')
+                    logger.debug(f'Linked comm qubit q1: {self.qubit_manager.linked_comm_qubits[q1][p0]}')
+                    return self.qubit_manager.linked_comm_qubits[q0][p0], self.qubit_manager.linked_comm_qubits[q1][p0]
+        
+        return None, None
 
     def apply_non_local_two_qubit_gate(self, gate: dict, p_root: int, p1: int) -> None:
-        
+        logger.debug(f"[apply_non_local_two_qubit_gate] Applying non-local two-qubit gate {gate} between partitions {p_root} and {p1}")
         if p_root == p1:
+            logger.debug(f"[apply_non_local_two_qubit_gate] Gate occurs in the same partition {p_root}")
             self.apply_local_two_qubit_gate(gate)
+            return
+        
         root_q, q1 = gate['qargs']
-
         if root_q in self.qubit_manager.groups:
+            logger.debug(f"[apply_non_local_two_qubit_gate] Non local gate in group {root_q}")
             if p1 == self.qubit_manager.groups[root_q]['final_p_root']:
+                logger.debug(f"[apply_non_local_two_qubit_gate] Gate occurs in the final partition for the group - teleport root to this location and apply locally")
                 # Gate occurs in the final partition for the group - teleport root to this location and apply locally
                 self.teleport_root_early(gate, root_q, p_root, p1)
                 self.apply_local_two_qubit_gate(gate)
                 return
             else:
                 # Gate occurs in a non-local partition for the group
+                logger.debug(f"[apply_non_local_two_qubit_gate] Gate occurs in a non-local partition for the group")
                 if p1 in self.qubit_manager.groups[root_q]['linked_qubits']:
+                    logger.debug(f"[apply_non_local_two_qubit_gate] Communication qubit has been linked already")
                     # A communication qubit has been linked already
                     linked_root = self.qubit_manager.groups[root_q]['linked_qubits'][p1]
                     gate['qargs'] = [linked_root, gate['qargs'][1]]
                     self.apply_local_two_qubit_gate(gate)
-                    print(self.qubit_manager.groups[root_q]['final_gates'])
+                    logger.debug(f"Gates in group {self.qubit_manager.groups[root_q]['final_gates']}")
                     if gate['time'] == self.qubit_manager.groups[root_q]['final_gates'][p1]:
+                        logger.debug(f"[apply_non_local_two_qubit_gate] Ending entanglement link for linked comm qubit {linked_root} in partition {p1}")
                         # Final gate for this partition, end the link to free communication qubit capacity
                         self.teleportation_manager.end_entanglement_link(linked_root, p1)
                 else:
+                    logger.debug(f"[apply_non_local_two_qubit_gate] No linked communication qubits - check for relocated receivers")
                     if q1 in self.qubit_manager.groups:
-                        common_p = self.find_common_part(root_q,q1)
-                        if common_p is not None:
-                            linked_root = self.qubit_manager.groups[root_q]['linked_qubits'][common_p]
-                            linked_comm = self.qubit_manager.groups[q1]['linked_qubits'][common_p]
+                        logger.debug(f"Find common partition for gate between {root_q} and {q1}")
+                        qubits = self.find_common_part(root_q,q1)
+                        if qubits[0] is not None:
+                            linked_root, linked_comm = qubits
+                            logger.debug(f"[apply_non_local_two_qubit_gate] Common partition found, apply detached")
                             gate['qargs'] = [linked_root, linked_comm]
                             self.apply_local_two_qubit_gate(gate)
                             # if gate['time'] == self.qubit_manager.groups[root_q]['final_gates'][common_p]:
                             #     self.teleportation_manager.end_entanglement_link(linked_root, common_p)
-                            # return
+                            return
                     
+                    logger.debug(f"[apply_non_local_two_qubit_gate] Must entangle root qubit {root_q} with partition {p1}")
                     self.teleportation_manager.entangle_root(root_q, p_root, p1)
                     linked_root = self.qubit_manager.linked_comm_qubits[root_q][p1]
                     self.qubit_manager.groups[root_q]['linked_qubits'][p1] = linked_root
                     gate['qargs'] = [linked_root, gate['qargs'][1]]
                     self.apply_local_two_qubit_gate(gate)
+                    logger.debug(f"Gates in group {self.qubit_manager.groups[root_q]['final_gates']}")
+                    logger.debug(f"Gate time: {gate['time']}")
                     if gate['time'] == self.qubit_manager.groups[root_q]['final_gates'][p1]:
+                        logger.debug(f"[apply_non_local_two_qubit_gate] Ending entanglement link for linked comm qubit {linked_root} in partition {p1}")
                         self.teleportation_manager.end_entanglement_link(linked_root, p1)
 
     def process_group_gate(self, gate, t: int) -> None:
@@ -1258,14 +1305,13 @@ class PartitionedCircuitExtractor:
         final_t = sub_gates[-1]['time']
         final_p_root = int(self.partition_assignment[final_t][root_qubit])
         p_root_set = set()
-        for t in range(start_time, final_t):
-            p_root_set.add(int(self.partition_assignment[t][root_qubit]))
+        for i in range(start_time, final_t+1):
+            p_root_set.add(int(self.partition_assignment[i][root_qubit]))
 
         if sub_gates:
             self.qubit_manager.groups[root_qubit] = {}
 
             for sub_gate in sub_gates:
-
                 q0, q1 = sub_gate['qargs']
                 time_step = sub_gate['time']
                 p_rec = int(self.partition_assignment[time_step][q1])
@@ -1336,9 +1382,10 @@ class PartitionedCircuitExtractor:
             for q in range(self.num_qubits):
                 if self.current_assignment[q] != new_assignment_layer[q]:
                     if q in self.qubit_manager.groups:
-                        if self.current_assignment[q] in self.qubit_manager.groups[q]:
-                            if self.qubit_manager.groups[q][self.current_assignment[q]] >= int(i):
+                        if self.current_assignment[q] in self.qubit_manager.groups[q]['final_gates']:
+                            if self.qubit_manager.groups[q]['final_gates'][self.current_assignment[q]] >= int(i):
                                 self.teleportation_manager.entangle_root_local(q, self.current_assignment[q])
+                                self.qubit_manager.groups[q]['linked_qubits'][self.current_assignment[q]] = self.qubit_manager.linked_comm_qubits[q][self.current_assignment[q]]
 
             # If assignment changes for any qubit, we do a group teleport
             for q in range(self.num_qubits):
