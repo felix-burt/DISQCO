@@ -1,8 +1,5 @@
-# Multi-level Quantum Circuit Partitioning
+# DisQCO: Distributed Quantum Circuit Optimisation
 
-This repository provides a framework for partitioning quantum circuits into sub-circuits connected using only shared entanglement. Shared entanglement is used to facilitate quantum state teleportation, gate teleporation and multi-gate teleporation. A hypergraph approach is used to model the optimisation, while a multi-level variation of the Fiduccia-Mattheyses partitioning heuristic is adapted to the problem. 
+This repository provides tools for optimising distributed quantum circuits. The primary function is a partitioning tool, which uses a temporally extended hypergraph framework to model the problem of optimally choosing teleportations between partitions. The repopsitory includes an implementation of the Fiduccia-Mattheyses partitioning heuristic which has been adapted to fit the problem constraints. For larger circuits, a multi-level partitioner is available. This uses a coarsener to produce a sequence of coarsened versions of the orignal graph, where the FM heuristic is used to partition and refine at each level. A circuit extraction tool is also included which is integrated with IBM qiskit, through which we can extract a circuit from our partitioned hypergraph which splits qubits over multiple registers and handles all cross-register communication using shared entanglement and LOCC.
 
-This optimisation is integrated into the Qiskit SDK, and converts single-QPU quantum circuits into partitioned sub-circuits with minimal entanglement requirements.
-
-See notebooks in Demos folder for more information.
-
+For more information, see notebooks in the demos folder.

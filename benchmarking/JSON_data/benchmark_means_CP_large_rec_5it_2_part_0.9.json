@@ -1,0 +1,32 @@
+[
+  {
+    "num_qubits": 112,
+    "num_partitions": 2,
+    "mean_r_cost": 509.4,
+    "mean_r_time": 14.66283130645752
+  },
+  {
+    "num_qubits": 128,
+    "num_partitions": 2,
+    "mean_r_cost": 664.2,
+    "mean_r_time": 19.85298881530762
+  },
+  {
+    "num_qubits": 144,
+    "num_partitions": 2,
+    "mean_r_cost": 850.8,
+    "mean_r_time": 27.089752435684204
+  },
+  {
+    "num_qubits": 160,
+    "num_partitions": 2,
+    "mean_r_cost": 1026.2,
+    "mean_r_time": 35.08371348381043
+  },
+  {
+    "num_qubits": 176,
+    "num_partitions": 2,
+    "mean_r_cost": 1244.8,
+    "mean_r_time": 43.14690737724304
+  }
+]

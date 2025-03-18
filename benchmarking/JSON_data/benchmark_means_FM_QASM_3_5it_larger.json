@@ -1,0 +1,275 @@
+[
+  {
+    "circuit_name": "dnn_n51",
+    "num_qubits": 51,
+    "num_partitions": 2,
+    "mean_r_cost": 6.0,
+    "mean_r_time": 7.848028039932251
+  },
+  {
+    "circuit_name": "qft_n63",
+    "num_qubits": 63,
+    "num_partitions": 2,
+    "mean_r_cost": 31.0,
+    "mean_r_time": 36.21181817054749
+  },
+  {
+    "circuit_name": "cc_n64",
+    "num_qubits": 64,
+    "num_partitions": 2,
+    "mean_r_cost": 1.0,
+    "mean_r_time": 11.746350765228271
+  },
+  {
+    "circuit_name": "adder_n64",
+    "num_qubits": 64,
+    "num_partitions": 2,
+    "mean_r_cost": 2.8,
+    "mean_r_time": 17.858241271972656
+  },
+  {
+    "circuit_name": "cat_n65",
+    "num_qubits": 65,
+    "num_partitions": 2,
+    "mean_r_cost": 1.0,
+    "mean_r_time": 4.374249792098999
+  },
+  {
+    "circuit_name": "ising_n66",
+    "num_qubits": 66,
+    "num_partitions": 2,
+    "mean_r_cost": 1.0,
+    "mean_r_time": 0.25887250900268555
+  },
+  {
+    "circuit_name": "knn_n67",
+    "num_qubits": 67,
+    "num_partitions": 2,
+    "mean_r_cost": 1.0,
+    "mean_r_time": 12.921762037277222
+  },
+  {
+    "circuit_name": "bv_n70",
+    "num_qubits": 70,
+    "num_partitions": 2,
+    "mean_r_cost": 1.0,
+    "mean_r_time": 2.395720338821411
+  },
+  {
+    "circuit_name": "qugan_n71",
+    "num_qubits": 71,
+    "num_partitions": 2,
+    "mean_r_cost": 4.2,
+    "mean_r_time": 15.319243907928467
+  },
+  {
+    "circuit_name": "wstate_n76",
+    "num_qubits": 76,
+    "num_partitions": 2,
+    "mean_r_cost": 1.6,
+    "mean_r_time": 6.376563596725464
+  },
+  {
+    "circuit_name": "ghz_n78",
+    "num_qubits": 78,
+    "num_partitions": 2,
+    "mean_r_cost": 1.0,
+    "mean_r_time": 6.700771856307983
+  },
+  {
+    "circuit_name": "swap_test_n83",
+    "num_qubits": 83,
+    "num_partitions": 2,
+    "mean_r_cost": 1.0,
+    "mean_r_time": 25.173869466781618
+  },
+  {
+    "circuit_name": "ising_n98",
+    "num_qubits": 98,
+    "num_partitions": 2,
+    "mean_r_cost": 1.0,
+    "mean_r_time": 0.42261571884155275
+  },
+  {
+    "circuit_name": "dnn_n51",
+    "num_qubits": 51,
+    "num_partitions": 3,
+    "mean_r_cost": 10.4,
+    "mean_r_time": 11.11015772819519
+  },
+  {
+    "circuit_name": "qft_n63",
+    "num_qubits": 63,
+    "num_partitions": 3,
+    "mean_r_cost": 60.0,
+    "mean_r_time": 54.527468013763425
+  },
+  {
+    "circuit_name": "cc_n64",
+    "num_qubits": 64,
+    "num_partitions": 3,
+    "mean_r_cost": 2.0,
+    "mean_r_time": 16.257790517807006
+  },
+  {
+    "circuit_name": "adder_n64",
+    "num_qubits": 64,
+    "num_partitions": 3,
+    "mean_r_cost": 9.8,
+    "mean_r_time": 25.662267208099365
+  },
+  {
+    "circuit_name": "cat_n65",
+    "num_qubits": 65,
+    "num_partitions": 3,
+    "mean_r_cost": 2.0,
+    "mean_r_time": 6.100456094741821
+  },
+  {
+    "circuit_name": "ising_n66",
+    "num_qubits": 66,
+    "num_partitions": 3,
+    "mean_r_cost": 2.0,
+    "mean_r_time": 0.36180596351623534
+  },
+  {
+    "circuit_name": "knn_n67",
+    "num_qubits": 67,
+    "num_partitions": 3,
+    "mean_r_cost": 2.0,
+    "mean_r_time": 22.09427876472473
+  },
+  {
+    "circuit_name": "bv_n70",
+    "num_qubits": 70,
+    "num_partitions": 3,
+    "mean_r_cost": 2.0,
+    "mean_r_time": 3.118677568435669
+  },
+  {
+    "circuit_name": "qugan_n71",
+    "num_qubits": 71,
+    "num_partitions": 3,
+    "mean_r_cost": 11.4,
+    "mean_r_time": 21.30387372970581
+  },
+  {
+    "circuit_name": "wstate_n76",
+    "num_qubits": 76,
+    "num_partitions": 3,
+    "mean_r_cost": 3.0,
+    "mean_r_time": 8.806534624099731
+  },
+  {
+    "circuit_name": "ghz_n78",
+    "num_qubits": 78,
+    "num_partitions": 3,
+    "mean_r_cost": 2.0,
+    "mean_r_time": 9.110700845718384
+  },
+  {
+    "circuit_name": "swap_test_n83",
+    "num_qubits": 83,
+    "num_partitions": 3,
+    "mean_r_cost": 2.0,
+    "mean_r_time": 34.53150272369385
+  },
+  {
+    "circuit_name": "ising_n98",
+    "num_qubits": 98,
+    "num_partitions": 3,
+    "mean_r_cost": 2.0,
+    "mean_r_time": 0.5921819686889649
+  },
+  {
+    "circuit_name": "dnn_n51",
+    "num_qubits": 51,
+    "num_partitions": 4,
+    "mean_r_cost": 21.4,
+    "mean_r_time": 14.521136713027953
+  },
+  {
+    "circuit_name": "qft_n63",
+    "num_qubits": 63,
+    "num_partitions": 4,
+    "mean_r_cost": 93.0,
+    "mean_r_time": 75.20359835624694
+  },
+  {
+    "circuit_name": "cc_n64",
+    "num_qubits": 64,
+    "num_partitions": 4,
+    "mean_r_cost": 3.0,
+    "mean_r_time": 21.21597499847412
+  },
+  {
+    "circuit_name": "adder_n64",
+    "num_qubits": 64,
+    "num_partitions": 4,
+    "mean_r_cost": 12.4,
+    "mean_r_time": 33.91029109954834
+  },
+  {
+    "circuit_name": "cat_n65",
+    "num_qubits": 65,
+    "num_partitions": 4,
+    "mean_r_cost": 3.0,
+    "mean_r_time": 8.038679552078246
+  },
+  {
+    "circuit_name": "ising_n66",
+    "num_qubits": 66,
+    "num_partitions": 4,
+    "mean_r_cost": 3.0,
+    "mean_r_time": 0.5096925735473633
+  },
+  {
+    "circuit_name": "knn_n67",
+    "num_qubits": 67,
+    "num_partitions": 4,
+    "mean_r_cost": 6.0,
+    "mean_r_time": 29.24627628326416
+  },
+  {
+    "circuit_name": "bv_n70",
+    "num_qubits": 70,
+    "num_partitions": 4,
+    "mean_r_cost": 3.0,
+    "mean_r_time": 3.971790409088135
+  },
+  {
+    "circuit_name": "qugan_n71",
+    "num_qubits": 71,
+    "num_partitions": 4,
+    "mean_r_cost": 15.6,
+    "mean_r_time": 28.66229643821716
+  },
+  {
+    "circuit_name": "wstate_n76",
+    "num_qubits": 76,
+    "num_partitions": 4,
+    "mean_r_cost": 4.6,
+    "mean_r_time": 11.294401836395263
+  },
+  {
+    "circuit_name": "ghz_n78",
+    "num_qubits": 78,
+    "num_partitions": 4,
+    "mean_r_cost": 3.0,
+    "mean_r_time": 11.770430660247802
+  },
+  {
+    "circuit_name": "swap_test_n83",
+    "num_qubits": 83,
+    "num_partitions": 4,
+    "mean_r_cost": 6.0,
+    "mean_r_time": 53.284979295730594
+  },
+  {
+    "circuit_name": "ising_n98",
+    "num_qubits": 98,
+    "num_partitions": 4,
+    "mean_r_cost": 3.0,
+    "mean_r_time": 0.7954860210418702
+  }
+]

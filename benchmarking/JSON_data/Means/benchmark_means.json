@@ -1,0 +1,93 @@
+[
+  {
+    "num_qubits": 88,
+    "num_partitions": 11,
+    "fraction": 0.9,
+    "mean_init_cost": 905.2,
+    "mean_vc_cost": 1474.8,
+    "mean_steiner_cost": 1474.8,
+    "mean_detached_cost": 1071.8,
+    "mean_init_time": 5.935128831863404,
+    "mean_vc_time": 202.2718441963196,
+    "mean_steiner_time": 387.1577453613281,
+    "mean_detached_time": 30.01051869392395
+  },
+  {
+    "num_qubits": 96,
+    "num_partitions": 12,
+    "fraction": 0.9,
+    "mean_init_cost": 1127.4,
+    "mean_vc_cost": 1838.2,
+    "mean_steiner_cost": 1838.2,
+    "mean_detached_cost": 1331.4,
+    "mean_init_time": 7.783886241912842,
+    "mean_vc_time": 318.85261545181277,
+    "mean_steiner_time": 583.8872047424317,
+    "mean_detached_time": 42.9482524394989
+  },
+  {
+    "num_qubits": 96,
+    "num_partitions": 12,
+    "fraction": 0.3,
+    "mean_init_cost": 1000.6,
+    "mean_vc_cost": 1025.0,
+    "mean_steiner_cost": 1025.0,
+    "mean_detached_cost": 991.4,
+    "mean_init_time": 1.7737927436828613,
+    "mean_vc_time": 75.61994700431823,
+    "mean_steiner_time": 43.778187942504886,
+    "mean_detached_time": 1.074995994567871
+  },
+  {
+    "num_qubits": 96,
+    "num_partitions": 12,
+    "fraction": 0.5,
+    "mean_init_cost": 1544.2,
+    "mean_vc_cost": 1698.2,
+    "mean_steiner_cost": 1698.2,
+    "mean_detached_cost": 1554.4,
+    "mean_init_time": 3.8527973175048826,
+    "mean_vc_time": 215.74871921539307,
+    "mean_steiner_time": 496.56287665367125,
+    "mean_detached_time": 3.4488460540771486
+  },
+  {
+    "num_qubits": 96,
+    "num_partitions": 12,
+    "fraction": 0.3,
+    "mean_init_cost": 999.6,
+    "mean_vc_cost": 1021.6,
+    "mean_steiner_cost": 1021.6,
+    "mean_detached_cost": 993.4,
+    "mean_init_time": 1.7355512142181397,
+    "mean_vc_time": 73.50296630859376,
+    "mean_steiner_time": 41.19443244934082,
+    "mean_detached_time": 0.9894777297973633
+  },
+  {
+    "num_qubits": 96,
+    "num_partitions": 12,
+    "fraction": 0.5,
+    "mean_init_cost": 1539.0,
+    "mean_vc_cost": 1697.4,
+    "mean_steiner_cost": 1697.4,
+    "mean_detached_cost": 1550.4,
+    "mean_init_time": 3.752411699295044,
+    "mean_vc_time": 207.73192224502563,
+    "mean_steiner_time": 175.656485080719,
+    "mean_detached_time": 3.3416645526885986
+  },
+  {
+    "num_qubits": 96,
+    "num_partitions": 12,
+    "fraction": 0.7,
+    "mean_init_cost": 1714.8,
+    "mean_vc_cost": 2137.4,
+    "mean_steiner_cost": 2137.4,
+    "mean_detached_cost": 1778.6,
+    "mean_init_time": 6.40035924911499,
+    "mean_vc_time": 354.7514384746552,
+    "mean_steiner_time": 405.8050618171692,
+    "mean_detached_time": 8.600094318389893
+  }
+]
