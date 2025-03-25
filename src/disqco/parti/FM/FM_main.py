@@ -1,6 +1,6 @@
 import time
 from disqco.graphs.hypergraph_methods import *
-from disqco.partitioning.FM.FM_methods import *
+from disqco.parti.FM.FM_methods import *
 import copy
 
 def FM_pass(hypergraph,
@@ -8,8 +8,8 @@ def FM_pass(hypergraph,
             assignment,
             num_partitions,
             qpu_info, 
-            costs, 
-            limit, 
+            costs,
+            limit,
             active_nodes):
         
         spaces = find_spaces(assignment,qpu_info)
@@ -60,7 +60,7 @@ def run_FM(
     qpu_info,
     num_partitions,
     limit,
-    max_gain=None,
+    max_gain=4,
     passes=100,
     stochastic=True,
     active_nodes=None,
@@ -75,8 +75,9 @@ def run_FM(
     initial_assignment = np.array(initial_assignment)
 
     initial_cost = calculate_full_cost(hypergraph, initial_assignment, num_partitions, costs)
-    if active_nodes is not None:
+    if active_nodes is None:
         active_nodes = hypergraph.nodes
+
     
     if log:
         print("Initial cost:", initial_cost)

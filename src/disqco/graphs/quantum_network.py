@@ -18,11 +18,14 @@ class QuantumNetwork():
     
     def draw(self,):
         node_sizes = [20*self.qpu_graph.nodes[i]['size'] for i in self.qpu_graph.nodes]
-        nx.draw(self.qpu_graph, with_labels=True, node_size=node_sizes)
+        node_colors = [self.qpu_graph.nodes[i]['color'] if 'color' in self.qpu_graph.nodes[i] else 'green' for i in self.qpu_graph.nodes]
+        nx.draw(self.qpu_graph, with_labels=True, node_size=node_sizes, node_color=node_colors)
         plt.show()
 
     def multi_source_bfs(self, roots, receivers):
         graph = self.qpu_graph
+        print("roots", roots)
+        print("receivers", receivers)
 
         visited = set()
         parent = dict()   # parent[v] = the node from which we discovered v
@@ -62,9 +65,16 @@ class QuantumNetwork():
         return chosen_edges
 
 
-    def steiner_forest(self, root_config, rec_config):
-        root_nodes = [i for i, element in enumerate(root_config) if element == 1]
-        rec_nodes = [i for i, element in enumerate(rec_config) if element == 1]
+    def steiner_forest(self, root_config, rec_config, node_map=None):
+        print("root_config", root_config)
+        print("rec_config", rec_config)
+        if node_map is not None:
+            root_nodes = [node_map[i] for i in range(len(root_config)) if root_config[i] == 1]
+            rec_nodes = [node_map[i] for i in range(len(rec_config)) if rec_config[i] == 1]
+        else:
+            root_nodes = [i for i, element in enumerate(root_config) if element == 1]
+            rec_nodes = [i for i, element in enumerate(rec_config) if element == 1]
         edges = self.multi_source_bfs(root_nodes, rec_nodes)
         cost = len(edges)
+        
         return edges, cost

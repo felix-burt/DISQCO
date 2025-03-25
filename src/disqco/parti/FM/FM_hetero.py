@@ -1,6 +1,6 @@
 import time
 from disqco.graphs.hypergraph_methods import *
-from disqco.partitioning.FM.FM_methods import *
+from disqco.parti.FM.FM_methods import *
 import copy
 
 def FM_pass_hetero(hypergraph,
@@ -11,7 +11,8 @@ def FM_pass_hetero(hypergraph,
             costs, 
             limit, 
             active_nodes,
-            network = None):
+            network = None,
+            node_map = None):
         
         spaces = find_spaces(assignment,qpu_info)
         hypergraph = map_counts_and_configs_hetero(hypergraph,assignment,num_partitions,costs)
@@ -68,15 +69,17 @@ def run_FM_hetero(
     log = False,
     add_initial = False,
     costs = None,
-    network = None
+    network = None,
+    node_map = None,
 ):
     if costs is None:
         configs = get_all_configs(num_partitions)
-        costs, edge_trees = get_all_costs_hetero(network, configs)
+        costs, edge_trees = get_all_costs_hetero(network, configs, node_map=node_map)
 
     initial_assignment = np.array(initial_assignment)
 
-    initial_cost = calculate_full_cost_hetero(hypergraph, initial_assignment, num_partitions, costs)
+
+    initial_cost = calculate_full_cost_hetero(hypergraph, initial_assignment, num_partitions, costs, network=network)
     if active_nodes is not None:
         active_nodes = hypergraph.nodes
     
@@ -93,7 +96,7 @@ def run_FM_hetero(
         # print(f"Pass number: {n}")
         assignment_list, gain_list = FM_pass_hetero(
             hypergraph, max_gain, initial_assignment,
-            num_partitions, qpu_info, costs, limit, active_nodes = active_nodes, network = network
+            num_partitions, qpu_info, costs, limit, active_nodes = active_nodes, network = network, node_map=node_map
         )
 
         # Decide how to pick new assignment depending on stochastic or not

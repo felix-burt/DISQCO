@@ -60,7 +60,7 @@ class TeleportationManager:
         circ.x(2).c_if(0, 1)
 
         instr = circ.to_instruction()
-        instr.name = "entangle_root"
+        instr.name = "Entangle Root"
         return instr
     
     def build_end_entanglement_circuit(self) -> QuantumCircuit:
@@ -71,7 +71,7 @@ class TeleportationManager:
         circ.z(0).c_if(0, 1)
 
         instr = circ.to_instruction()
-        instr.name = "end_entanglement_link"
+        instr.name = "Disentangle Root"
         return instr
 
     def build_teleporation_circuit(self) -> QuantumCircuit:
@@ -88,7 +88,7 @@ class TeleportationManager:
         circ.x(2).c_if(1, 1)
         circ.z(2).c_if(0, 1)
 
-        instr = circ.to_instruction(label="state_teleport")
+        instr = circ.to_instruction(label="State Teleportation")
         return instr
 
     def build_gate_teleportation_circuit(self, gate_params) -> QuantumCircuit:
@@ -100,7 +100,7 @@ class TeleportationManager:
         entanglement_end_circuit = self.build_end_entanglement_circuit()
         circ.append(entanglement_end_circuit, [0, 2], [0])
 
-        instr = circ.to_instruction(label="gate_teleport")
+        instr = circ.to_instruction(label="Gate Teleportation")
         return instr
 
     def generate_epr(self, p1: int, p2: int, comm_id1: Qubit = None, comm_id2: Qubit = None) -> tuple[Qubit, Qubit]:
@@ -152,7 +152,10 @@ class TeleportationManager:
         logger.debug(f"[entangle_root_local] Local entanglement of root qubit {root_q} and comm qubit in partition {root_part}")
         root_phys = self.qubit_manager.log_to_phys_idx[root_q]
         linked_root = self.comm_manager.find_comm_idx(root_part)
-        self.qc.cx(root_phys, linked_root)
+        circ = QuantumCircuit(2)
+        circ.cx(0, 1)
+        instr = circ.to_instruction(label="Entangle Root Local")
+        self.qc.append(instr, [root_phys, linked_root])
         self.qubit_manager.linked_comm_qubits[root_q][root_part] = linked_root
         self.comm_manager.linked_qubits[linked_root] = root_q
 
@@ -393,18 +396,18 @@ class PartitionedCircuitExtractor:
         partition_qregs = []
         for i in range(self.num_partitions):
             size_i = self.qpu_info[i]
-            qr = QuantumRegister(size_i, name=f"part{i}_data")
+            qr = QuantumRegister(size_i, name=f"Q{i}_q")
             partition_qregs.append(qr)
         return partition_qregs
 
     def create_comm_qregs(self) -> dict[int, list[QuantumRegister]]:
         comm_qregs = {}
         for i in range(self.num_partitions):
-            comm_qregs[i] = [QuantumRegister(self.comm_info[i], name=f"comm_{i}_{0}")]
+            comm_qregs[i] = [QuantumRegister(self.comm_info[i], name=f"C{i}_{0}")]
         return comm_qregs
 
     def create_classical_registers(self) -> tuple[ClassicalRegister, ClassicalRegister]:
-        creg = ClassicalRegister(2, name="c")
+        creg = ClassicalRegister(2, name="cl")
         result_reg = ClassicalRegister(self.num_qubits, name="result")
         return creg, result_reg
 
@@ -637,15 +640,16 @@ class PartitionedCircuitExtractor:
             self.qubit_manager.groups[root_qubit] = {}
 
             for sub_gate in sub_gates:
-                q0, q1 = sub_gate['qargs']
-                time_step = sub_gate['time']
-                p_rec = int(self.partition_assignment[time_step][q1])
-                p_rec_set.add(p_rec)
-                if p_rec != final_p_root:
-                    if p_rec not in final_gates:
-                        final_gates[p_rec] = time_step
-                    else:
-                        final_gates[p_rec] = max(final_gates[p_rec], time_step)
+                if sub_gate['type'] == 'two-qubit':
+                    q0, q1 = sub_gate['qargs']
+                    time_step = sub_gate['time']
+                    p_rec = int(self.partition_assignment[time_step][q1])
+                    p_rec_set.add(p_rec)
+                    if p_rec != final_p_root:
+                        if p_rec not in final_gates:
+                            final_gates[p_rec] = time_step
+                        else:
+                            final_gates[p_rec] = max(final_gates[p_rec], time_step)
 
             self.qubit_manager.groups[root_qubit]['final_gates'] = final_gates
 

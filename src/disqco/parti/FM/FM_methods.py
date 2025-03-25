@@ -565,7 +565,6 @@ def take_action_and_update(hypergraph,node,destination,array,buckets,num_partiti
 
 def take_action_and_update_dict(hypergraph,node,destination,array,buckets,num_partitions,lock_dict,assignment,costs):
     assignment_new = move_node(node,destination,assignment)
-    # print("Destination", destination)
     delta_gains = {}
     for edge in hypergraph.node2hyperedges[node]:
         
@@ -577,21 +576,15 @@ def take_action_and_update_dict(hypergraph,node,destination,array,buckets,num_pa
         cost_new = hedge_to_cost(hypergraph,edge,assignment_new,num_partitions,costs)
         
         root_counts = info['root_counts']
-        # print("Root counts", root_counts)
         rec_counts = info['rec_counts']
-        # print("Receiver counts", rec_counts)
         if node in root_set:
             root_counts_new, source = update_counts(root_counts,node,destination,assignment)
-            # print("Root counts new", root_counts_new)
             root_config_new = update_config(info['root_config'],root_counts_new,source,destination)
-            # print("Root config new", root_config_new)
             rec_counts_new = tuple(copy.deepcopy(list(rec_counts)))
             rec_config_new = tuple(copy.deepcopy(list(info['rec_config'])))
         elif node in rec_set:
             rec_counts_new, source = update_counts(rec_counts,node,destination,assignment)
-            # print("Receiver counts new", rec_counts_new)
             rec_config_new = update_config(info['rec_config'],rec_counts_new,source,destination)
-            # print("Receiver config new", rec_config_new)
             root_counts_new = tuple(copy.deepcopy(list(root_counts)))
             root_config_new = tuple(copy.deepcopy(list(info['root_config'])))
         
@@ -611,10 +604,8 @@ def take_action_and_update_dict(hypergraph,node,destination,array,buckets,num_pa
         rec_config_a = rec_config_new
 
         for next_root_node in root_set:
-            # print(f'Next root node {next_root_node}')
             source = assignment[next_root_node[1]][next_root_node[0]]
             if not lock_dict[next_root_node]:
-                # print('Not locked')
                 for next_destination in range(num_partitions):
                     if source != next_destination:
                         next_action = (next_root_node[1], next_root_node[0], next_destination)
@@ -636,10 +627,8 @@ def take_action_and_update_dict(hypergraph,node,destination,array,buckets,num_pa
                             delta_gains[next_action] = delta_gain
 
         for next_rec_node in rec_set:
-            # print(f'Next receiver node {next_rec_node}')
             source = assignment[next_rec_node[1]][next_rec_node[0]]
             if not lock_dict[next_rec_node]:
-                # print('Not locked')
                 for next_destination in range(num_partitions):
                     if source != next_destination:
                         next_action = (next_rec_node[1], next_rec_node[0], next_destination)
@@ -669,13 +658,9 @@ def take_action_and_update_dict(hypergraph,node,destination,array,buckets,num_pa
             
 
     for action in delta_gains:
-        # print(f'Action {action} Gain change {delta_gains[action]}')
         i = delta_gains[action]
         old_gain = array[action]
-        # print(f'Old gain {old_gain}')
-        # print(f'New gain {old_gain - i}')
         if action in buckets[old_gain]:
-            # print(f'Old gain in bucket - remove and add to {old_gain - i}')
             buckets[old_gain].remove(action)
             buckets[old_gain - i].add(action)
             
@@ -686,54 +671,6 @@ def take_action_and_update_dict_simple(hypergraph,node,destination,array,buckets
     assignment_new = move_node(node,destination,assignment)
     # print("Destination", destination)
     node_set = set()
-    # for edge in hypergraph.node2hyperedges[node]:
-        
-    #     info = hypergraph.hyperedge_attrs[edge]
-    #     root_set = hypergraph.hyperedges[edge]['root_set']
-    #     rec_set = hypergraph.hyperedges[edge]['receiver_set']
-    #     # print("Info", info)
-    #     root_counts = info['root_counts']
-    #     # print("Root counts", root_counts)
-    #     rec_counts = info['rec_counts']
-    #     # print("Receiver counts", rec_counts)
-    #     if node in root_set:
-    #         root_counts_new, source = update_counts(root_counts,node,destination,assignment)
-    #         # print("Root counts new", root_counts_new)
-    #         root_config_new = update_config(info['root_config'],root_counts_new,source,destination)
-    #         # print("Root config new", root_config_new)
-    #         rec_counts_new = tuple(copy.deepcopy(list(rec_counts)))
-    #         rec_config_new = tuple(copy.deepcopy(list(info['rec_config'])))
-
-    #     elif node in rec_set:
-    #         rec_counts_new, source = update_counts(rec_counts,node,destination,assignment)
-    #         # print("Receiver counts new", rec_counts_new)
-    #         rec_config_new = update_config(info['rec_config'],rec_counts_new,source,destination)
-    #         # print("Receiver config new", rec_config_new)
-    #         root_counts_new = tuple(copy.deepcopy(list(root_counts)))
-    #         root_config_new = tuple(copy.deepcopy(list(info['root_config'])))
-        
-    #     conf_a = get_full_config(root_config_new,rec_config_new)
-    #     cost_a = costs[conf_a]
-
-    #     for node in root_set:
-    #         for dest in range(num_partitions):
-    #             if assignment[node[1]][node[0]] != dest:
-    #                 action = (node[1],node[0],dest)
-    #                 if action in array:
-    #                     gains[action] =  0
-    #     for node in rec_set:
-    #         for dest in range(num_partitions):
-    #             if assignment[node[1]][node[0]] != dest:
-    #                 action = (node[1],node[0],dest)
-    #                 if action in array:
-    #                     gains[action] =  0
-
-    #     hypergraph.set_hyperedge_attribute(edge, 'cost', cost_a)
-    #     hypergraph.set_hyperedge_attribute(edge, 'root_counts', root_counts_new)
-    #     hypergraph.set_hyperedge_attribute(edge, 'rec_counts', rec_counts_new)
-    #     hypergraph.set_hyperedge_attribute(edge, 'root_config', root_config_new)
-    #     hypergraph.set_hyperedge_attribute(edge, 'rec_config', rec_config_new)
-    #     hypergraph.set_hyperedge_attribute(edge, 'config', conf_a)
     edges = hypergraph.node2hyperedges[node]
 
     for edge in edges:
@@ -754,35 +691,6 @@ def take_action_and_update_dict_simple(hypergraph,node,destination,array,buckets
                         buckets[old_gain].remove((node[1], node[0], dest))
                         buckets[gain].add((node[1], node[0], dest))
 
-            
-
-            
-
-    # for action in delta_gains:
-    #     # print(f'Action {action} Gain change {delta_gains[action]}')
-    #     i = delta_gains[action]
-    #     node = (action[1],action[0])
-    #     destination = action[2]
-    #     test_gain = find_gain(hypergraph,node,destination,assignment,num_partitions,costs)
-
-    #     if i != test_gain:
-    #         print(f'Error - gain for moving qubit {node[1]} at time {node[0]} to partition {destination} should give {test_gain}')
-    #         print(f'Instead gives {i}')
-    #         check_value = find_gain(hypergraph,node,destination,assignment,num_partitions,costs,log=True)
-    #         print(check_value)
-    #         # print(buckets[correct_value])
-    #         # print(buckets[value])
-
-    #         # print(log_strings[(i,j,k)])
-    #     old_gain = array[action]
-    #     # print(f'Old gain {old_gain}')
-    #     # print(f'New gain {old_gain - i}')
-    #     if action in buckets[old_gain]:
-    #         # print(f'Old gain in bucket - remove and add to {old_gain - i}')
-    #         buckets[old_gain].remove(action)
-    #         buckets[i].add(action)
-            
-    #     array[action] = i
     return assignment_new, array, buckets
 
 def take_action_and_update_dict_counts(hypergraph,node,destination,array,buckets,num_partitions,lock_dict,assignment,costs):

@@ -1,6 +1,6 @@
 import numpy as np
-from disqco.partitioning.FM.FM_main import run_FM
-from disqco.partitioning.FM.FM_methods import get_all_configs, get_all_costs, calculate_full_cost
+from disqco.parti.FM.FM_main import run_FM
+from disqco.parti.FM.FM_methods import get_all_configs, get_all_costs, calculate_full_cost
 from disqco.graphs.coarsening.coarsener import HypergraphCoarsener
 import time
 
@@ -112,7 +112,7 @@ def multilevel_FM(coarsened_hypergraphs,
     return list_of_assignments, list_of_costs, list_of_times
 
 from disqco.graphs.hypergraph_methods import get_all_costs_hetero, calculate_full_cost_hetero
-from disqco.partitioning.FM.FM_hetero import run_FM_hetero
+from disqco.parti.FM.FM_hetero import run_FM_hetero
 from networkx import diameter
 import copy
 
@@ -128,12 +128,13 @@ def multilevel_FM_hetero(coarsened_hypergraphs,
                 add_initial = False,
                 costs = None,
                 level_limit = None,
-                network = None):
+                network = None,
+                node_map = None):
 
     num_partitions = len(qpu_info)
     if costs is None:
         configs = get_all_configs(num_partitions)
-        costs, edge_tree = get_all_costs_hetero(network, configs)
+        costs, edge_tree = get_all_costs_hetero(network, configs, node_map=node_map)
 
     list_of_assignments = []
     list_of_assignments.append(initial_assignment)
@@ -339,7 +340,8 @@ def MLFM_recursive_hetero(graph,
                 add_initial = False,
                 costs = None,
                 level_limit = None,
-                network = None):
+                network = None,
+                node_map = None):
 
     coarsener = HypergraphCoarsener()
     graph_list, mapping_list = coarsener.coarsen_recursive_batches(graph)
@@ -369,7 +371,8 @@ def MLFM_recursive_hetero(graph,
                                             add_initial = add_initial,
                                             costs = costs,
                                             level_limit = level_limit,
-                                            network=network)
+                                            network=network,
+                                            node_map = node_map)
 
     return assignment_list, cost_list, time_list
 

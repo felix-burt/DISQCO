@@ -62,7 +62,7 @@ class CommunicationQubitManager:
         else:
             # Create a new communication qubit by adding a new register
             num_regs_p = len(self.comm_qregs[p])
-            new_reg = QuantumRegister(1, name=f"comm_{p}_{num_regs_p}")
+            new_reg = QuantumRegister(1, name=f"C{p}_{num_regs_p}")
             self.comm_qregs[p].append(new_reg)
             self.qc.add_register(new_reg)
             comm_qubit = new_reg[0]
@@ -146,7 +146,7 @@ class ClassicalBitManager:
         if len(self.free_cbit) == 0:
             # Add a new classical register of size 1
             idx = len(self.creg)
-            new_creg = ClassicalRegister(1, name=f"c_{idx}")
+            new_creg = ClassicalRegister(1, name=f"cl_{idx}")
             self.qc.add_register(new_creg)
             self.creg = new_creg
             self.free_cbit.append(new_creg[0])

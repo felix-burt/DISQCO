@@ -13,12 +13,12 @@ def config_to_cost(config : tuple[int]) -> int:
             cost += 1
     return cost
 
-def get_all_costs_hetero(network : QuantumNetwork, configs : list[tuple[int]]) -> tuple[dict[tuple[tuple[int],tuple[int]] : int], dict[tuple[tuple[int],tuple[int]]] : list[tuple[int]]]:
+def get_all_costs_hetero(network : QuantumNetwork, configs : list[tuple[int]], node_map = None) -> tuple[dict[tuple[tuple[int],tuple[int]] : int], dict[tuple[tuple[int],tuple[int]]] : list[tuple[int]]]:
     costs = {}
     edge_trees = {}
     for root_config in configs:
         for rec_config in configs:
-            edges, cost = network.steiner_forest(root_config, rec_config)
+            edges, cost = network.steiner_forest(root_config, rec_config, node_map=node_map)
             costs[(root_config, rec_config)] = cost
             edge_trees[(root_config, rec_config)] = edges
     return costs, edge_trees
@@ -153,12 +153,18 @@ def calculate_full_cost(hypergraph,assignment,num_partitions,costs=None):
         cost += edge_cost
     return cost
 
-def calculate_full_cost_hetero(hypergraph,assignment,num_partitions,costs):
+def calculate_full_cost_hetero(hypergraph,assignment,num_partitions,costs,network=None, node_map=None):
     cost = 0
     for edge in hypergraph.hyperedges:
         root_counts,rec_counts = hedge_k_counts(hypergraph,edge,assignment,num_partitions)
         root_config,rec_config = counts_to_configs(root_counts,rec_counts)
-        edge_cost = costs[(root_config,rec_config)]
+        if (root_config, rec_config) in costs:
+            edge_cost = costs[(root_config,rec_config)]
+        else:
+            edges, edge_cost = network.steiner_forest(root_config, rec_config, node_map=node_map)
+            print("edges", edges)
+            print("edge cost", edge_cost)
+            costs[(root_config, rec_config)] = edge_cost
         cost += edge_cost
     return cost
 

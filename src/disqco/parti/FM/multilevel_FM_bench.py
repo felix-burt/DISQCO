@@ -1,6 +1,6 @@
 import numpy as np
-from disqco.partitioning.FM.FM_main import run_FM_bench
-from disqco.partitioning.FM.FM_methods import get_all_configs, get_all_costs, calculate_full_cost
+from disqco.parti.FM.FM_main import run_FM_bench
+from disqco.parti.FM.FM_methods import get_all_configs, get_all_costs, calculate_full_cost
 from disqco.graphs.coarsening.coarsener import HypergraphCoarsener
 import time
 import copy
@@ -127,7 +127,7 @@ def multilevel_FM_bench(coarsened_hypergraphs,
     return list_of_assignments, list_of_costs, list_of_times, pass_time_list,pass_cost_list
 
 from disqco.graphs.hypergraph_methods import get_all_costs_hetero, calculate_full_cost_hetero
-from disqco.partitioning.FM.FM_hetero import run_FM_hetero
+from disqco.parti.FM.FM_hetero import run_FM_hetero
 from networkx import diameter
 
 def multilevel_FM_hetero(coarsened_hypergraphs,

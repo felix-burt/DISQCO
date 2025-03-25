@@ -1,4 +1,4 @@
-from DISQCO.partitioning.fgp.circuit_to_graph import *
+from disqco.parti.fgp.circuit_to_graph import *
 import networkx as nx
 import numpy as np
 import matplotlib.pyplot as plt

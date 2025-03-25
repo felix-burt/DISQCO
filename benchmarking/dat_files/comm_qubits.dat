@@ -1,0 +1,6 @@
+# num_qubits	depth_ungrouped	depth_grouped	comm_qubits_ungrouped	comm_qubits_grouped
+16	251.0	79.2	3.1	8.1
+24	389.1	122.7	3.6	12.5
+32	515.8	182.9	3.9	16.3
+40	689.5	224.4	4.2	20.5
+48	833.3	272.5	5.3	24.4

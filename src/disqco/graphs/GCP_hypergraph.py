@@ -82,6 +82,26 @@ class QuantumCircuitHyperGraph:
         # Remove the hyperedge itself
         del self.hyperedges[edge_id]
         del self.hyperedge_attrs[edge_id]
+    
+    def remove_node_from_hyperedge(self, node, edge_id):
+        """
+        Remove a node from a hyperedge.
+        """
+        if edge_id not in self.hyperedges:
+            raise KeyError(f"Hyperedge {edge_id} does not exist")
+        
+        # Remove the node from the hyperedge
+        edge_data = self.hyperedges[edge_id]
+        if node in edge_data['root_set']:
+            edge_data['root_set'].remove(node)
+        elif node in edge_data['receiver_set']:
+            edge_data['receiver_set'].remove(node)
+        else:
+            raise KeyError(f"Node {node} is not part of hyperedge {edge_id}")
+        
+        # Update the node2hyperedges mapping
+        self.node2hyperedges[node].remove(edge_id)
+        self.adjacency[node].discard(edge_id)
 
     def add_time_neighbor_edges(self, depth, qubits):
         """
