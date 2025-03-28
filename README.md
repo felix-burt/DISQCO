@@ -27,3 +27,7 @@ Coming soon
 ## Intra-QPU compilation and virtual DQC
 
 Coming soon
+
+### Installation
+
+While this repository is very much a work in progress, the current version can be installed by cloning the repository and runnning "pip install ." from the DISQCO directory using the terminal. The current dependencies are: ["numpy==2.2.3", "qiskit==1.2.4", "qiskit-aer==0.15.1", "qiskit-qasm3-import==0.5.1", "networkx", "matplotlib", "pylatexenc", "jupyter-tikz", "ipykernel"] and will be installed along with disqco.
