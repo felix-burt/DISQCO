@@ -122,7 +122,7 @@ def calculate_weighted_cut(graph,partition):
             cut += graph.edges()[edge]['weight']
     return cut
 
-def set_initial_partition(qpu_info,num_partitions,invert=False):
+def set_initial_partition_fgp(qpu_info,num_partitions,invert=False):
     static_partition = []
     for n in range(num_partitions):
         for k in range(qpu_info[n]):
@@ -320,7 +320,7 @@ def find_starting_assignment(initial_search_size,qpu_info,graph,num_layers,rando
                 reverse = False)
         best_candidate = sorted_population[0]
     else:
-        best_candidate = set_initial_partition(qpu_info,num_partitions=len(qpu_info))
+        best_candidate = set_initial_partition_fgp(qpu_info,num_partitions=len(qpu_info))
     
     mapping = [n for n in range(np.sum(qpu_info))]
     best_cost = calculate_static_cut(best_candidate,graph)
