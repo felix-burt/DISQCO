@@ -51,6 +51,13 @@ class HypergraphCoarsener:
 
             if new_node not in H_new.nodes:
                 H_new.nodes.add(new_node)
+            
+            old_node_type = H_new.get_node_attribute(old_node, "type")
+            new_node_type = H_new.get_node_attribute(new_node, "type")
+
+            if old_node_type != None and new_node_type != None:
+                H_new.set_node_attribute(new_node, "type", 'two-qubit')
+
 
             edges_to_remove = []
             for e_id in list(H_new.node2hyperedges[old_node]):
@@ -195,14 +202,14 @@ class HypergraphCoarsener:
         depth = hypergraph.depth
         layer = depth - 1
         H_list = []
-        H_list.append(copy.deepcopy(hypergraph))
+        H_list.append(hypergraph.copy())
         block_size = depth // num_levels
         # Initialise list of contraction mappings for each layer, indicating which node IDs are merged
         mapping_list = []
         mapping = {i: set([i]) for i in range(depth)}
         mapping_list.append(copy.deepcopy(mapping))
         level = 0
-        H_current = copy.deepcopy(hypergraph)
+        H_current = hypergraph.copy()
         while layer > 0 and level < num_levels:
             H_current, mapping = self.coarsen_region(H_current, mapping, layer, max(layer - block_size,0))
             mapping_list.append(copy.deepcopy(mapping))
@@ -274,12 +281,12 @@ class HypergraphCoarsener:
         :param num_blocks: The number of blocks to coarsen into.
         :return: A list of hypergraphs [H_0, H_1, ..., H_num_blocks]
         """
-        # This version is the function you wrote, but it's incomplete or a WIP.
-        # We'll leave it as is, or adapt as you wish.
-        H_list = [hypergraph]
-        H_current = copy.deepcopy(hypergraph)
+        
+        H_init = hypergraph.copy()
 
-        depth = hypergraph.depth  # or however you store 'depth'
+        H_list = [H_init]
+
+        depth = hypergraph.depth  
         if block_size is None:
             block_size = depth // num_blocks
         else:
@@ -289,7 +296,7 @@ class HypergraphCoarsener:
         mapping_list = []
         mapping = {i: set([i]) for i in range(depth)}
         mapping_list.append(copy.deepcopy(mapping))
-
+        H_current = hypergraph.copy()
         while start_layer > depth - block_size:
             layer = start_layer
             while layer > 0:
@@ -319,8 +326,11 @@ class HypergraphCoarsener:
         Another approach to iterative coarsening, using a 'mapping'
         structure that indicates how layers should be merged. 
         """
-        H_list = [hypergraph]
-        H_current = copy.deepcopy(hypergraph)
+        
+        H_init = hypergraph.copy()
+        H_list = [H_init]
+        H_current = hypergraph.copy()
+
 
         super_nodes = sorted(list(mapping.keys()), reverse=True)
         mapping_list = [copy.deepcopy(mapping)]
@@ -347,10 +357,11 @@ class HypergraphCoarsener:
                 mapping_list is a list of layer-mappings after each pass.
         """
         H_current = copy.deepcopy(hypergraph)
+        H_init = copy.deepcopy(hypergraph)
         depth = H_current.depth
         mapping = {i: set([i]) for i in range(depth)}
 
-        H_list = [H_current]
+        H_list = [H_init]
         mapping_list = [copy.deepcopy(mapping)]
         while True:
             # Identify current max layer
