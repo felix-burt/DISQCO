@@ -3,9 +3,12 @@ import matplotlib.pyplot as plt
 from collections import deque
 
 class QuantumNetwork():
-    def __init__(self, qpu_sizes, qpu_connectivity):
+    def __init__(self, qpu_sizes, qpu_connectivity = None):
         self.qpu_sizes = qpu_sizes
-        self.qpu_connectivity = qpu_connectivity
+        if qpu_connectivity is None:
+            self.qpu_connectivity = [(i, j) for i in range(len(qpu_sizes)) for j in range(i+1, len(qpu_sizes))]
+        else:
+            self.qpu_connectivity = qpu_connectivity
         self.qpu_graph = self.create_qpu_graph()
 
     def create_qpu_graph(self):
@@ -24,20 +27,16 @@ class QuantumNetwork():
 
     def multi_source_bfs(self, roots, receivers):
         graph = self.qpu_graph
-        print("roots", roots)
-        print("receivers", receivers)
 
         visited = set()
-        parent = dict()   # parent[v] = the node from which we discovered v
+        parent = dict()   
         queue = deque()
 
-        # Initialize the queue with all roots
         for r in roots:
             visited.add(r)
-            parent[r] = None  # or some sentinel
+            parent[r] = None 
             queue.append(r)
 
-        # Standard BFS
         while queue:
             u = queue.popleft()
             for v in graph[u]:
@@ -46,28 +45,21 @@ class QuantumNetwork():
                     parent[v] = u
                     queue.append(v)
 
-        # Now reconstruct the edges used to connect each receiver
         chosen_edges = set()
         
         for t in receivers:
             if t not in visited:
-                # This receiver is unreachable from any root => no solution for t
                 continue
-            
-            # Walk back from t to some root, collecting edges
+
             cur = t
-            while parent[cur] is not None:  # i.e., cur is not itself a root
+            while parent[cur] is not None: 
                 p = parent[cur]
-                # Edge is (p,cur) - keep edges in a canonical order, e.g. (min,max)
                 chosen_edges.add(tuple(sorted((p, cur))))
                 cur = p
         
         return chosen_edges
 
-
     def steiner_forest(self, root_config, rec_config, node_map=None):
-        print("root_config", root_config)
-        print("rec_config", rec_config)
         if node_map is not None:
             root_nodes = [node_map[i] for i in range(len(root_config)) if root_config[i] == 1]
             rec_nodes = [node_map[i] for i in range(len(rec_config)) if rec_config[i] == 1]

@@ -16,17 +16,18 @@ def space_mapping(qpu_info, num_layers):
     return space_mapping
 
 def get_pos_list(num_qubits, assignment, space_map):
-    num_layers = len(assignment)
+    num_layers = len(space_map)
     pos_list = [[None for _ in range(num_qubits)] for _ in range(num_layers)]
     for q in range(num_qubits):
         old_partition = None
         for t in range(num_layers):
+            # partition = assignment[(q,t)]
             partition = assignment[t][q]
             if old_partition is not None:
                 if partition == old_partition:
                     if x_index in space_map[t][partition]:
                         x_index = pos_list[t-1][q]
-                        pos_list[t][q] = x_index
+                        pos_list[t][q] = x_index 
                         space_map[t][partition].remove(x_index)
                     else:
                         qubit_list = space_map[t][partition]

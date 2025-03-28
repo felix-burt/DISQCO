@@ -163,11 +163,31 @@ def group_distributable_packets(layers,group_anti_diags=False):
                     live_controls[other_root] = other_group
                     unchosen_groups[root] = other_root
                     unchosen_groups[other_root] = root
+
+
+    checked = set()
+    for root in unchosen_groups:
+        if root not in checked:
+            partner = unchosen_groups[root]
+            del live_controls[partner]
+            checked.add(partner)
+    
     for root in live_controls:
         group = live_controls[root]
         start_layer = group['time']
         # del group['time']
+        sub_gates = group['sub-gates']
+
         new_layers[start_layer].append(group)
+    
+    # layers_to_remove = set()
+    # for i, layer in new_layers.items():
+    #     print(f"Layer {i}: {layer}")
+    #     if len(layer) == 0:
+    #         layers_to_remove.add(i)
+    # for i in layers_to_remove:
+    #     del new_layers[i]
+    # new_layers = remove_duplicated_dict(new_layers)
     return new_layers
 
 def remove_duplicated_dict(layers):
@@ -183,6 +203,7 @@ def remove_duplicated_dict(layers):
                     qubits = gate['qargs']
                     dictionary[(qubits[0],qubits[1],l)] = True
                     dictionary[(qubits[1],qubits[0],l)] = True
+
     
     for l in layers:
         layer = layers[l]
@@ -206,6 +227,16 @@ def remove_duplicated_dict(layers):
                     index -= 1
                 dictionary[(qubit1,qubit2,l_index)] = True
             index += 1
+    
+    for l in layers:
+        layer = layers[l]
+        for gate in layer:
+            if gate == 'group':
+                root = gate['root']
+                first_gate = gate['sub-gates'][0]
+                qubits = first_gate['qargs']
+
+
     return layers
 
 def ungroup_layers(layers):

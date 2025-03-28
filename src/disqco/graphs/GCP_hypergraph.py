@@ -5,14 +5,13 @@ from qiskit import QuantumCircuit
 
 class QuantumCircuitHyperGraph:
     """
-    Class for time extended hypergraph representation of quantum circuit.
+    Class for temporal hypergraph representation of quantum circuit.
     """
     def __init__(self, 
                 circuit : QuantumCircuit, 
                 group_gates : bool = True, 
-                anti_diag : bool = False,
+                anti_diag : bool = True,
                 map_circuit : bool = True):
-        
         # Keep a set of all nodes (qubit, time)
         self.nodes = set()
         self.hyperedges = {}
@@ -23,7 +22,6 @@ class QuantumCircuitHyperGraph:
         self.circuit = circuit
         self.num_qubits = circuit.num_qubits
         self.depth = circuit.depth()
-
         if map_circuit:
             self.init_from_circuit(group_gates, anti_diag)
 
@@ -324,24 +322,6 @@ class QuantumCircuitHyperGraph:
                                 self.set_node_attribute(node2,'name','control')
                     for t in range(start_time,time+1):
                         root_set.add((root,t))
+                        if t != start_time:
+                            self.set_node_attribute((root,t),'type', 'root_t')
                     self.add_hyperedge(root_node,root_set,receiver_set)
-
-    def map_circuit_to_hypergraph_2(self,base_graph):
-        for qubit in qubit_list:
-            for t in range(depth):
-                node = self.add_node(qubit,t)
-
-                self.set_node_attribute(node,'type',base_graph.get_node_attribute((qubit,t),'type'))
-                self.set_node_attribute(node,'name',base_graph.get_node_attribute((qubit,t),'name'))
-                self.set_node_attribute(node,'params', base_graph.get_node_attribute((qubit,t),'params'))
-                edges = base_graph.node2hyperedges[(qubit,t)]
-                for edge in edges:
-                    edge_type = base_graph.get_hyperedge_attribute(edge,'type')
-                    edge_name = base_graph.get_hyperedge_attribute(edge,'name')
-                    
-                    if edge_type == 'two-qubit':
-                        root_set = base_graph.hyperedges[edge]['root_set']
-                        receiver_set = base_graph.hyperedges[edge]['receiver_set']
-                        gate_node = (root_set[0], receiver_set[0])
-
-            

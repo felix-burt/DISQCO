@@ -6,14 +6,16 @@ import copy
 def FM_pass(hypergraph,
             max_gain,
             assignment,
-            num_partitions,
             qpu_info, 
-            costs,
-            limit,
-            active_nodes):
-        
-        spaces = find_spaces(assignment,qpu_info)
-        hypergraph = map_counts_and_configs2(hypergraph,assignment,num_partitions,costs)
+            costs, 
+            limit, 
+            active_nodes,
+            network):
+        num_partitions = len(qpu_info)
+        num_qubits = hypergraph.num_qubits
+        depth = hypergraph.depth
+        spaces = find_spaces(num_qubits,depth, assignment, network)
+        hypergraph = map_counts_and_configs(hypergraph,assignment,num_partitions,costs)
 
         lock_dict = {node: False for node in active_nodes}
   
@@ -21,9 +23,9 @@ def FM_pass(hypergraph,
         for node in active_nodes:
             if node[1] > max_time:
                 max_time = node[1]
+        array = find_all_gains(hypergraph,active_nodes,assignment,num_partitions,costs,log=False)
 
-        array = find_all_gains_dict(hypergraph,active_nodes,assignment,num_partitions,costs,log=False)
-        buckets = fill_buckets_from_dict(array,max_gain)
+        buckets = fill_buckets(array,max_gain)
         gain_list = []
         gain_list.append(0)
         assignment_list = []
@@ -40,8 +42,8 @@ def FM_pass(hypergraph,
             node = (action[1],action[0])
             destination = action[2]
             source = assignment[node[1]][node[0]]
-
-            assignment_new, array, buckets = take_action_and_update_dict_counts(hypergraph,node,destination,array,buckets,num_partitions,lock_dict,assignment,costs)
+            # source = assignment[node]
+            assignment_new, array, buckets = take_action_and_update(hypergraph,node,destination,array,buckets,num_partitions,lock_dict,assignment,costs)
 
             # assignment_new, array, buckets = take_action_and_update_dict_simple(hypergraph,node,destination,array,buckets,num_partitions,lock_dict,assignment,costs)
 
@@ -58,26 +60,39 @@ def run_FM(
     hypergraph,
     initial_assignment,
     qpu_info,
-    num_partitions,
-    limit,
+    limit=None,
     max_gain=4,
     passes=100,
     stochastic=True,
     active_nodes=None,
     log = False,
     add_initial = False,
-    costs = None
-):
+    costs = None,
+    network=None
+):  
+    
+    num_partitions = len(qpu_info)
+
+    if active_nodes is None:
+        active_nodes = hypergraph.nodes
+
+    if network is None:
+        # If not provided we assume all-to-all connectivity
+        network = QuantumNetwork(qpu_info)
+
     if costs is None:
         configs = get_all_configs(num_partitions)
         costs = get_all_costs(configs)
 
-    initial_assignment = np.array(initial_assignment)
+    if limit is None:
+        limit = len(hypergraph.nodes) * 0.125
+
+    initial_assignment = np.array(initial_assignment, dtype=int)
+
 
     initial_cost = calculate_full_cost(hypergraph, initial_assignment, num_partitions, costs)
-    if active_nodes is None:
+    if active_nodes is not None:
         active_nodes = hypergraph.nodes
-
     
     if log:
         print("Initial cost:", initial_cost)
@@ -92,7 +107,8 @@ def run_FM(
         # print(f"Pass number: {n}")
         assignment_list, gain_list = FM_pass(
             hypergraph, max_gain, initial_assignment,
-            num_partitions, qpu_info, costs, limit, active_nodes = active_nodes
+            qpu_info, costs, limit, active_nodes = active_nodes,
+            network = network
         )
 
         # Decide how to pick new assignment depending on stochastic or not
@@ -150,7 +166,7 @@ def run_FM_bench(
         configs = get_all_configs(num_partitions)
         costs = get_all_costs(configs)
 
-    initial_assignment = np.array(initial_assignment)
+    initial_assignment = np.array(initial_assignment, dtype=int)
 
     initial_cost = calculate_full_cost(hypergraph, initial_assignment, num_partitions, costs)
     if active_nodes is not None:

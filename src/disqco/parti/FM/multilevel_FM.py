@@ -4,6 +4,16 @@ from disqco.parti.FM.FM_methods import get_all_configs, get_all_costs, calculate
 from disqco.graphs.coarsening.coarsener import HypergraphCoarsener
 import time
 
+def assignment_to_list(assignment, num_qubits, depth):
+        assignment_list = []
+        for t in range(depth):
+            layer = []
+            for j in range(num_qubits):
+                qpu =  assignment[(j,t)]
+                layer.append(qpu)
+            assignment_list.append(layer)
+        return assignment_list
+
 def refine_assignment(level, num_levels, assignment, mapping_list):
     new_assignment = assignment
     if level < num_levels -1:
@@ -78,7 +88,6 @@ def multilevel_FM(coarsened_hypergraphs,
             hypergraph=graph,            # This stage's coarsened hypergraph
             initial_assignment=initial_assignment,
             qpu_info=qpu_info,
-            num_partitions=num_partitions,
             limit=limit,
             max_gain=max_gain,
             passes=passes,
@@ -326,8 +335,11 @@ def MLFM_recursive(graph,
                                             add_initial = add_initial,
                                             costs = costs,
                                             level_limit = level_limit)
-
-    return assignment_list, cost_list, time_list
+    
+    final_cost = min(cost_list)
+    final_assignment = assignment_list[cost_list.index(final_cost)]
+    
+    return final_cost, final_assignment, cost_list
 
 def MLFM_recursive_hetero(graph,
                 initial_assignment,  

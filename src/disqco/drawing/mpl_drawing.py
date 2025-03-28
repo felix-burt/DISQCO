@@ -4,10 +4,8 @@ from disqco.drawing.map_positions import space_mapping, get_pos_list
 
 def hypergraph_to_matplotlib(
     H,
-    num_qubits,
     assignment,
     qpu_info,
-    depth,
     xscale = None,
     yscale = None,
     figsize= (10, 6),
@@ -24,20 +22,14 @@ def hypergraph_to_matplotlib(
     We'll stack partitions vertically in order: partition 0 at top, then a blank row,
     partition 1, another blank row, etc.
     """
-
+    num_qubits = H.num_qubits
+    depth = H.depth
     if xscale is None:
         xscale = 10/depth
     if yscale is None:
         yscale = 6/(sum(qpu_info) + len(qpu_info))
 
-    partition_offset_list = []
-    cumulative = 0
-    for i, size in enumerate(qpu_info):
-        partition_offset_list.append(cumulative + i)  
-        cumulative += size
 
-    def partition_offset(p):
-        return partition_offset_list[p]
 
     space_map_ = space_mapping(qpu_info, depth)
     pos_list = get_pos_list(num_qubits, assignment, space_map_)
@@ -68,6 +60,11 @@ def hypergraph_to_matplotlib(
             edgecolor = "black"
             marker = "o"
             size = 30
+        elif node_type == "root_t":
+            facecolor = "black"
+            edgecolor = "black"
+            marker = "o"
+            size = 30
         elif node_type == "single-qubit":
             facecolor = "gray"
             edgecolor = "black"
@@ -80,12 +77,11 @@ def hypergraph_to_matplotlib(
     node_positions = {}
     for n in H.nodes:
         q, t = n
-        p = assignment[t][q]
+        p = assignment[n]
 
         local_index = pos_list[t][q]
 
-        offset = partition_offset(p)
-        base_y = offset + local_index
+        base_y = local_index
         y = base_y * yscale
 
         x = t * xscale
@@ -130,6 +126,11 @@ def hypergraph_to_matplotlib(
                 offset_y = ry - 0.3 * yscale
                 ax.plot([rx, offset_x], [ry, offset_y], color="black", zorder=2)
                 for rnode in receivers:
+                    if rnode in node_positions:
+                        rxr, ryr = node_positions[rnode]
+                        ax.plot([offset_x, rxr], [offset_y, ryr], color="black", zorder=2)
+                roots = edge_info.get("root_set", [])
+                for rnode in roots:
                     if rnode in node_positions:
                         rxr, ryr = node_positions[rnode]
                         ax.plot([offset_x, rxr], [offset_y, ryr], color="black", zorder=2)
@@ -194,3 +195,14 @@ def hypergraph_to_matplotlib(
         plt.savefig(path, bbox_inches="tight")
 
     return fig, ax
+
+def draw_graph_mpl(H, assignment, qpu_info):
+    fig, ax = hypergraph_to_matplotlib(
+        H,
+        assignment,
+        qpu_info,
+        figsize=(10, 6),
+        save=False,
+        path=None,
+        ax=None
+    )
