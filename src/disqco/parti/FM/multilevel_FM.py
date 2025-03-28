@@ -336,10 +336,8 @@ def MLFM_recursive(graph,
                                             costs = costs,
                                             level_limit = level_limit)
     
-    final_cost = min(cost_list)
-    final_assignment = assignment_list[cost_list.index(final_cost)]
-    
-    return final_cost, final_assignment, cost_list
+
+    return assignment_list, cost_list, time_list
 
 def MLFM_recursive_hetero(graph,
                 initial_assignment,  
