@@ -8,7 +8,9 @@ def hypergraph_to_tikz(
     xscale=None,
     yscale=None,
     save=False,
-    path=None
+    path=None,
+    invert_colors=False,
+    fill_background=True,
 ):
     """
     Convert a QuantumCircuitHyperGraph 'H' into a full standalone TikZ/LaTeX document.
@@ -41,6 +43,43 @@ def hypergraph_to_tikz(
         max_time = max(n[1] for n in H.nodes)
     else:
         max_time = 0
+
+    # ------------------------------------------------------------
+    # 2) If you want to invert the styles for a dark background,
+    #    just invert your usual definitions.
+    # ------------------------------------------------------------
+    # We'll define style variants for whiteSmallStyle, blackStyle, etc.
+
+    if invert_colors:
+        # Typically for a dark background theme
+        edge_color = "white"     # lines drawn in white
+        node_line  = "white"
+        boundary_color = "white"
+        # Node fill definitions
+        white_small_style = r"circle, draw=white, fill=white, scale=0.3"
+        black_style       = r"circle, draw=white, fill=black, scale=0.6"
+        grey_style        = r"circle, draw=white, fill=gray!50, scale=0.6"
+        invisible_style   = r"inner sep=0pt, scale=0.1, draw=white"
+        background_fill = "black"
+    else:
+        # Normal: black edges/lines
+        edge_color = "black"
+        node_line  = "black"
+        boundary_color = "black"
+        # Node fill definitions
+        
+        white_small_style = r"circle, draw=black, fill=white, scale=0.3"
+        black_style       = r"circle, draw=black, fill=black, scale=0.6"
+        grey_style        = r"circle, draw=black, fill=gray,  scale=0.6"
+        invisible_style   = r"inner sep=0pt, scale=0.1, draw=none"
+        background_fill = "white"
+
+    
+    if fill_background:
+        background_option = f"show background rectangle, background rectangle/.style={{fill={background_fill}}}"
+    else:
+        # normal: do not explicitly fill background rectangle
+        background_option = ""
 
     # --- Function to pick node style
     def pick_style(node):
@@ -77,13 +116,19 @@ def hypergraph_to_tikz(
     tikz_code.append(r"\pgfdeclarelayer{edgelayer}")
     tikz_code.append(r"\pgfsetlayers{background,edgelayer,nodelayer,main}")
     tikz_code.append(r"\begin{document}")
-    tikz_code.append(r"\begin{tikzpicture}[>=latex]")
+    tikz_code.append(rf"\begin{{tikzpicture}}[>=latex, {background_option}]")
 
     # -- Define all styles inline here:
-    tikz_code.append(r"  \tikzstyle{whiteSmallStyle}=[circle, draw=black, fill=white, scale=0.3]")
-    tikz_code.append(r"  \tikzstyle{blackStyle}=[circle, draw=black, fill=black, scale=0.6]")
-    tikz_code.append(r"  \tikzstyle{greyStyle}=[circle, draw=black, fill=gray,  scale=0.6]")
-    tikz_code.append(r"  \tikzstyle{invisibleStyle}=[inner sep=0pt, scale=0.1, draw=none]")
+    tikz_code.append(fr"  \tikzstyle{{whiteSmallStyle}}=[{white_small_style}]")
+    tikz_code.append(fr"  \tikzstyle{{blackStyle}}=[{black_style}]")
+    tikz_code.append(fr"  \tikzstyle{{greyStyle}}=[{grey_style}]")
+    tikz_code.append(fr"  \tikzstyle{{invisibleStyle}}=[{invisible_style}]")
+
+    # -- Define an edgeStyle that sets the color for lines/arrows
+    tikz_code.append(rf"  \tikzset{{edgeStyle/.style={{draw={edge_color}}}}}")
+    # -- Define a boundaryStyle for dashed boundary lines
+    tikz_code.append(rf"  \tikzset{{boundaryLine/.style={{draw={boundary_color}, dashed}}}}")
+
 
     tikz_code.append(r"  %--------------- NODES ---------------")
     tikz_code.append(r"  \begin{pgfonlayer}{nodelayer}")
@@ -130,19 +175,19 @@ def hypergraph_to_tikz(
                     f"    \\node [style=invisibleStyle] ({edge_node_name}) at ({rx:.3f},{ry:.3f}) {{}};"
                 )
                 tikz_code.append(
-                    f"    \\draw ({node_name(root_node)}) to ({edge_node_name});"
+                    f"    \\draw [style= edgeStyle] ({node_name(root_node)}) to ({edge_node_name});"
                 )
             else:
                 edge_node_name = node_name(root_node)
 
             for rnode in receivers:
                 tikz_code.append(
-                    f"    \\draw [bend right=15] ({edge_node_name}) to ({node_name(rnode)});"
+                    f"    \\draw [style=edgeStyle, bend right=15] ({edge_node_name}) to ({node_name(rnode)});"
                 )
             for rnode in roots:
                 if rnode != root_node:
                     tikz_code.append(
-                        f"    \\draw [bend right=15] ({node_name(rnode)}) to ({edge_node_name});"
+                        f"    \\draw [style=edgeStyle, bend right=15] ({node_name(rnode)}) to ({edge_node_name});"
                     )
 
         else:
@@ -153,9 +198,9 @@ def hypergraph_to_tikz(
                 continue
             node1 = list(root_set)[0]
             node2 = list(rec_set)[0]
-            bend = "[bend right=15]" if node1[0] != node2[0] else ""
+            bend = "[style=edgeStyle, bend right=15]" if node1[0] != node2[0] else ""
             tikz_code.append(
-                f"    \\draw {bend} ({node_name(node1)}) to ({node_name(node2)});"
+                f"    \\draw [style=edgeStyle] {bend} ({node_name(node1)}) to ({node_name(node2)});"
             )
 
     tikz_code.append(r"  \end{pgfonlayer}")
@@ -203,12 +248,12 @@ def hypergraph_to_tikz(
         # If there's a real node at (qubit, 0), connect it to buffer-left
         if (qubit, 0) in H.nodes:
             tikz_code.append(
-                f"    \\draw (bufL_{qubit}) to ({node_name((qubit,0))});"
+                f"    \\draw [style=edgeStyle] (bufL_{qubit}) to ({node_name((qubit,0))});"
             )
         # If there's a real node at (qubit, max_time), connect it to buffer-right
         if (qubit, max_time) in H.nodes:
             tikz_code.append(
-                f"    \\draw (bufR_{qubit}) to ({node_name((qubit,max_time))});"
+                f"    \\draw [style=edgeStyle] (bufR_{qubit}) to ({node_name((qubit,max_time))});"
             )
     
 
@@ -227,7 +272,7 @@ def hypergraph_to_tikz(
         right_x = (max_time + 1.5) * xscale
 
         tikz_code.append(
-            f"    \\draw[dashed] ({left_x:.3f},{line_y:.3f}) -- ({right_x:.3f},{line_y:.3f});"
+            f"    \\draw[style=boundaryLine] ({left_x:.3f},{line_y:.3f}) -- ({right_x:.3f},{line_y:.3f});"
         )
     tikz_code.append(r"  \end{pgfonlayer}")
 
@@ -367,12 +412,14 @@ def hypergraph_to_tikz_snippet(H, num_qubits, assignment, qpu_info, depth, num_q
     return code
 
 
-def draw_graph_tikz(H, assignment, qpu_info):
+def draw_graph_tikz(H, assignment, qpu_info, invert_colors=False, fill_background=True):
     tikz_code = hypergraph_to_tikz(
         H,
         assignment,
         qpu_info,
-        save=False
+        save=False,
+        invert_colors=invert_colors,
+        fill_background=fill_background,
     )
     ip = get_ipython()
     args = "-f -r --dpi=150" 

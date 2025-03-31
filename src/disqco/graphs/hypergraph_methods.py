@@ -116,6 +116,13 @@ def map_hedge_to_config(hypergraph : QuantumCircuitHyperGraph,
     config = full_config_from_counts(root_counts,rec_counts)
     return config
 
+def map_hedge_to_configs(hypergraph,hedge,assignment,num_partitions):
+    root_counts,rec_counts = hedge_k_counts(hypergraph,hedge,assignment,num_partitions,set_attrs=False)
+    root_config,rec_config = counts_to_configs(root_counts,rec_counts)
+    # print(root_config,rec_config)
+    # config = config_from_counts(root_counts,rec_counts)
+    return root_config,rec_config
+
 def get_full_config(root_config : tuple[int], rec_config : tuple[int]) -> tuple[int]:
     """
     Converts the root and receiver configurations to a full configuration tuple."
@@ -151,8 +158,8 @@ def hedge_to_cost_hetero(hypergraph : QuantumCircuitHyperGraph,
     """"
     Computes the cost of a hyperedge based on its configuration and the current assignment."
     """
+    root_config, rec_config = map_hedge_to_configs(hypergraph, hedge, assignment, num_partitions)
 
-    root_config, rec_config = map_hedge_to_config(hypergraph, hedge, assignment, num_partitions)
     if (root_config, rec_config) not in costs:
         edges, cost = network.steiner_forest(root_config, rec_config)
         costs[(root_config, rec_config)] = cost
@@ -212,6 +219,8 @@ def map_counts_and_configs_hetero(hypergraph : QuantumCircuitHyperGraph,
         if (root_config, rec_config) not in costs:
             edges, edge_cost = network.steiner_forest(root_config, rec_config)
             costs[(root_config, rec_config)] = edge_cost
+        else:
+            edge_cost = costs[(root_config, rec_config)]
         hypergraph.set_hyperedge_attribute(edge, 'cost', edge_cost)
     return hypergraph
 
@@ -249,6 +258,7 @@ def calculate_full_cost_hetero(hypergraph : QuantumCircuitHyperGraph,
 
         root_counts,rec_counts = hedge_k_counts(hypergraph,edge,assignment,num_partitions)
         root_config,rec_config = counts_to_configs(root_counts,rec_counts)
+
         if (root_config, rec_config) in costs:
             edge_cost = costs[(root_config, rec_config)]
         else:

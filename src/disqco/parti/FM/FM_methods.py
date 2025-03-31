@@ -104,12 +104,12 @@ def config_from_counts(root_counts,rec_counts):
             config.append(0)
     return tuple(config)
 
-def map_hedge_to_config(hypergraph,hedge,assignment,num_partitions):
-    root_counts,rec_counts = hedge_k_counts(hypergraph,hedge,assignment,num_partitions,set_attrs=False)
-    # root_config,rec_config = counts_to_configs(root_counts,rec_counts)
-    # print(root_config,rec_config)
-    config = config_from_counts(root_counts,rec_counts)
-    return config
+# def map_hedge_to_config(hypergraph,hedge,assignment,num_partitions):
+#     root_counts,rec_counts = hedge_k_counts(hypergraph,hedge,assignment,num_partitions,set_attrs=False)
+#     # root_config,rec_config = counts_to_configs(root_counts,rec_counts)
+#     # print(root_config,rec_config)
+#     config = config_from_counts(root_counts,rec_counts)
+#     return config
 
 def find_gain(graph : QuantumCircuitHyperGraph, node: tuple[int,int], destination: int, assignment: dict[tuple[int,int] : int], num_partitions: int, costs: dict):
     assignment_new = move_node(node, destination, assignment)
@@ -128,7 +128,7 @@ def find_gain_h(hypergraph,node,destination,assignment,num_partitions,costs):
     gain = 0
     for edge in edges:
         cost1 = hypergraph.get_hyperedge_attribute(edge,'cost')
-        root_config, rec_config = map_hedge_to_config(hypergraph,edge,assignment_new,num_partitions)
+        root_config, rec_config = map_hedge_to_configs(hypergraph, edge, assignment_new, num_partitions)
         cost2 = costs[(root_config,rec_config)]
         gain += cost2 - cost1
     return gain
@@ -504,6 +504,7 @@ def take_action_and_update_hetero(hypergraph,node,destination,array,buckets,num_
         root_set = hypergraph.hyperedges[edge]['root_set']
         rec_set = hypergraph.hyperedges[edge]['receiver_set']
         # print("Info", info)
+
         cost = info['cost']
         cost_new = hedge_to_cost_hetero(hypergraph,edge,assignment_new,num_partitions,costs)
         
