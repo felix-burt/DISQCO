@@ -8,7 +8,7 @@ This repository provides tools for optimising distributed quantum circuits as de
 
 ## Quantum circuit partitioning
 
-The primary function is a partitioning tool, which uses a temporally extended hypergraph framework to model the problem of optimally choosing possible qubit and gate teleportations between QPUs. The backbone of this is based on the Fiduccia-Mattheyses heuristic for hypergraph partitioning, though the objective is designed spceifically for the problem. An overview is given in the [walkthrough notebook](demos/walkthrough.ipynb)
+The primary function is a partitioning tool, which uses a temporally extended hypergraph framework to model the problem of optimally choosing possible qubit and gate teleportations between QPUs. The backbone of this is based on the Fiduccia-Mattheyses heuristic for hypergraph partitioning, though the objective is designed spceifically for the problem. An overview is given in the [walkthrough notebook](demos/walkthrough.ipynb).
 
 ## Multilevel partitioning
 
