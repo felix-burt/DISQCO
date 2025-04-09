@@ -32,7 +32,7 @@ def hypergraph_to_matplotlib(
 
 
     space_map_ = space_mapping(qpu_info, depth)
-    pos_list = get_pos_list(num_qubits, assignment, space_map_)
+    pos_list = get_pos_list(H, num_qubits, assignment, space_map_)
 
     if ax is None:
         fig, ax = plt.subplots(figsize=figsize)
@@ -77,7 +77,7 @@ def hypergraph_to_matplotlib(
     node_positions = {}
     for n in H.nodes:
         q, t = n
-        p = assignment[n]
+        p = assignment[t][q]
 
         local_index = pos_list[t][q]
 

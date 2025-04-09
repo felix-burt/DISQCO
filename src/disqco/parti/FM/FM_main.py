@@ -11,11 +11,14 @@ def FM_pass(hypergraph,
             limit, 
             active_nodes,
             network):
+        
         num_partitions = len(qpu_info)
         num_qubits = hypergraph.num_qubits
         depth = hypergraph.depth
-        spaces = find_spaces(num_qubits,depth, assignment, network)
+        spaces = find_spaces(num_qubits, depth, assignment, qpu_info)
         hypergraph = map_counts_and_configs(hypergraph,assignment,num_partitions,costs)
+
+        assignment = np.array(assignment, dtype=int)
 
         lock_dict = {node: False for node in active_nodes}
   
@@ -87,6 +90,13 @@ def run_FM(
     if limit is None:
         limit = len(hypergraph.nodes) * 0.125
 
+    if isinstance(qpu_info, dict):
+        # If qpu_info is a dictionary, we need to convert it to a list of lists
+        qpu_sizes = [list(qpu_info.values())]
+    else:
+        # Otherwise, we assume it's already a list of lists
+        qpu_sizes = qpu_info
+
     initial_assignment = np.array(initial_assignment, dtype=int)
 
 
@@ -107,7 +117,7 @@ def run_FM(
         # print(f"Pass number: {n}")
         assignment_list, gain_list = FM_pass(
             hypergraph, max_gain, initial_assignment,
-            qpu_info, costs, limit, active_nodes = active_nodes,
+            qpu_sizes, costs, limit, active_nodes = active_nodes,
             network = network
         )
 

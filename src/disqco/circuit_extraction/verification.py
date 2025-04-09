@@ -1,5 +1,6 @@
 import matplotlib.pyplot as plt
 from qiskit import transpile
+import numpy as np
 
 def run_sampler(circuit, shots=4096):
     from qiskit_aer.primitives import SamplerV2

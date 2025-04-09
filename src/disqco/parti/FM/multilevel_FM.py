@@ -138,11 +138,12 @@ def multilevel_FM_hetero(coarsened_hypergraphs,
                 costs = None,
                 level_limit = None,
                 network = None,
-                node_map = None):
+                node_map = None,
+                assignment_map = None):
 
     num_partitions = len(qpu_info)
-    if costs is None:
-        configs = get_all_configs(num_partitions)
+    if costs is None and num_partitions < 12:
+        configs = get_all_configs(num_partitions, hetero=True)
         costs, edge_tree = get_all_costs_hetero(network, configs, node_map=node_map)
 
     list_of_assignments = []
@@ -150,7 +151,14 @@ def multilevel_FM_hetero(coarsened_hypergraphs,
 
     list_of_costs = []
 
-    initial_cost = calculate_full_cost_hetero(coarsened_hypergraphs[-1], initial_assignment, num_partitions, costs=costs)
+    initial_cost = calculate_full_cost_hetero(coarsened_hypergraphs[-1], 
+                                              initial_assignment, 
+                                              num_partitions, 
+                                              costs=costs, 
+                                              network = network, 
+                                              node_map=node_map, 
+                                              assignment_map=assignment_map)
+    
     list_of_costs.append(initial_cost)
     best_cost = initial_cost
 
@@ -194,9 +202,11 @@ def multilevel_FM_hetero(coarsened_hypergraphs,
             log = log,
             add_initial=add_initial,
             costs=costs,
-            network=network
+            network=network,
+            node_map=node_map,
+            assignment_map=assignment_map
         )
-        end = time.time()
+        end = time.time()       
         level_time = end - start
         list_of_times.append(level_time)
         
@@ -351,7 +361,8 @@ def MLFM_recursive_hetero(graph,
                 costs = None,
                 level_limit = None,
                 network = None,
-                node_map = None):
+                node_map = None, 
+                assignment_map = None):
 
     coarsener = HypergraphCoarsener()
     graph_list, mapping_list = coarsener.coarsen_recursive_batches(graph)
@@ -381,8 +392,9 @@ def MLFM_recursive_hetero(graph,
                                             add_initial = add_initial,
                                             costs = costs,
                                             level_limit = level_limit,
-                                            network=network,
-                                            node_map = node_map)
+                                            network= network,
+                                            node_map = node_map,
+                                            assignment_map = assignment_map)
 
     return assignment_list, cost_list, time_list
 

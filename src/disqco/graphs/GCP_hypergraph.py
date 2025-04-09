@@ -26,8 +26,10 @@ class QuantumCircuitHyperGraph:
             self.init_from_circuit(group_gates, anti_diag)
 
     def init_from_circuit(self, group_gates=True, anti_diag=False):
-        self.add_time_neighbor_edges(self.depth, range(self.num_qubits))
+        
         self.layers = self.extract_layers(self.circuit, group_gates=group_gates, anti_diag=anti_diag)
+        self.depth = len(self.layers)
+        self.add_time_neighbor_edges(self.depth, range(self.num_qubits))
         self.map_circuit_to_hypergraph()
 
     def extract_layers(self, circuit, group_gates=True, anti_diag=False):
@@ -325,3 +327,180 @@ class QuantumCircuitHyperGraph:
                         if t != start_time:
                             self.set_node_attribute((root,t),'type', 'root_t')
                     self.add_hyperedge(root_node,root_set,receiver_set)
+
+
+class SubGraphManager:
+    """
+    Class for managing subgraphs of a larger graph.
+    """
+
+    def __init__(self, graph: QuantumCircuitHyperGraph):
+        """
+        Initialize the SubGraphManager with a graph.
+
+        :param graph: The input graph to be managed.
+        """
+        self.initial_graph = graph
+        self.subgraphs = [[graph]]
+
+        
+    def build_partition_subgraphs(self,
+                                  graph: QuantumCircuitHyperGraph,
+                                    assignment: list[list[int]],  # 2D assignment[t][q] -> partition id
+                                    k: int,
+                                    node_map = None,
+                                    assignment_map = None
+                                    ) -> list[QuantumCircuitHyperGraph]:
+        """
+        Returns k subgraphs, one for each partition p in [0..k-1].
+        
+        In each subgraph p:
+        - Nodes in partition p remain as real nodes.
+        - Nodes in other partitions p' != p become merged into a single dummy node
+            that represents partition p'.
+        - Any hyperedge references to nodes not in partition p are rerouted
+            to the corresponding dummy node.
+        - Self-loops (when root and receiver sets overlap) are automatically 'contracted'
+            by removing overlapping nodes from the receiver set (and removing the hyperedge
+            if it becomes empty).
+
+        :param original_graph: The complete QuantumCircuitHyperGraph.
+        :param assignment: A 2D list, assignment[t][q], giving the partition for qubit q at time t.
+        :param k: Number of partitions.
+        :return: A list of k QuantumCircuitHyperGraph objects, one per partition.
+        """
+
+        # -----------------------------
+        # Step 1) Make k copies of the original graph
+        # -----------------------------
+        subgraphs = []
+        for _ in range(k):
+            # Start each as a shallow copy of the original
+            sg = graph.copy()
+            subgraphs.append(sg)
+
+        # -----------------------------
+        # Step 2) For each subgraph p, create dummy nodes for each foreign partition p' != p
+        # -----------------------------
+        dummy_map_list = []
+        for idx1 in range(k):
+            counter = 0
+            if node_map is not None:
+                p = node_map[idx1]
+            else:
+                p = idx1
+            sg = subgraphs[idx1]
+            dummy_map = {}  # Maps p' -> dummy_node
+            for idx2 in range(k):
+                if node_map is not None:
+                    p_prime = node_map[idx2]
+                else:
+                    p_prime = idx2 
+                if p_prime != p:
+                    # Create a unique dummy node
+                    dummy_node = ("dummy", p, p_prime)
+                    counter+= 1
+                    # If your add_node expects (qubit, time), you might do a direct insertion:
+                    sg.nodes.add(dummy_node)
+                    sg.node_attrs[dummy_node] = {
+                        "dummy": True,
+                        "represents_partition": p_prime
+                    }
+
+                    dummy_map[p_prime] = dummy_node
+
+            dummy_map_list.append(dummy_map)
+            
+
+        # -----------------------------
+        # Step 3) Merge foreign nodes into dummy nodes
+        # -----------------------------
+        for idx1 in range(k):
+            if node_map is not None:
+                p = node_map[idx1]
+            else:
+                p = idx1
+            sg = subgraphs[idx1]
+            dummy_map = dummy_map_list[idx1]
+
+            # We'll iterate over a snapshot of the current sg.nodes
+            # since we'll remove nodes as we go
+            all_nodes = list(sg.nodes)
+            for node in all_nodes:
+                # Skip dummy nodes (already created)
+                if isinstance(node, tuple) and len(node) == 3 and node[0] == "dummy":
+                    continue
+                if node not in sg.nodes:
+                    # Possibly removed or merged already
+                    continue
+
+                # node is typically (qubit, time)
+                q, t = node
+                if assignment_map is not None:
+                    q_sub, t_sub = assignment_map[(q,t)]
+                    node_partition = assignment[t_sub][q_sub]
+                else:
+                    node_partition = assignment[t][q]
+                
+                if node_map is not None:
+                    node_partition = node_map[node_partition]
+                else:
+                    node_partition = node_partition
+                if node_partition != p:
+                    # This node doesn't belong to subgraph p => merge with dummy for node_partition
+                    dummy_node = dummy_map[node_partition]
+
+                    # For each hyperedge containing this node, replace it with the dummy node
+                    if node in sg.node2hyperedges:
+                        edges_for_node = list(sg.node2hyperedges[node])
+                        for edge_id in edges_for_node:
+                            if edge_id not in sg.hyperedges:
+                                continue
+                            edge_data = sg.hyperedges[edge_id]
+                            root_set = edge_data["root_set"]
+                            rec_set  = edge_data["receiver_set"]
+
+                            changed = False
+                            if node in root_set:
+                                root_set.remove(node)
+                                root_set.add(dummy_node)
+                                changed = True
+                            if node in rec_set:
+                                rec_set.remove(node)
+                                rec_set.add(dummy_node)
+                                changed = True
+
+                            if changed:
+                                sg.node2hyperedges[node].discard(edge_id)
+                                sg.node2hyperedges[dummy_node].add(edge_id)
+
+                    # Finally, remove the foreign node from the subgraph
+                    sg.remove_node(node)
+            qubits = set()
+            for node in sg.nodes:
+                qubits.add(node[0])  # Assuming node is (qubit, time)
+            sg.num_qubits = len(qubits)
+            # -----------------------------
+            # Step 4) Contract any self-loops in hyperedges
+            # -----------------------------
+            # A "self-loop" here means a hyperedge whose root_set and receiver_set overlap.
+            # We'll remove the overlapping nodes from receiver_set.
+            # If that empties receiver_set, we remove the hyperedge altogether.
+            # (Adjust if you have a different "contraction" logic in mind.)
+            # -----------------------------
+            for edge_id in list(sg.hyperedges.keys()):
+                edge_data = sg.hyperedges[edge_id]
+                root_set  = edge_data["root_set"]
+                rec_set   = edge_data["receiver_set"]
+
+                # Find intersection
+                overlap = root_set.intersection(rec_set)
+                if overlap:
+                    # Remove these from the receiver set
+                    rec_set.difference_update(overlap)
+
+                    # If the entire rec_set is empty, remove hyperedge
+                    if not rec_set:
+                        sg.remove_hyperedge(edge_id)
+        self.subgraphs.append(subgraphs)
+        return subgraphs

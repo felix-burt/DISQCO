@@ -3,7 +3,7 @@ import networkx as nx
 import numpy as np
 import matplotlib.pyplot as plt
 
-def circuit_to_slices(circuit,remove_singles = True):
+def circuit_to_slices(circuit, qpu_info, remove_singles = True):
     "Function to identify interacting qubits at each layer. Returns a list of lists, where each list contains the interacting qubits at each layer."
     operations = circuit_to_gate_layers(circuit)
     interactions = []
@@ -12,8 +12,10 @@ def circuit_to_slices(circuit,remove_singles = True):
     reg_mapping = {regs[i].name : i for i in range(len(regs))}
     sizes = [reg.size for reg in regs]
     # Scan the operations and find the qubits involved
+    max_pairs = find_max_interactions(qpu_info)
     for layer in operations:
         current_layer = []
+        pairs = 0
         for op in layer:
             qubits = op[1]
             regs = op[2]
@@ -27,13 +29,33 @@ def circuit_to_slices(circuit,remove_singles = True):
                 # Remove single qubit operations
                 if len(qubits) > 1:
                     current_layer.append(qubits)
+                    pairs += 1
+                    
             else:
                 # Can keep the single qubit gates in for easier circuit recovery after partitioning
                 current_layer.append(qubits)
+                if len(qubits) > 1:
+                    pairs += 1
+
+            if pairs >= max_pairs:
+                interactions.append(current_layer)
+                current_layer = []
+                pairs = 0
+
         if len(current_layer) > 0:
             interactions.append(current_layer)
     
     return interactions
+
+def find_max_interactions(qpu_info):
+    max_pairs_qpu = []
+    for n in range(len(qpu_info)):
+        if qpu_info[n] % 2 == 1:
+            max_pairs_qpu.append((qpu_info[n]-1)//2)
+        else:
+            max_pairs_qpu.append(qpu_info[n]//2)
+    max_pairs = sum(max_pairs_qpu)
+    return max_pairs
 
 def exp_decay(m,decay_weight):
     # Exponential decay function for weighting future interactions
@@ -81,8 +103,7 @@ def slices_to_graphs_no_lookahead(interactions,qpu_info):
         graph_list.append(graph)
     return graph_list
 
-
-def draw_graph(graph, partition, edge_labels= True):
+def draw_graph(graph, partition, edge_labels=True):
     "Draw the base graph for interactions at current layer."
     G = graph
     colours = ['b','g','r','c','m','y','k','w']
@@ -132,6 +153,97 @@ def set_initial_partition_fgp(qpu_info,num_partitions,invert=False):
                 static_partition.append(num_partitions-n-1)
     return static_partition
 
+def calculate_W_matrix(graph):
+    "Calculate the weight matrix of the graph."
+    w_matrix = np.zeros((len(graph.nodes()),len(graph.nodes())))
+    for edge in graph.edges():
+        qubit1 = edge[0]
+        qubit2 = edge[1]
+        w_matrix[qubit1][qubit2] = graph.edges()[edge]['weight']
+        w_matrix[qubit2][qubit1] = graph.edges()[edge]['weight']
+    return w_matrix
+
+def calculate_W_matrix_cols(W, num_partitions, partition):
+    "Calculate the weight matrix of the graph."
+    num_qubits = len(W)
+    W_cols = np.zeros((num_qubits,num_partitions))
+    for i in range(num_qubits):
+        for j in range(num_qubits):
+            partition_j = partition[j]
+            W_cols[i][partition_j] += W[i][j]
+
+    return W_cols
+
+def calculate_D_from_W(W_cols, partition, num_partitions):
+    "Calculate the D matrix from the W matrix."
+    num_qubits = len(W_cols)
+    D = np.zeros((num_qubits,num_partitions))
+    for i in range(num_qubits):
+        col_i = partition[i]
+        for l in range(num_partitions):
+            D[i][l] = W_cols[i][l] - W_cols[i][col_i]
+    return D
+
+def find_gain(graph,node,partition,destination):
+    "Find the gain of moving a node to a new partition."
+    gain = 0
+    for neighbour in graph.neighbors(node):
+        if partition[neighbour] == partition[node]:
+            gain -= graph.edges()[(node,neighbour)]['weight']
+        elif partition[neighbour] == destination:
+            gain += graph.edges()[(node,neighbour)]['weight']
+    return gain
+
+def calculate_D_matrix(graph, partition, num_partitions):
+    "Calculate the D matrix of the graph."
+    D_matrix = np.zeros((len(graph.nodes()),num_partitions))
+    for node in graph.nodes():
+        source = partition[node]
+        D_matrix[node][source] = 0
+        for k in range(num_partitions):
+            D_ik = find_gain(graph,node,partition,k)
+            D_matrix[node][k] = D_ik
+
+    return D_matrix
+
+def calculate_swap_cost(i,j,W,D,partition):
+    "Calculate the cost of swapping two nodes."
+    partition_i = partition[i]
+    partition_j = partition[j]
+    if partition_i == partition_j:
+        swap_cost = -np.inf
+    else:
+        swap_cost = D[i][partition_j] + D[j][partition_i] - 2*W[i][j]
+    return swap_cost
+
+def update_D_matrix(graph,partition,col_a, col_b, D,W,num_partitions,action,N):
+    "Update the D matrix after a swap."
+    a = action[0]
+    b = action[1]
+    for i in N:
+        col_i = partition[i]
+        for l in range(num_partitions):
+
+            if l == col_a:
+                if col_i != col_a and col_i != col_b:
+                    D[i][col_a] = D[i][col_a] + W[i][b] - W[i][a]
+                elif col_i == col_b:
+                    D[i][col_a] = D[i][col_a] + 2*W[i][b] - 2*W[i][a]
+            elif l == col_b:
+                if col_i != col_a and col_i != col_b:
+                    D[i][col_b] = D[i][col_b] + W[i][a] - W[i][b]
+                elif col_i == col_a:
+                    D[i][col_b] = D[i][col_b] + 2*W[i][a] - 2*W[i][b]
+            elif l != col_a and l != col_b:
+                if col_i == col_a:
+                    D[i][l] = D[i][l] + W[i][a] - W[i][b]
+                elif col_i == col_b:
+                    D[i][l] = D[i][l] + W[i][b] - W[i][a]
+    
+
+
+    return D
+
 def calculate_exchange_cost(graph,partition,action):
     "Calculate the difference in cut if the swap is performed."
     node1 = action[0]
@@ -172,39 +284,66 @@ def create_action_list(num_qubits):
             swap_list.append(pair)
     return swap_list
 
-def exchange_until_valid(graph,partition,action_list,max_cost = 10000, random_choice = False):
+def exchange_until_valid(graph, partition, num_partitions, max_cost = 10000, random_choice = False):
     "Chooses the best swap available until a valid partition is found."
     initial_cut = calculate_weighted_cut(graph,partition)
     cut = initial_cut
     swaps = []
+
     if initial_cut >= max_cost:
         valid = False
     else: 
         valid = True
+    
     while not valid:
-        costs = []
-        # Find the exchange cost for each node pair
-        for action in action_list:
-            exchange_cost = calculate_exchange_cost(graph,partition,action)
-            costs.append(exchange_cost)
-        costs = np.array(costs)
-        costs = np.nan_to_num(costs, nan=-np.inf)
-        best_cost = np.max(costs)
-        # Add all the best swaps to a list
-        best_action_indeces = np.argwhere(costs == best_cost).flatten()
-        if isinstance(best_action_indeces,int):
-            best_action_index = best_action_indeces
-        else:
-            if random_choice:
-                # Randomly choose between the best swaps
-                best_action_index = np.random.choice(best_action_indeces)
-            else:
-                # Choose the first best swap
-                best_action_index = best_action_indeces[0]
-        action_taken = action_list[best_action_index]
-        swaps.append(action_taken)
-        new_partition = swap(action_taken,partition)
-        # Calculate to check validity of the new partition
+        N = set(list(graph.nodes()))
+        W = calculate_W_matrix(graph)
+        W_cols = calculate_W_matrix_cols(W, num_partitions, partition)
+        D = calculate_D_from_W(W_cols, partition, num_partitions)
+        g = 0
+        partition_list = []
+        # mapping_list = []
+        g_list = []
+        partition_list.append(partition)
+        g_list.append(g)
+        swaps_it = []
+        while len(N) > 0:
+            # Find the node with the highest gain
+            max_gain = -np.inf
+            best_pair = None
+            for node in N:
+                for other_node in (N - set([node])):
+                    gain = calculate_swap_cost(node,other_node,W,D,partition)
+                    if gain > max_gain:
+                        max_gain = gain
+                        best_pair = (node,other_node)
+            if best_pair is None:
+                break
+            col_a = partition[best_pair[0]]
+            col_b = partition[best_pair[1]]
+            partition = swap(best_pair,partition)
+            N.remove(best_pair[0])
+            N.remove(best_pair[1])
+            swaps.append(best_pair)
+            D = update_D_matrix(graph,partition,col_a,col_b, D,W,num_partitions,best_pair, N)
+            # mapping = swap(best_pair,mapping)
+            g += max_gain
+            g_list.append(g)
+            cut = cut - max_gain
+            swaps_it.append(best_pair)
+            partition_list.append(partition)
+            # mapping_list.append(mapping)
+            if cut >= max_cost:
+                valid = False
+            else: 
+                valid = True
+                break
+
+        index = np.argmax(g_list)
+        new_partition = partition_list[index]
+        # mapping = mapping_list[index]
+        swaps += swaps_it[:index]
+
         cut = calculate_weighted_cut(graph,new_partition)
         if cut >= max_cost:
             valid = False
@@ -233,15 +372,15 @@ def remove_redundant_teleportations(interactions,partition,mapping):
         new_mapping[n] = mapping_start_layer
     return new_partition, new_mapping
 
-
-def fgp_oee(graph_list,initial_partition,action_list,mapping):
+def fgp_oee(graph_list,initial_partition,num_partitions,mapping):
     "Perform the partitioning algorithm on the list of sliced graphs. Output a list of partitions for each layer."
     partition = initial_partition.copy()
     full_partition = []
     full_mapping = []
     layer_mapping = mapping
+
     for n, graph in enumerate(graph_list):
-        final_partition, swaps = exchange_until_valid(graph,partition,action_list)
+        final_partition, swaps = exchange_until_valid(graph, partition, num_partitions)
         for nodes in swaps:
             layer_mapping = swap(nodes,layer_mapping)
         partition = final_partition
@@ -342,6 +481,58 @@ def find_starting_assignment(initial_search_size,qpu_info,graph,num_layers,rando
             best_cost = best_cost - score
     return best_candidate, mapping
 
+def run_initial_OEE(full_graph,initial_partition,qpu_info):
+    "Run the initial OEE algorithm to find a good starting partition."
+    partition = initial_partition.copy()
+    g_max = np.inf
+    mapping = [n for n in range(np.sum(qpu_info))]
+    num_partitions = len(qpu_info)
+    while g_max > 0:
+        N = set(list(full_graph.nodes()))
+        cut = calculate_static_cut(partition, full_graph)
+        W = calculate_W_matrix(full_graph)
+        W_cols = calculate_W_matrix_cols(W, num_partitions, partition)
+        D = calculate_D_from_W(W_cols, partition, num_partitions)
+        g = 0
+        partition_list = []
+        mapping_list = []
+        g_list = []
+        partition_list.append(partition)
+        g_list.append(g)
+        while len(N) > 0:
+            # Find the node with the highest gain
+            max_gain = -np.inf
+            for node in N:
+                for other_node in (N - set([node])):
+                    gain = calculate_swap_cost(node,other_node,W,D,partition)
+                    if gain > max_gain:
+                        max_gain = gain
+                        
+                        best_pair = (node,other_node)
+
+
+            
+            col_a = partition[best_pair[0]]
+            col_b = partition[best_pair[1]]
+            partition = swap(best_pair,partition)
+            N.remove(best_pair[0])
+            N.remove(best_pair[1])
+
+            D = update_D_matrix(full_graph,partition,col_a,col_b, D,W,num_partitions,best_pair, N)
+            mapping = swap(best_pair,mapping)
+            g += max_gain
+            g_list.append(g)
+            cut = cut - max_gain
+
+            partition_list.append(partition)
+            mapping_list.append(mapping)
+        g_max = np.max(g_list)
+        index = np.argmax(g_list)
+        partition = partition_list[index]
+        mapping = mapping_list[index]
+
+    return partition, mapping
+
 def calculate_cuts(time_partition,graph):
     "Calculate the cut of dynamic graph with the given partition over time."
     cut = 0
@@ -357,21 +548,20 @@ def calculate_cuts(time_partition,graph):
 def main_algorithm(circuit,qpu_info,initial_partition,remove_singles = True,choose_initial = False, intial_search_size = 10000):
     "Main function to run the partitioning algorithm. Function returns a tuple of the list of partitions for each time step and the teleportation cost to implement the partition."
     # Convert the circuit to a list of qubit interactions at each layer
-    interactions = circuit_to_slices(circuit,remove_singles=remove_singles)
+    interactions = circuit_to_slices(circuit,qpu_info,remove_singles=remove_singles)
     # Convert the qubit interactions to a list of graphs
     graph_list = slices_to_graphs(interactions,qpu_info)
-    # Create list of actions for swapping qubits
-    action_list = create_action_list(np.sum(qpu_info))
     # Create a static graph for all interactions
     full_graph = create_full_interaction_graph(np.sum(qpu_info),interactions)
     # Find the starting partition - either specified as input or found using heuristic
+    print("Initial cost of partition: ", calculate_static_cut(initial_partition,full_graph))
     if choose_initial:
         assignment = initial_partition
         mapping = [n for n in range(np.sum(qpu_info))]
     else:
-        assignment, mapping = find_starting_assignment(intial_search_size,qpu_info,full_graph,len(interactions),random = False)
+        assignment, mapping = run_initial_OEE(full_graph,initial_partition,qpu_info)
     #  Run the partitioning algorithm
-    full_partition, full_mapping = fgp_oee(graph_list,assignment,action_list,mapping)
+    full_partition, full_mapping = fgp_oee(graph_list,assignment,len(qpu_info),mapping)
     # Remove teleportations before first two qubit gate layer
     full_partition, full_mapping = remove_redundant_teleportations(interactions,full_partition,full_mapping)
     # Calculate the teleportation cost of the partition

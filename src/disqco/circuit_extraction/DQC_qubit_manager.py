@@ -261,6 +261,7 @@ class DataQubitManager:
         Note: Qiskit doesn't have a direct 'free' notion, so we reset or reuse.
         """
         logger.debug(f"[release_data_qubit] Releasing data qubit {qubit} from partition {p}")
+
         if qubit in self.in_use_data[p]:
             log_qubit = self.in_use_data[p].pop(qubit)
             del self.log_to_phys_idx[log_qubit]
