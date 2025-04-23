@@ -1,0 +1,20 @@
+[
+  {
+    "num_qubits": 128,
+    "num_partitions": 2,
+    "mean_r_cost": 1418.8,
+    "mean_r_time": 3.91939754486084
+  },
+  {
+    "num_qubits": 160,
+    "num_partitions": 2,
+    "mean_r_cost": 2184.4,
+    "mean_r_time": 8.883649539947509
+  },
+  {
+    "num_qubits": 192,
+    "num_partitions": 2,
+    "mean_r_cost": 3149.6,
+    "mean_r_time": 17.564159059524535
+  }
+]

@@ -1,0 +1,74 @@
+[
+  {
+    "num_qubits": 16,
+    "num_partitions": 2,
+    "mean_part_cost": 144.0,
+    "mean_embed_cost": 144.0,
+    "mean_part_time": 0.15188045501708985,
+    "mean_embed_time": 2.6179513931274414
+  },
+  {
+    "num_qubits": 16,
+    "num_partitions": 4,
+    "mean_part_cost": 237.0,
+    "mean_embed_cost": 237.0,
+    "mean_part_time": 0.26131162643432615,
+    "mean_embed_time": 3.108655643463135
+  },
+  {
+    "num_qubits": 24,
+    "num_partitions": 2,
+    "mean_part_cost": 331.2,
+    "mean_embed_cost": 331.2,
+    "mean_part_time": 0.876288890838623,
+    "mean_embed_time": 21.72786431312561
+  },
+  {
+    "num_qubits": 24,
+    "num_partitions": 4,
+    "mean_part_cost": 544.2,
+    "mean_embed_cost": 544.2,
+    "mean_part_time": 1.138190460205078,
+    "mean_embed_time": 18.8426504611969
+  },
+  {
+    "num_qubits": 32,
+    "num_partitions": 2,
+    "mean_part_cost": 609.4,
+    "mean_embed_cost": 609.4,
+    "mean_part_time": 2.0223479747772215,
+    "mean_embed_time": 95.30600266456604
+  },
+  {
+    "num_qubits": 32,
+    "num_partitions": 4,
+    "mean_part_cost": 980.2,
+    "mean_embed_cost": 980.2,
+    "mean_part_time": 2.9049488067626954,
+    "mean_embed_time": 77.95274295806885
+  },
+  {
+    "num_qubits": 40,
+    "num_partitions": 2,
+    "mean_part_cost": 966.6,
+    "mean_embed_cost": 966.6,
+    "mean_part_time": 3.9518250465393066,
+    "mean_embed_time": 307.7729534626007
+  },
+  {
+    "num_qubits": 40,
+    "num_partitions": 4,
+    "mean_part_cost": 1559.4,
+    "mean_embed_cost": 1559.4,
+    "mean_part_time": 6.474619150161743,
+    "mean_embed_time": 255.7227813243866
+  },
+  {
+    "num_qubits": 48,
+    "num_partitions": 2,
+    "mean_part_cost": 1448.4,
+    "mean_embed_cost": 1448.4,
+    "mean_part_time": 6.883426237106323,
+    "mean_embed_time": 843.1857378482819
+  }
+]

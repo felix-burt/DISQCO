@@ -1,0 +1,15 @@
+[
+  {
+    "num_qubits": 80,
+    "num_partitions": 10,
+    "fraction": 0.9,
+    "mean_init_cost": 757.2,
+    "mean_vc_cost": 1173.2,
+    "mean_steiner_cost": 1173.2,
+    "mean_detached_cost": 868.8,
+    "mean_init_time": 4.160609579086303,
+    "mean_vc_time": 119.8598503112793,
+    "mean_steiner_time": 229.1148790836334,
+    "mean_detached_time": 20.116715955734254
+  }
+]

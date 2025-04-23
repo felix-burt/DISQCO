@@ -1,5 +1,4 @@
-num_qubits fgp_mean fgp_min fgp_max
-16 32.0 32.0 32.0
+# num_qubits fgp_mean fgp_min fgp_max16 32.0 32.0 32.0
 24 48.0 48.0 48.0
 32 64.0 64.0 64.0
 40 80.0 80.0 80.0

@@ -1,0 +1,107 @@
+[
+  {
+    "num_qubits": 128,
+    "num_partitions": 2,
+    "iteration": 0,
+    "fgp_cost": 1410,
+    "time_fgp": 3.8793599605560303
+  },
+  {
+    "num_qubits": 128,
+    "num_partitions": 2,
+    "iteration": 1,
+    "fgp_cost": 1406,
+    "time_fgp": 3.9102518558502197
+  },
+  {
+    "num_qubits": 128,
+    "num_partitions": 2,
+    "iteration": 2,
+    "fgp_cost": 1450,
+    "time_fgp": 3.990246057510376
+  },
+  {
+    "num_qubits": 128,
+    "num_partitions": 2,
+    "iteration": 3,
+    "fgp_cost": 1438,
+    "time_fgp": 3.982008934020996
+  },
+  {
+    "num_qubits": 128,
+    "num_partitions": 2,
+    "iteration": 4,
+    "fgp_cost": 1390,
+    "time_fgp": 3.835120916366577
+  },
+  {
+    "num_qubits": 160,
+    "num_partitions": 2,
+    "iteration": 0,
+    "fgp_cost": 2188,
+    "time_fgp": 8.913294792175293
+  },
+  {
+    "num_qubits": 160,
+    "num_partitions": 2,
+    "iteration": 1,
+    "fgp_cost": 2218,
+    "time_fgp": 8.899482250213623
+  },
+  {
+    "num_qubits": 160,
+    "num_partitions": 2,
+    "iteration": 2,
+    "fgp_cost": 2180,
+    "time_fgp": 8.772120714187622
+  },
+  {
+    "num_qubits": 160,
+    "num_partitions": 2,
+    "iteration": 3,
+    "fgp_cost": 2166,
+    "time_fgp": 8.888391017913818
+  },
+  {
+    "num_qubits": 160,
+    "num_partitions": 2,
+    "iteration": 4,
+    "fgp_cost": 2170,
+    "time_fgp": 8.944958925247192
+  },
+  {
+    "num_qubits": 192,
+    "num_partitions": 2,
+    "iteration": 0,
+    "fgp_cost": 3130,
+    "time_fgp": 17.480632066726685
+  },
+  {
+    "num_qubits": 192,
+    "num_partitions": 2,
+    "iteration": 1,
+    "fgp_cost": 3170,
+    "time_fgp": 17.651122093200684
+  },
+  {
+    "num_qubits": 192,
+    "num_partitions": 2,
+    "iteration": 2,
+    "fgp_cost": 3150,
+    "time_fgp": 17.422937154769897
+  },
+  {
+    "num_qubits": 192,
+    "num_partitions": 2,
+    "iteration": 3,
+    "fgp_cost": 3178,
+    "time_fgp": 17.858963012695312
+  },
+  {
+    "num_qubits": 192,
+    "num_partitions": 2,
+    "iteration": 4,
+    "fgp_cost": 3120,
+    "time_fgp": 17.407140970230103
+  }
+]

@@ -1,0 +1,82 @@
+[
+  {
+    "circuit_name": "adder_n28",
+    "num_qubits": 28,
+    "num_partitions": 2,
+    "iteration": 0,
+    "fgp_cost": 20,
+    "time_fgp": 0.026217937469482422
+  },
+  {
+    "circuit_name": "adder_n28",
+    "num_qubits": 28,
+    "num_partitions": 2,
+    "iteration": 1,
+    "fgp_cost": 20,
+    "time_fgp": 0.020923852920532227
+  },
+  {
+    "circuit_name": "adder_n28",
+    "num_qubits": 28,
+    "num_partitions": 2,
+    "iteration": 2,
+    "fgp_cost": 20,
+    "time_fgp": 0.020724058151245117
+  },
+  {
+    "circuit_name": "adder_n28",
+    "num_qubits": 28,
+    "num_partitions": 2,
+    "iteration": 3,
+    "fgp_cost": 20,
+    "time_fgp": 0.020724773406982422
+  },
+  {
+    "circuit_name": "adder_n28",
+    "num_qubits": 28,
+    "num_partitions": 2,
+    "iteration": 4,
+    "fgp_cost": 20,
+    "time_fgp": 0.020302772521972656
+  },
+  {
+    "circuit_name": "qft_n29",
+    "num_qubits": 29,
+    "num_partitions": 2,
+    "iteration": 0,
+    "fgp_cost": 46,
+    "time_fgp": 0.11549687385559082
+  },
+  {
+    "circuit_name": "qft_n29",
+    "num_qubits": 29,
+    "num_partitions": 2,
+    "iteration": 1,
+    "fgp_cost": 46,
+    "time_fgp": 0.07737493515014648
+  },
+  {
+    "circuit_name": "qft_n29",
+    "num_qubits": 29,
+    "num_partitions": 2,
+    "iteration": 2,
+    "fgp_cost": 46,
+    "time_fgp": 0.08240413665771484
+  },
+  {
+    "circuit_name": "qft_n29",
+    "num_qubits": 29,
+    "num_partitions": 2,
+    "iteration": 3,
+    "fgp_cost": 46,
+    "time_fgp": 0.07867002487182617
+  },
+  {
+    "circuit_name": "qft_n29",
+    "num_qubits": 29,
+    "num_partitions": 2,
+    "iteration": 4,
+    "fgp_cost": 46,
+    "time_fgp": 0.12463903427124023
+  }
+]

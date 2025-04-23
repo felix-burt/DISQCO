@@ -50,7 +50,7 @@ def set_initial_partitions_dict(network : QuantumNetwork, num_qubits : int, dept
     
     return partition_assignment
 
-def find_spaces(num_qubits: int, depth: int, assignment : dict[tuple[int,int] : int], qpu_sizes: dict[int : int]) -> dict[int : int]:
+def find_spaces(num_qubits: int, depth: int, assignment : dict[tuple[int,int] : int], qpu_sizes: dict[int : int], assignment_map = None, graph = None) -> dict[int : int]:
     """
     Find the number of free qubits in each partition at each time step.
     num_qubits: number of logical qubits in the circuit
@@ -59,14 +59,30 @@ def find_spaces(num_qubits: int, depth: int, assignment : dict[tuple[int,int] : 
     """
     num_partitions = len(qpu_sizes)
     spaces = {}
-    for t in range(depth):
-        if isinstance(qpu_sizes, dict):
-            spaces[t] = [qpu_sizes[k] for k in qpu_sizes]
-        else:
-            spaces[t] = [qpu_sizes[k] for k in range(num_partitions)]
-        for q in range(num_qubits):
-            # spaces[t][assignment[(q,t)]] -= 1
-            spaces[t][assignment[t][q]] -= 1
+    if assignment_map is None:
+        for t in range(depth):
+            if isinstance(qpu_sizes, dict):
+                keys = list(sorted(qpu_sizes.keys()))
+                spaces[t] = [qpu_sizes[k] for k in keys]
+            else:
+                spaces[t] = [size for size in qpu_sizes]
+
+            for q in range(num_qubits):
+                # spaces[t][assignment[(q,t)]] -= 1
+                spaces[t][assignment[t][q]] -= 1
+    else:
+        for t in range(depth):
+            if isinstance(qpu_sizes, dict):
+                keys = list(sorted(qpu_sizes.keys()))
+                spaces[t] = [qpu_sizes[k] for k in keys]
+            else:
+                spaces[t] = [qpu_sizes[k] for k in range(num_partitions)]
+        for node in graph.nodes:
+            if node[0] != 'dummy':
+                q,t = node
+                sub_node = assignment_map[node]
+                part = assignment[sub_node[1]][sub_node[0]]
+                spaces[t][part] -= 1
     
     return spaces
 
@@ -134,7 +150,11 @@ def find_gain(graph : QuantumCircuitHyperGraph, node: tuple[int,int], destinatio
         # stop = time.time()
         # print(f"Time taken for config2: {stop - start} seconds")
         # start = time.time()
-        cost2 = costs[config2]
+        if config2 not in costs:
+            cost2 = config_to_cost(config2)
+            costs[config2] = cost2
+        else:
+            cost2 = costs[config2]
         # stop = time.time()
         # print(f"Time taken for cost2: {stop - start} seconds")
         # cost2 = get_cost(config2,costs)
@@ -171,7 +191,6 @@ def find_all_gains(hypergraph,nodes,assignment,num_partitions,costs,log=None):
 
 def find_all_gains_h(hypergraph,nodes,assignment,num_partitions,costs={},network : QuantumNetwork = None, node_map = None, assignment_map=None, dummy_nodes = {}):
     array = {}
-
     for node in nodes:
         if assignment_map is not None:
             sub_node = assignment_map[node]
@@ -772,6 +791,8 @@ def take_action_and_update_hetero(hypergraph,node,destination,array,buckets,num_
 
         for next_root_node in root_set:
             # print(f'Next root node {next_root_node}')
+            if next_root_node not in lock_dict:
+                continue
 
             # source = assignment[next_root_node]
             if not lock_dict[next_root_node]:
@@ -814,6 +835,8 @@ def take_action_and_update_hetero(hypergraph,node,destination,array,buckets,num_
             # print(f'Next receiver node {next_rec_node}')
 
             # source = assignment[next_rec_node]
+            if next_rec_node not in lock_dict:
+                continue
             if not lock_dict[next_rec_node]:
                 if assignment_map is not None:
                     next_rec_node_sub = assignment_map[next_rec_node]
@@ -885,7 +908,6 @@ def assignment_to_list(assignment, num_qubits, depth):
                 layer.append(qpu)
             assignment_list.append(layer)
         return assignment_list
-
 
 def transform_assignment(assignment, mapping, qpu_sizes, node_map):
     new_assignment = copy.deepcopy(assignment)
@@ -962,3 +984,12 @@ def set_initial_sub_partitions(sub_network : QuantumNetwork, node_list : list[li
     assignment = np.array([np.array(assignment[j][:max_qubits_per_layer]) for j in range(len(assignment))])
     
     return assignment
+
+def refine_assignment(level, num_levels, assignment, mapping_list):
+    new_assignment = assignment
+    if level < num_levels -1:
+        mapping = mapping_list[level]
+        for super_node_t in mapping:
+            for t in mapping[super_node_t]:
+                new_assignment[t] = assignment[super_node_t]
+    return new_assignment

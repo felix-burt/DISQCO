@@ -8,6 +8,9 @@ from scipy.special import softmax
 from disqco.graphs.GCP_hypergraph import *
 from disqco.parti.FM.FM_methods import set_initial_partitions
 from disqco.graphs.hypergraph_methods import *
+from disqco.parti.FM.FM_methods import move_node
+import time
+
 
 Genome = List[List]
 Population = List[Genome]
@@ -19,18 +22,32 @@ MutationFunc = Callable[[Genome,int,int],Genome]
 
 class Genetic_Partitioning():
 
-    def __init__(self,circuit, qpu_info, costs, max_depth=10000, multi_process = True, gate_packing = False, transpile_circuit=False) -> None:
+    def __init__(self, circuit : QuantumCircuit, 
+                 qpu_info, 
+                 costs = None, 
+                 max_depth = 10000, 
+                 multi_process = True, 
+                 gate_packing = True, 
+                 transpile_circuit=False
+                 ) -> None:
+        
         if transpile_circuit == True:
             self.circuit = transpile(circuit,basis_gates=['u','cp'])
         else:
             self.circuit = circuit
+        
         self.qpu_info = qpu_info # List of QPU sizes
         self.max_depth = max_depth
         self.num_qubits_log = circuit.num_qubits
         self.num_layers = circuit.depth()
-        self.graph = QuantumCircuitHyperGraph(self.num_qubits_log,self.num_layers)
-        self.graph.map_circuit_to_hypergraph(self.circuit, group_gates=gate_packing)
-        self.costs = costs
+        self.graph = QuantumCircuitHyperGraph(self.circuit,group_gates=True)
+        self.layers = self.graph.layers
+        if costs is None:
+            configs = get_all_configs(len(qpu_info))
+            self.costs = get_all_costs(configs)
+        else:
+            
+            self.costs = costs
         
         self.num_qubits_phys = np.sum(qpu_info) # Total number of qubits across all QPUs
         self.num_partitions = len(qpu_info)
@@ -47,34 +64,37 @@ class Genetic_Partitioning():
         if not multi_process:
             fitness_scores = [fitness_function(self.graph, partition,self.num_partitions,self.costs,self.qpu_info,self.num_layers
                                                ) for partition in population]
-            print(fitness_scores)
+
             indices = list(enumerate(fitness_scores))
             sorted_indices = sorted(indices, key=lambda x: x[1],reverse=False)
             population = [(population[index],value) for index, value in sorted_indices]
         else:
             pool = mp.Pool(mp.cpu_count())
-            fitness_scores = pool.map(partial(fitness_function, 
-                                            layers=self.layers,
-                                            num_qubits_log=self.num_qubits_log,
-                                            gate_packing=self.gate_packing),
-                                            population)
+            tasks = [(self.graph, partition, self.num_partitions, self.costs, self.qpu_info, self.num_layers) for partition in population]
+            fitness_scores = pool.starmap(fitness_function, tasks)
+            
             indices = list(enumerate(fitness_scores))
             sorted_indices = sorted(indices, key=lambda x: x[1],reverse=False)
             population = [(population[index],value) for index, value in sorted_indices]
             population = sorted(population, key = lambda x : x[1],reverse=False)
 
         for t in range(num_generations):
+            # print("Generation",t)
             self.best = population[0][1]
             if log == True:
                 if (t % log_frequency) == 0:
                     print("Current best cut:", self.best)
             next_generation = population[0:2]
+            
             #total_fitness = np.sum([10000-population[n][1] for n in range(len(population))])
             probabilities = softmax([-population[n][1] for n in range(len(population))])
+
             #probabilities = [(10000-population[n][1])/total_fitness for n in range(len(population))]
             if not multi_process:
-                for _ in range(int(len(population)/2)-1):
+                for q in range(int(len(population)/2)-1):
                     parents = selection_pair(population,probabilities)
+                    # print("Member number", q)
+                    # start = time.time()
                     offspring_a, offspring_b = create_offspring(parents,
                                                                 self.qpu_info,
                                                                 self.num_qubits_log,
@@ -82,30 +102,46 @@ class Genetic_Partitioning():
                                                                 self.num_partitions,
                                                                 self.graph,
                                                                 self.costs,
-                                                                mutation_rate)
+                                                                mutation_rate,
+                                                                number=search_number)
+                    # end = time.time()
+                    # print("Time taken for offspring creation:", end-start)
+
                     next_generation.append(offspring_a)
                     next_generation.append(offspring_b)
             else:
+
                 next_generation = population[0:2]
+
                 tasks = [(selection_pair(population, probabilities), 
-                          self.qpu_info, 
-                          self.num_layers, 
+                          self.qpu_info,
                           self.num_qubits_log, 
-                          self.layers, 
+                          self.num_layers,
+                          self.num_partitions,
+                          self.graph,
+                          self.costs,
                           mutation_rate,
-                          search_method,
-                          search_number,
-                          self.gate_packing) for _ in range(int(len(population)/2)-1)]
+                          search_number) for _ in range(int(len(population)/2)-1)]
+                
+                start = time.time()
                 results = pool.starmap(create_offspring, tasks)
+                end = time.time()
+
+                # print("Time taken to map results", end - start)
 
                 for offspring_a, offspring_b in results:
                     next_generation.append(offspring_a)
                     next_generation.append(offspring_b)
+
             population = sorted(next_generation, key = lambda x : x[1],reverse=False)
+
             max_over_time.append(population[0][1])
+
         if multi_process:
+
             pool.close()
             pool.join()
+        
         return population,max_over_time
 
     def view_graphs(self,partition):
@@ -157,11 +193,13 @@ def check_validity(partition: Genome,qpu_info : List[int], num_layers : int) -> 
     return valid
 
 def fitness_function(graph, partition, num_partitions,costs,qpu_info,num_layers) -> int:
+
     valid = check_validity(partition, qpu_info, num_layers)
     if valid:
         cost = calculate_full_cost(graph, partition, num_partitions, costs)
     else:
         cost = 100000
+    
     return cost
 
 def selection_pair(population, probs) -> Population:
@@ -180,7 +218,13 @@ def single_point_crossover_layered(a: Genome, b: Genome,prob = 0.5) -> Tuple[Gen
     return g1, g2
 
 def create_offspring(parents, qpu_info, num_qubits, num_layers, num_partitions, graph , costs, mutation_rate = 0.5, number=100):
-    offspring_a, offspring_b = crossover(parents[0], parents[1], 0.5)
+    
+    cut_a = parents[0][1]
+    cut_b = parents[1][1]
+
+
+    offspring_a, offspring_b = crossover(parents[0], parents[1], 0.0)
+
     if random.random() < mutation_rate:
         # if random.random() > 0.5: 
         #     offspring_a = swap_mutation_propogate(offspring_a, num_qubits, num_layers,num=1,prob=1)
@@ -188,11 +232,17 @@ def create_offspring(parents, qpu_info, num_qubits, num_layers, num_partitions, 
         # else:
         #     offspring_a = match_mutation(offspring_a, num_layers,num=1, prob=1)
         #     offspring_b = match_mutation(offspring_b, num_layers,num=1, prob=1)
-        offspring_a = search_mutation(graph, offspring_a, num_partitions, qpu_info, num_qubits, num_layers, costs, number)
-        offspring_b = search_mutation(graph, offspring_b, num_partitions, qpu_info, num_qubits, num_layers ,costs, number)
 
-    cut_a = fitness_function(graph,offspring_a,num_partitions,costs,qpu_info,num_layers)
-    cut_b = fitness_function(graph,offspring_b,num_partitions,costs,qpu_info,num_layers)
+        offspring_a, gain_a = search_mutation(graph, offspring_a, num_partitions, qpu_info, num_qubits, num_layers, costs, number)
+        offspring_b, gain_b = search_mutation(graph, offspring_b, num_partitions, qpu_info, num_qubits, num_layers ,costs, number)
+    else:
+        gain_a = 0
+        gain_b = 0
+
+    cut_a = cut_a + gain_a
+    cut_b = cut_b + gain_b
+    # cut_a = fitness_function(graph, offspring_a, num_partitions, costs, qpu_info, num_layers)
+    # cut_b = fitness_function(graph, offspring_b, num_partitions, costs, qpu_info, num_layers)
 
     return (offspring_a, cut_a), (offspring_b, cut_b)
 
@@ -359,8 +409,6 @@ def calculate_cut_diff(gen1,gen2,layers,action,start,stop,num_qubits_log):
     
     return old_cut - new_cut
 
-from src.FM_methods import move_node
-
 def is_space(partition, qpu_info, destination, n):
     layer = partition[n]
     counts = sum([1 if part == destination else 0 for part in layer])
@@ -368,8 +416,7 @@ def is_space(partition, qpu_info, destination, n):
         return True
     else:
         return False
-    
-    
+      
 def find_gain(hypergraph,node,destination,assignment,num_partitions,costs,log=False):
     assignment_new = move_node(node,destination,assignment)
     edges = hypergraph.node2hyperedges[node]
@@ -379,33 +426,34 @@ def find_gain(hypergraph,node,destination,assignment,num_partitions,costs,log=Fa
     for edge in edges:
         
         # cost1 = hypergraph.get_hyperedge_attribute(edge,'cost')
-        root_config, rec_config = map_hedge_to_config(hypergraph,edge,assignment,num_partitions)
-        config1 = get_full_config(root_config,rec_config)
-        cost1 = costs[config1]
+        root_counts, rec_counts = hedge_k_counts(hypergraph, edge, assignment, num_partitions, set_attrs=False)
+        config1 = full_config_from_counts(root_counts, rec_counts)
+        cost1 = costs[tuple(config1)]
 
-        root_config, rec_config = map_hedge_to_config(hypergraph,edge,assignment_new,num_partitions)
-        config2 = get_full_config(root_config,rec_config)
-        cost2 = costs[config2]
+        root_counts, rec_counts = hedge_k_counts(hypergraph, edge, assignment_new, num_partitions, set_attrs=False)
+        config2 = full_config_from_counts(root_counts, rec_counts)
+        cost2 = costs[tuple(config2)]
 
         gain += cost2 - cost1
     if log:
         print(f'Total gain = {gain}')
     return gain
 
-
 def calculate_cost_interval(graph,partition,qpu_info, start,destination,qubit,num_layers, num_partitions, costs):
     gain = 0
     n = start
+    new_partition = partition.copy()
     while n < num_layers:
         node = (qubit,n)
-        if is_space(partition, qpu_info, destination, n):
-            cost = find_gain(graph, node, destination, partition, num_partitions, costs)
+        if is_space(new_partition, qpu_info, destination, n):
+            cost = find_gain(graph, node, destination, new_partition, num_partitions, costs)
             gain += cost
             n += 1
+            new_partition = update_partition(new_partition, start, destination, qubit, n)
         else:
-            return gain, n - 1
-    return gain, n
+            return gain, n
 
+    return gain, n
 
 def update_partition(partition,start,destination,qubit,stop):
     new_partition = partition.copy()
@@ -416,10 +464,11 @@ def update_partition(partition,start,destination,qubit,stop):
 def search_mutation(graph, partition, num_partitions, qpu_info, num_qubits_log, num_layers, costs, number):
     best = 0
     best_partition = partition.copy()
-
     for n in range(number):
+        # print("Number", n)
         start = np.random.choice(len(partition), size=1)[0]
         qubit = np.random.choice(num_qubits_log,size=1)[0]
+        # destination = np.random.choice(num_partitions, size=1)[0]
         partition_layer = partition[start]
         counts = [0 for _ in range(num_partitions)]
         for element in partition_layer:
@@ -428,11 +477,17 @@ def search_mutation(graph, partition, num_partitions, qpu_info, num_qubits_log, 
             if counts[part] < qpu_info[part]:
                 destination = part
                 break
+        # start = time.time()
         gain, stop = calculate_cost_interval(graph,partition,qpu_info,start,destination,qubit,num_layers,num_partitions,costs)
+        # end = time.time()
+        # print("Time taken for gain calculation:", end-start)
         if gain < best:
+            # print("Gain",gain)
             best = gain
             best_partition = update_partition(partition,start,destination,qubit,stop)
-    return best_partition
+    
+
+    return best_partition, best
 
 def calculate_cost_groups(partition,layers,num_qubits_log):
     cost = 0

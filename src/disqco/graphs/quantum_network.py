@@ -5,7 +5,7 @@ from networkx.algorithms.approximation import steiner_tree
 from networkx import erdos_renyi_graph
 import math as mt
 from disqco.graphs.GCP_hypergraph import QuantumCircuitHyperGraph
-from disqco.graphs.hypergraph_methods import map_hedge_to_configs
+from disqco.graphs.hypergraph_methods import map_hedge_to_configs, get_all_configs, config_to_cost
 
 # Quantumn Network Class
 # This class is used to create a quantum network with multiple QPUs
@@ -23,12 +23,16 @@ class QuantumNetwork():
             self.qpu_sizes = qpu_sizes
 
         if qpu_connectivity is None:
+            self.hetero = False
             self.qpu_connectivity = [(i, j) for i in range(len(qpu_sizes)) for j in range(i+1, len(qpu_sizes))]
         else:
             self.qpu_connectivity = qpu_connectivity
+            self.hetero = True
+
         self.qpu_graph = self.create_qpu_graph()
         self.num_qpus = len(self.qpu_sizes)
         self.mapping = {i: set([i]) for i in range(self.num_qpus)}
+
 
     def create_qpu_graph(self):
         qpu_graph = nx.Graph()
@@ -143,6 +147,26 @@ class QuantumNetwork():
     def copy(self):
         return QuantumNetwork(self.qpu_sizes, self.qpu_connectivity)
 
+    def get_costs(self,) -> dict[tuple]:
+        """
+        Computes the costs for all configurations given connectivity.
+        """
+        configs = get_all_configs(self.num_qpus, hetero=self.hetero)
+        costs = {}
+        if self.hetero:
+            for root_config in configs:
+                for rec_config in configs:
+                    edges, cost = self.steiner_forest(root_config, rec_config)
+                    costs[(root_config, rec_config)] = cost
+        else:
+            for config in configs:
+                cost = config_to_cost(config)
+                costs[tuple(config)] = cost
+
+        return costs
+
+
+
 def random_coupling(N, p):
     """
     Generates a connected graph with N nodes and edge probability p.
@@ -225,11 +249,45 @@ def linear_coupling(N):
         edges.append([i, i + 1])
     return edges
 
+def network_of_grids(num_grids, nodes_per_grid, l):
+    """
+    Construct a network of grid graphs connected by linear paths.
 
-# coupling = [[i,j] for i in range(int(num_partitions/2)-1) for j in range(int(num_partitions/2)-1) if i != j]
+    Args:
+        num_grids (int): Number of grid components.
+        nodes_per_grid (int): Number of nodes in each grid.
+        l (int): Number of hops (edges) in the path connecting consecutive grids.
 
-# coupling += [[i,j] for i in range(int(num_partitions/2)+1,num_partitions) for j in range(int(num_partitions/2)+1,num_partitions) if i != j]
-# coupling += [[int(num_partitions/2)-2, int(num_partitions/2)-1]]
-# coupling += [[int(num_partitions/2)-1, int(num_partitions/2)]]
-# coupling += [[int(num_partitions/2), int(num_partitions/2)+1]]
-# coupling = None
+    Returns:
+        List of edges across the entire network.
+    """
+    all_edges = []
+    node_counter = 0
+    grid_centers = []
+
+    for i in range(num_grids):
+        # Generate grid edges
+        grid_edges = grid_coupling(nodes_per_grid)
+        # Offset node indices
+        offset_edges = [[u + node_counter, v + node_counter] for u, v in grid_edges]
+        all_edges.extend(offset_edges)
+
+        # Track a "center" node in the grid to connect bridges (we'll use node 0 of each grid)
+        grid_centers.append(node_counter)  # could also pick a more central node
+        node_counter += nodes_per_grid
+
+        # Add l-hop path to next grid (if not the last grid)
+        if i < num_grids - 1:
+            bridge_edges = []
+            path_start = grid_centers[-1]
+            bridge_nodes = [node_counter + j for j in range(l)]
+            path_nodes = [path_start] + bridge_nodes
+
+            for u, v in zip(path_nodes, path_nodes[1:]):
+                bridge_edges.append([u, v])
+            all_edges.extend(bridge_edges)
+
+            node_counter += l  # reserve node indices for bridge
+
+    return all_edges
+

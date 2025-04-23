@@ -4,6 +4,9 @@ from disqco.parti.FM.FM_methods import get_all_configs, get_all_costs, calculate
 from disqco.graphs.coarsening.coarsener import HypergraphCoarsener
 import time
 import copy
+from disqco.graphs.hypergraph_methods import get_all_costs_hetero, calculate_full_cost_hetero
+from disqco.parti.FM.FM_hetero import run_FM_hetero
+from networkx import diameter
 
 def refine_assignment(level, num_levels, assignment, mapping_list):
     new_assignment = assignment
@@ -88,6 +91,7 @@ def multilevel_FM_bench(coarsened_hypergraphs,
 
         passes = pass_list[i]
         start = time.time()
+
         best_cost_pass, best_assignment, cost_list, time_list = run_FM_bench(
             hypergraph=graph,            # This stage's coarsened hypergraph
             initial_assignment=initial_assignment,
@@ -103,6 +107,7 @@ def multilevel_FM_bench(coarsened_hypergraphs,
             costs=costs
         )
         end = time.time()
+
         level_time = end - start
         list_of_times.append(level_time)
         pass_time_list.append(time_list)
@@ -124,11 +129,7 @@ def multilevel_FM_bench(coarsened_hypergraphs,
         list_of_assignments.append(initial_assignment)
         list_of_costs.append(best_cost)
 
-    return list_of_assignments, list_of_costs, list_of_times, pass_time_list,pass_cost_list
-
-from disqco.graphs.hypergraph_methods import get_all_costs_hetero, calculate_full_cost_hetero
-from disqco.parti.FM.FM_hetero import run_FM_hetero
-from networkx import diameter
+    return list_of_assignments, list_of_costs, list_of_times, pass_time_list, pass_cost_list
 
 def multilevel_FM_hetero(coarsened_hypergraphs,
                 mapping_list, 
@@ -269,54 +270,32 @@ def MLFM_blocks_bench(graph,
                 lock_nodes=False,
                 log = False,
                 add_initial = False,
-                costs = None,
-                full = True):
+                costs = None):
 
     coarsener = HypergraphCoarsener()
 
-    graph_list, mapping_list = coarsener.coarsen_blocks(hypergraph=graph, num_blocks=None, block_size=num_levels)
+    if limit == None:
+        num_qubits = graph.num_qubits
+        depth = graph.depth
+        limit = (1/16)*num_qubits*depth
 
+    graph_list, mapping_list = coarsener.coarsen_blocks(hypergraph=graph, num_blocks=None, block_size=num_levels)
 
     if pass_list == None:
         pass_list = [10]*(len(graph_list)+2)
-
-    if full:
-        coarse_graph_list, coarse_mapping_list = coarsener.coarsen_blocks_full(hypergraph=graph_list[-1], mapping=copy.deepcopy(mapping_list[-1]))
-        pass_list_c = [10]*(len(coarse_graph_list)+2)
-
-        assignment_list_c, cost_list_c, time_list_c, pass_time_list_c, pass_cost_list_c = multilevel_FM_bench(coarsened_hypergraphs=coarse_graph_list,
-                                        mapping_list=coarse_mapping_list,
-                                        initial_assignment=initial_assignment,
-                                        qpu_info=qpu_info,
-                                        limit = limit,
-                                        pass_list=pass_list_c,
-                                        stochastic=stochastic,
-                                        lock_nodes=lock_nodes,
-                                        log=log,
-                                        add_initial=add_initial,
-                                        costs=costs)
-        
-        initial_assignment = assignment_list_c[np.argmin(cost_list_c)]
     
-    print(f'Number of levels: {len(graph_list)}')
 
     assignment_list, cost_list, time_list, pass_time_list, pass_cost_list  = multilevel_FM_bench(coarsened_hypergraphs=graph_list,
-                                            mapping_list=mapping_list,
-                                            initial_assignment=initial_assignment,
-                                            qpu_info=qpu_info,
-                                            limit = limit,
-                                            pass_list=pass_list,
-                                            stochastic=stochastic,
-                                            lock_nodes=lock_nodes,
-                                            log=log,
-                                            add_initial=add_initial,
-                                            costs=costs)
-    if full:
-        assignment_list = assignment_list_c + assignment_list
-        cost_list = cost_list_c + cost_list
-        time_list = time_list_c + time_list
-        pass_time_list = pass_time_list_c + pass_time_list
-        pass_cost_list = pass_cost_list_c + pass_cost_list
+                                                                                                    mapping_list=mapping_list,
+                                                                                                    initial_assignment=initial_assignment,
+                                                                                                    qpu_info=qpu_info,
+                                                                                                    limit = limit,
+                                                                                                    pass_list=pass_list,
+                                                                                                    stochastic=stochastic,
+                                                                                                    lock_nodes=lock_nodes,
+                                                                                                    log=log,
+                                                                                                    add_initial=add_initial,
+                                                                                                    costs=costs)
 
     return assignment_list, cost_list, time_list, pass_time_list, pass_cost_list
 
@@ -344,33 +323,33 @@ def MLFM_recursive_bench(graph,
 
     print(f'Number of levels: {len(graph_list)}')
 
-    assignment_list, cost_list, time_list, pass_time_list, pass_cost_list = multilevel_FM_bench(graph_list,
-                                            mapping_list,
-                                            initial_assignment=initial_assignment,  
-                                            qpu_info= qpu_info, 
-                                            limit = limit, 
-                                            pass_list= pass_list,
-                                            stochastic = stochastic, 
-                                            lock_nodes = lock_nodes,
-                                            log = log,
-                                            add_initial = add_initial,
-                                            costs = costs,
-                                            level_limit = level_limit)
+    assignment_list, cost_list, time_list, pass_time_list, pass_cost_list = multilevel_FM_bench(    graph_list,
+                                                                                                    mapping_list,
+                                                                                                    initial_assignment=initial_assignment,  
+                                                                                                    qpu_info= qpu_info, 
+                                                                                                    limit = limit, 
+                                                                                                    pass_list= pass_list,
+                                                                                                    stochastic = stochastic, 
+                                                                                                    lock_nodes = lock_nodes,
+                                                                                                    log = log,
+                                                                                                    add_initial = add_initial,
+                                                                                                    costs = costs,
+                                                                                                    level_limit = level_limit   )
 
     return assignment_list, cost_list, time_list, pass_time_list, pass_cost_list
 
-def MLFM_recursive_hetero(graph,
-                initial_assignment,  
-                qpu_info, 
-                limit = None, 
-                pass_list= None, 
-                stochastic = True, 
-                lock_nodes = False,
-                log = False,
-                add_initial = False,
-                costs = None,
-                level_limit = None,
-                network = None):
+def MLFM_recursive_hetero(  graph,
+                            initial_assignment,  
+                            qpu_info, 
+                            limit = None, 
+                            pass_list= None, 
+                            stochastic = True, 
+                            lock_nodes = False,
+                            log = False,
+                            add_initial = False,
+                            costs = None,
+                            level_limit = None,
+                            network = None  ):
 
     coarsener = HypergraphCoarsener()
     graph_list, mapping_list = coarsener.coarsen_recursive_batches(graph)

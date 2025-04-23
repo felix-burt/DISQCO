@@ -289,12 +289,11 @@ def exchange_until_valid(graph, partition, num_partitions, max_cost = 10000, ran
     initial_cut = calculate_weighted_cut(graph,partition)
     cut = initial_cut
     swaps = []
-
     if initial_cut >= max_cost:
         valid = False
     else: 
         valid = True
-    
+    # print("New layer")
     while not valid:
         N = set(list(graph.nodes()))
         W = calculate_W_matrix(graph)
@@ -307,7 +306,9 @@ def exchange_until_valid(graph, partition, num_partitions, max_cost = 10000, ran
         partition_list.append(partition)
         g_list.append(g)
         swaps_it = []
+
         while len(N) > 0:
+            # print("Number of nodes left: ", len(N))
             # Find the node with the highest gain
             max_gain = -np.inf
             best_pair = None
@@ -319,11 +320,19 @@ def exchange_until_valid(graph, partition, num_partitions, max_cost = 10000, ran
                         best_pair = (node,other_node)
             if best_pair is None:
                 break
+            # print("Max gain", max_gain)
             col_a = partition[best_pair[0]]
             col_b = partition[best_pair[1]]
+            
             partition = swap(best_pair,partition)
+            # if np.random.rand() < 0.5:
+            #     N.remove(best_pair[1])
+            # else:
+            #     N.remove(best_pair[0])
+
             N.remove(best_pair[0])
             N.remove(best_pair[1])
+
             swaps.append(best_pair)
             D = update_D_matrix(graph,partition,col_a,col_b, D,W,num_partitions,best_pair, N)
             # mapping = swap(best_pair,mapping)
@@ -499,7 +508,8 @@ def run_initial_OEE(full_graph,initial_partition,qpu_info):
         g_list = []
         partition_list.append(partition)
         g_list.append(g)
-        while len(N) > 0:
+        while len(N) > 2:
+            # print("Nodes left: ", N)
             # Find the node with the highest gain
             max_gain = -np.inf
             for node in N:
@@ -509,14 +519,21 @@ def run_initial_OEE(full_graph,initial_partition,qpu_info):
                         max_gain = gain
                         
                         best_pair = (node,other_node)
-
+            # print("Best pair: ", best_pair)
 
             
+            
+
+            if best_pair[0] in N and best_pair[1] in N:
+                N.remove(best_pair[1])
+                N.remove(best_pair[0])
+            else:
+                break
+        
             col_a = partition[best_pair[0]]
             col_b = partition[best_pair[1]]
+
             partition = swap(best_pair,partition)
-            N.remove(best_pair[0])
-            N.remove(best_pair[1])
 
             D = update_D_matrix(full_graph,partition,col_a,col_b, D,W,num_partitions,best_pair, N)
             mapping = swap(best_pair,mapping)
@@ -526,6 +543,7 @@ def run_initial_OEE(full_graph,initial_partition,qpu_info):
 
             partition_list.append(partition)
             mapping_list.append(mapping)
+
         g_max = np.max(g_list)
         index = np.argmax(g_list)
         partition = partition_list[index]
@@ -560,6 +578,8 @@ def main_algorithm(circuit,qpu_info,initial_partition,remove_singles = True,choo
         mapping = [n for n in range(np.sum(qpu_info))]
     else:
         assignment, mapping = run_initial_OEE(full_graph,initial_partition,qpu_info)
+        print("Cost after static OEE: ", calculate_static_cut(assignment,full_graph))
+    
     #  Run the partitioning algorithm
     full_partition, full_mapping = fgp_oee(graph_list,assignment,len(qpu_info),mapping)
     # Remove teleportations before first two qubit gate layer

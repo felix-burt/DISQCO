@@ -13,13 +13,14 @@ def FM_pass_hetero(hypergraph,
             active_nodes,
             network = None,
             node_map = None,
-            assignment_map = None):
+            assignment_map = None,
+            dummy_nodes = {}):
         
         num_qubits = hypergraph.num_qubits
         depth = hypergraph.depth
 
         spaces = find_spaces(num_qubits, depth, assignment,qpu_info)
-        hypergraph = map_counts_and_configs_hetero(hypergraph, assignment, num_partitions, network, costs, assignment_map=assignment_map)
+        hypergraph = map_counts_and_configs_hetero(hypergraph, assignment, num_partitions, network, costs, assignment_map=assignment_map, node_map=node_map, dummy_nodes=dummy_nodes)
 
         lock_dict = {node: False for node in active_nodes}
   
@@ -28,7 +29,7 @@ def FM_pass_hetero(hypergraph,
             if node[1] > max_time:
                 max_time = node[1]
 
-        array = find_all_gains_h(hypergraph,active_nodes,assignment,num_partitions,costs, network=network,node_map=node_map, assignment_map=assignment_map)
+        array = find_all_gains_h(hypergraph,active_nodes,assignment,num_partitions,costs, network=network,node_map=node_map, assignment_map=assignment_map, dummy_nodes=dummy_nodes)
         buckets = fill_buckets(array,max_gain)
         gain_list = []
         gain_list.append(0)
@@ -51,7 +52,18 @@ def FM_pass_hetero(hypergraph,
             else:
                 source = assignment[node[1]][node[0]]
 
-            assignment_new, array, buckets = take_action_and_update_hetero(hypergraph,node,destination,array,buckets,num_partitions,lock_dict, assignment, costs, network = network, node_map = node_map, assignment_map=assignment_map)
+            assignment_new, array, buckets = take_action_and_update_hetero(hypergraph,
+                                                                           node,
+                                                                           destination,
+                                                                           array,
+                                                                           buckets,
+                                                                           num_partitions,
+                                                                           lock_dict, 
+                                                                           assignment, 
+                                                                           costs, 
+                                                                           network = network, 
+                                                                           node_map = node_map, 
+                                                                           assignment_map=assignment_map)
 
             # assignment_new, array, buckets = take_action_and_update_dict_simple(hypergraph,node,destination,array,buckets,num_partitions,lock_dict,assignment,costs)
 
@@ -79,7 +91,8 @@ def run_FM_hetero(
     costs = None,
     network = None,
     node_map = None,
-    assignment_map = None
+    assignment_map = None,
+    dummy_nodes = {}
 ):  
     if network is None:
         network = QuantumNetwork(qpu_info)
@@ -97,7 +110,7 @@ def run_FM_hetero(
         limit = len(active_nodes) * 0.125
 
     initial_assignment = np.array(initial_assignment)
-    initial_cost = calculate_full_cost_hetero(hypergraph, initial_assignment, num_partitions, costs, network = network, node_map = node_map, assignment_map=assignment_map)
+    initial_cost = calculate_full_cost_hetero(hypergraph, initial_assignment, num_partitions, costs, network = network, node_map = node_map, assignment_map=assignment_map, dummy_nodes=dummy_nodes)
 
     if active_nodes is not None:
         active_nodes = hypergraph.nodes
@@ -124,7 +137,10 @@ def run_FM_hetero(
         # print(f"Pass number: {n}")
         assignment_list, gain_list = FM_pass_hetero(
             hypergraph, max_gain, initial_assignment,
-            num_partitions, qpu_info, costs, limit, active_nodes = active_nodes, network = network, node_map = node_map, assignment_map=assignment_map
+            num_partitions, qpu_info, costs, limit, 
+            active_nodes = active_nodes, network = network, 
+            node_map = node_map, assignment_map=assignment_map,
+            dummy_nodes=dummy_nodes
         )
 
         # Decide how to pick new assignment depending on stochastic or not
@@ -179,11 +195,14 @@ def FM_pass_hetero_dummy(hypergraph,
         
         num_qubits = hypergraph.num_qubits
         depth = hypergraph.depth
-        spaces = find_spaces(num_qubits, depth, assignment, qpu_info)
-        hypergraph = map_counts_and_configs_hetero(hypergraph, assignment, num_partitions, network, costs, assignment_map=assignment_map, dummy_nodes=dummy_nodes)
 
-        
-        
+        spaces = find_spaces(num_qubits, depth, assignment, qpu_info, graph = hypergraph, assignment_map= assignment_map)
+        # if costs is None or costs == {}:
+        #     nm = node_map
+        # else:
+        #     nm = None
+        hypergraph = map_counts_and_configs_hetero(hypergraph, assignment, num_partitions, network, costs, assignment_map=assignment_map, node_map=node_map, dummy_nodes=dummy_nodes)
+
   
         max_time = 0
         for node in active_nodes:
@@ -192,11 +211,15 @@ def FM_pass_hetero_dummy(hypergraph,
 
         active_nodes = active_nodes - dummy_nodes
 
+        # print("Active nodes:", active_nodes)
+
         lock_dict = {node: False for node in active_nodes}
 
         lock_dict.update({node: True for node in dummy_nodes})
 
-        array = find_all_gains_h(hypergraph,active_nodes,assignment,num_partitions,costs, network=network,node_map=node_map, assignment_map=assignment_map, dummy_nodes=dummy_nodes)
+        # print("Lock dict:", lock_dict)
+
+        array = find_all_gains_h(hypergraph,active_nodes,assignment,num_partitions, costs, network=network, node_map=node_map, assignment_map=assignment_map, dummy_nodes=dummy_nodes)
         buckets = fill_buckets(array,max_gain)
         gain_list = []
         gain_list.append(0)
@@ -213,6 +236,7 @@ def FM_pass_hetero_dummy(hypergraph,
             gain_list.append(cumulative_gain)
             node = (action[1],action[0])
             destination = action[2]
+            
             if assignment_map is not None:
                 sub_node = assignment_map[node]
                 source = assignment[sub_node[1]][sub_node[0]]
@@ -229,7 +253,8 @@ def FM_pass_hetero_dummy(hypergraph,
                                                                            assignment, 
                                                                            costs, 
                                                                            network = network, 
-                                                                           node_map = node_map, assignment_map=assignment_map)
+                                                                           node_map = node_map, 
+                                                                           assignment_map=assignment_map)
 
             # assignment_new, array, buckets = take_action_and_update_dict_simple(hypergraph,node,destination,array,buckets,num_partitions,lock_dict,assignment,costs)
 
@@ -267,10 +292,10 @@ def run_FM_hetero_dummy(
         active_nodes = hypergraph.nodes - dummy_nodes
 
     if costs is None and num_partitions < 12:
-        configs = get_all_configs(num_partitions, hetero=True)
+        configs = get_all_configs(len(node_map), hetero=True)
         costs, edge_trees = get_all_costs_hetero(network, configs, node_map=node_map)
-    else:
-        costs = {}
+    
+    # else:
 
     if limit is None:
         limit = len(active_nodes) * 0.125

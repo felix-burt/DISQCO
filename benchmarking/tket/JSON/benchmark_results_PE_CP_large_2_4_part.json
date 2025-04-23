@@ -1,0 +1,263 @@
+[
+  {
+    "num_qubits": 112,
+    "num_partitions": 2,
+    "iteration": 0,
+    "part_cost": 777,
+    "embed_cost": 777,
+    "part_time": 13.697771072387695,
+    "embed_time": 95.69748401641846
+  },
+  {
+    "num_qubits": 112,
+    "num_partitions": 2,
+    "iteration": 1,
+    "part_cost": 781,
+    "embed_cost": 781,
+    "part_time": 13.74881100654602,
+    "embed_time": 91.33639812469482
+  },
+  {
+    "num_qubits": 112,
+    "num_partitions": 2,
+    "iteration": 2,
+    "part_cost": 772,
+    "embed_cost": 772,
+    "part_time": 13.678147077560425,
+    "embed_time": 89.17783498764038
+  },
+  {
+    "num_qubits": 112,
+    "num_partitions": 2,
+    "iteration": 3,
+    "part_cost": 760,
+    "embed_cost": 760,
+    "part_time": 6.07015585899353,
+    "embed_time": 87.87953567504883
+  },
+  {
+    "num_qubits": 112,
+    "num_partitions": 2,
+    "iteration": 4,
+    "part_cost": 779,
+    "embed_cost": 779,
+    "part_time": 13.634778022766113,
+    "embed_time": 90.84352397918701
+  },
+  {
+    "num_qubits": 112,
+    "num_partitions": 4,
+    "iteration": 0,
+    "part_cost": 1400,
+    "embed_cost": 1400,
+    "part_time": 13.121108055114746,
+    "embed_time": 102.07716012001038
+  },
+  {
+    "num_qubits": 112,
+    "num_partitions": 4,
+    "iteration": 1,
+    "part_cost": 1370,
+    "embed_cost": 1370,
+    "part_time": 7.709191083908081,
+    "embed_time": 99.81921577453613
+  },
+  {
+    "num_qubits": 112,
+    "num_partitions": 4,
+    "iteration": 2,
+    "part_cost": 1379,
+    "embed_cost": 1379,
+    "part_time": 18.855854034423828,
+    "embed_time": 98.41513895988464
+  },
+  {
+    "num_qubits": 112,
+    "num_partitions": 4,
+    "iteration": 3,
+    "part_cost": 1412,
+    "embed_cost": 1412,
+    "part_time": 13.49313998222351,
+    "embed_time": 103.03076410293579
+  },
+  {
+    "num_qubits": 112,
+    "num_partitions": 4,
+    "iteration": 4,
+    "part_cost": 1400,
+    "embed_cost": 1400,
+    "part_time": 13.19553804397583,
+    "embed_time": 102.6099100112915
+  },
+  {
+    "num_qubits": 128,
+    "num_partitions": 2,
+    "iteration": 0,
+    "part_cost": 1036,
+    "embed_cost": 1036,
+    "part_time": 21.59987497329712,
+    "embed_time": 189.66395688056946
+  },
+  {
+    "num_qubits": 128,
+    "num_partitions": 2,
+    "iteration": 1,
+    "part_cost": 1026,
+    "embed_cost": 1026,
+    "part_time": 9.666331768035889,
+    "embed_time": 180.22899675369263
+  },
+  {
+    "num_qubits": 128,
+    "num_partitions": 2,
+    "iteration": 2,
+    "part_cost": 1035,
+    "embed_cost": 1035,
+    "part_time": 21.413819313049316,
+    "embed_time": 184.06443095207214
+  },
+  {
+    "num_qubits": 128,
+    "num_partitions": 2,
+    "iteration": 3,
+    "part_cost": 1033,
+    "embed_cost": 1033,
+    "part_time": 21.512079000473022,
+    "embed_time": 174.2008330821991
+  },
+  {
+    "num_qubits": 128,
+    "num_partitions": 2,
+    "iteration": 4,
+    "part_cost": 1006,
+    "embed_cost": 1006,
+    "part_time": 21.66814613342285,
+    "embed_time": 172.59944701194763
+  },
+  {
+    "num_qubits": 128,
+    "num_partitions": 4,
+    "iteration": 0,
+    "part_cost": 1842,
+    "embed_cost": 1842,
+    "part_time": 11.436690092086792,
+    "embed_time": 209.43601202964783
+  },
+  {
+    "num_qubits": 128,
+    "num_partitions": 4,
+    "iteration": 1,
+    "part_cost": 1827,
+    "embed_cost": 1827,
+    "part_time": 30.66225004196167,
+    "embed_time": 204.23266196250916
+  },
+  {
+    "num_qubits": 128,
+    "num_partitions": 4,
+    "iteration": 2,
+    "part_cost": 1844,
+    "embed_cost": 1844,
+    "part_time": 30.657674074172974,
+    "embed_time": 202.24189519882202
+  },
+  {
+    "num_qubits": 128,
+    "num_partitions": 4,
+    "iteration": 3,
+    "part_cost": 1807,
+    "embed_cost": 1807,
+    "part_time": 11.356207132339478,
+    "embed_time": 207.9939341545105
+  },
+  {
+    "num_qubits": 128,
+    "num_partitions": 4,
+    "iteration": 4,
+    "part_cost": 1817,
+    "embed_cost": 1817,
+    "part_time": 20.489525079727173,
+    "embed_time": 198.33703184127808
+  },
+  {
+    "num_qubits": 144,
+    "num_partitions": 2,
+    "iteration": 0,
+    "part_cost": 1328,
+    "embed_cost": 1328,
+    "part_time": 32.85600686073303,
+    "embed_time": 361.0478038787842
+  },
+  {
+    "num_qubits": 144,
+    "num_partitions": 2,
+    "iteration": 1,
+    "part_cost": 1316,
+    "embed_cost": 1316,
+    "part_time": 32.696287393569946,
+    "embed_time": 353.88643193244934
+  },
+  {
+    "num_qubits": 144,
+    "num_partitions": 2,
+    "iteration": 2,
+    "part_cost": 1307,
+    "embed_cost": 1307,
+    "part_time": 32.88227891921997,
+    "embed_time": 349.07555103302
+  },
+  {
+    "num_qubits": 144,
+    "num_partitions": 2,
+    "iteration": 3,
+    "part_cost": 1309,
+    "embed_cost": 1309,
+    "part_time": 15.31892991065979,
+    "embed_time": 341.53543496131897
+  },
+  {
+    "num_qubits": 144,
+    "num_partitions": 2,
+    "iteration": 4,
+    "part_cost": 1336,
+    "embed_cost": 1336,
+    "part_time": 32.99154996871948,
+    "embed_time": 368.96388602256775
+  },
+  {
+    "num_qubits": 144,
+    "num_partitions": 4,
+    "iteration": 0,
+    "part_cost": 2353,
+    "embed_cost": 2353,
+    "part_time": 45.92571473121643,
+    "embed_time": 391.1435561180115
+  },
+  {
+    "num_qubits": 144,
+    "num_partitions": 4,
+    "iteration": 1,
+    "part_cost": 2373,
+    "embed_cost": 2373,
+    "part_time": 31.40042018890381,
+    "embed_time": 401.8761341571808
+  },
+  {
+    "num_qubits": 144,
+    "num_partitions": 4,
+    "iteration": 2,
+    "part_cost": 2369,
+    "embed_cost": 2369,
+    "part_time": 45.30967402458191,
+    "embed_time": 384.9251630306244
+  },
+  {
+    "num_qubits": 144,
+    "num_partitions": 4,
+    "iteration": 3,
+    "part_cost": 2299,
+    "embed_cost": 2299,
+    "part_time": 45.58399510383606,
+    "embed_time": 378.7698140144348
+  }
+]

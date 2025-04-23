@@ -45,6 +45,7 @@ def multilevel_FM(coarsened_hypergraphs,
                 level_limit = None):
 
     num_partitions = len(qpu_info)
+    
     if costs is None:
         configs = get_all_configs(num_partitions)
         costs = get_all_costs(configs)
@@ -121,12 +122,12 @@ def multilevel_FM(coarsened_hypergraphs,
     return list_of_assignments, list_of_costs, list_of_times
 
 from disqco.graphs.hypergraph_methods import get_all_costs_hetero, calculate_full_cost_hetero
-from disqco.parti.FM.FM_hetero import run_FM_hetero
+from disqco.parti.FM.FM_hetero import run_FM_hetero, run_FM_hetero_dummy
 from networkx import diameter
 import copy
 
 def multilevel_FM_hetero(coarsened_hypergraphs,
-                mapping_list, 
+                initial_mapping_list, 
                 initial_assignment,  
                 qpu_info, 
                 limit = None, 
@@ -139,25 +140,31 @@ def multilevel_FM_hetero(coarsened_hypergraphs,
                 level_limit = None,
                 network = None,
                 node_map = None,
-                assignment_map = None):
+                assignment_map = None,
+                dummy_nodes = set()):
 
     num_partitions = len(qpu_info)
+
     if costs is None and num_partitions < 12:
-        configs = get_all_configs(num_partitions, hetero=True)
+        configs = get_all_configs(len(node_map), hetero=True)
         costs, edge_tree = get_all_costs_hetero(network, configs, node_map=node_map)
+    # else:
+    #     print("Costs are already available.")
+
+    # costs = {}
 
     list_of_assignments = []
     list_of_assignments.append(initial_assignment)
 
     list_of_costs = []
-
     initial_cost = calculate_full_cost_hetero(coarsened_hypergraphs[-1], 
                                               initial_assignment, 
                                               num_partitions, 
-                                              costs=costs, 
+                                              costs = costs, 
                                               network = network, 
-                                              node_map=node_map, 
-                                              assignment_map=assignment_map)
+                                              node_map = node_map, 
+                                              assignment_map=assignment_map,
+                                              dummy_nodes=dummy_nodes)
     
     list_of_costs.append(initial_cost)
     best_cost = initial_cost
@@ -169,7 +176,7 @@ def multilevel_FM_hetero(coarsened_hypergraphs,
     graph_list = coarsened_hypergraphs[::-1]
     active_nodes = graph_list[0].nodes
 
-    mapping_list = mapping_list[::-1]
+    mapping_list = initial_mapping_list[::-1]
 
     graph_list = graph_list[:level_limit]
     mapping_list = mapping_list[:level_limit]
@@ -184,12 +191,13 @@ def multilevel_FM_hetero(coarsened_hypergraphs,
         if limit is None:
             limit = len(active_nodes)
 
+
         network_diameter = diameter(network.qpu_graph)
         max_gain = find_max_gain(mapping_list, i)*network_diameter
 
         passes = pass_list[i]
         start = time.time()
-        best_cost_pass, best_assignment, _ = run_FM_hetero(
+        best_cost_pass, best_assignment, _ = run_FM_hetero_dummy(
             hypergraph=graph,            # This stage's coarsened hypergraph
             initial_assignment=initial_assignment,
             qpu_info=qpu_info,
@@ -204,7 +212,8 @@ def multilevel_FM_hetero(coarsened_hypergraphs,
             costs=costs,
             network=network,
             node_map=node_map,
-            assignment_map=assignment_map
+            assignment_map=assignment_map,
+            dummy_nodes=dummy_nodes
         )
         end = time.time()       
         level_time = end - start
@@ -221,7 +230,11 @@ def multilevel_FM_hetero(coarsened_hypergraphs,
         if log:
             print(f'Best cost at level {i}: {best_cost}')
 
-        refined_assignment = refine_assignment(i, len(graph_list), assignment, mapping_list)
+        if level_limit is not None:
+            refined_assignment = refine_assignment(i, len(coarsened_hypergraphs), assignment, initial_mapping_list[::-1])
+        else:
+            refined_assignment = refine_assignment(i, len(graph_list), assignment, mapping_list)
+
         initial_assignment = refined_assignment
 
         list_of_assignments.append(initial_assignment)
@@ -367,6 +380,11 @@ def MLFM_recursive_hetero(graph,
     coarsener = HypergraphCoarsener()
     graph_list, mapping_list = coarsener.coarsen_recursive_batches(graph)
 
+    graph_coarse = graph_list[-1]
+
+    # for edge in graph_coarse.hyperedges:
+    #     print(graph_coarse.hyperedges[edge])
+
     if limit is not None:
         if limit == 'qubit':
             num_qubits = graph.num_qubits
@@ -395,6 +413,63 @@ def MLFM_recursive_hetero(graph,
                                             network= network,
                                             node_map = node_map,
                                             assignment_map = assignment_map)
+
+    return assignment_list, cost_list, time_list
+
+def MLFM_recursive_hetero_mapped(graph,
+                initial_assignment,  
+                qpu_info, 
+                limit = None, 
+                pass_list= None, 
+                stochastic = True, 
+                lock_nodes = False,
+                log = False,
+                add_initial = False,
+                costs = None,
+                level_limit = None,
+                network = None,
+                node_map = None, 
+                assignment_map = None,
+                node_list = None,
+                dummy_nodes = set()):
+
+    coarsener = HypergraphCoarsener()
+    graph_list, mapping_list = coarsener.coarsen_recursive_batches_mapped(graph, node_list=node_list)
+
+    graph_coarse = graph_list[-1]
+
+    # for edge in graph_coarse.hyperedges:
+    #     print(graph_coarse.hyperedges[edge])
+
+    if limit is not None:
+        if limit == 'qubit':
+            num_qubits = graph.num_qubits
+            limit = num_qubits
+        elif limit == 'full':
+            limit = len(graph.nodes)
+    
+    if pass_list is None:
+        pass_list = [10]*(len(graph_list))
+
+    if level_limit is None:
+        level_limit = len(graph_list)
+
+    assignment_list, cost_list, time_list = multilevel_FM_hetero(graph_list,
+                                            mapping_list,
+                                            initial_assignment=initial_assignment,  
+                                            qpu_info= qpu_info, 
+                                            limit = limit, 
+                                            pass_list= pass_list,
+                                            stochastic = stochastic, 
+                                            lock_nodes = lock_nodes,
+                                            log = log,
+                                            add_initial = add_initial,
+                                            costs = costs,
+                                            level_limit = level_limit,
+                                            network= network,
+                                            node_map = node_map,
+                                            assignment_map = assignment_map,
+                                            dummy_nodes = dummy_nodes)
 
     return assignment_list, cost_list, time_list
 

@@ -1,6 +1,5 @@
 from itertools import product
 import numpy as np
-# from disqco.graphs.quantum_network import QuantumNetwork
 from disqco.graphs.GCP_hypergraph import QuantumCircuitHyperGraph
 
 def get_all_configs(num_partitions : int, hetero = False) -> list[tuple[int]]:
@@ -60,6 +59,7 @@ def get_all_costs(configs : list[tuple[int]]
         costs[tuple(config)] = cost
 
     return costs
+
 
 # def hedge_k_counts(hypergraph,hedge,assignment,num_partitions, set_attrs = False, assignment_map = None, dummy_nodes = {}):
 #     root_counts = [0 for _ in range(num_partitions)]
@@ -144,7 +144,9 @@ def hedge_k_counts(hypergraph,hedge,assignment,num_partitions, set_attrs = False
         for rec_node in receiver_set:
             if assignment_map is not None:
                 rec_node = assignment_map[rec_node]
+
             partition_rec = assignment[rec_node[1]][rec_node[0]]
+
             # partition_rec = assignment[rec_node]
             rec_counts[partition_rec] += 1
         
@@ -155,8 +157,13 @@ def hedge_k_counts(hypergraph,hedge,assignment,num_partitions, set_attrs = False
             hypergraph.set_hyperedge_attribute(hedge, 'rec_counts', rec_counts)
     else:
         for root_node in root_set:
+            if root_node not in hypergraph.nodes:
+                continue
+
             if root_node in dummy_nodes:
-                partition_root = num_partitions - 1 + root_node[2]
+                # print("Dummy node root", root_node)
+                partition_root = num_partitions + root_node[3]
+                # print("Partition dummy root", partition_root)
                 root_counts[partition_root] += 1
                 continue
 
@@ -167,14 +174,25 @@ def hedge_k_counts(hypergraph,hedge,assignment,num_partitions, set_attrs = False
             # partition_root = assignment[root_node]
             root_counts[partition_root] += 1
         for rec_node in receiver_set:
+            if rec_node not in hypergraph.nodes:
+                continue
             if rec_node in dummy_nodes:
-                partition_rec = num_partitions -1 + rec_node[2]
+                # print("Dummy node rec", rec_node)
+                partition_rec = num_partitions + rec_node[3]
+                # print("Partition dummy rec", partition_rec)
                 rec_counts[partition_rec] += 1
                 continue
 
             if assignment_map is not None:
                 rec_node = assignment_map[rec_node]
-            partition_rec = assignment[rec_node[1]][rec_node[0]]
+                
+            try:
+                partition_rec = assignment[rec_node[1]][rec_node[0]]
+            except IndexError:
+                print("Rec node", rec_node)
+                print("Assignment", assignment)
+                print("Assignment map", assignment_map)
+                raise IndexError
             # partition_rec = assignment[rec_node]
             rec_counts[partition_rec] += 1
         
@@ -347,20 +365,21 @@ def map_counts_and_configs_hetero(hypergraph : QuantumCircuitHyperGraph,
                                   network,
                                   costs: dict = {},
                                   assignment_map = None,
+                                  node_map = None,
                                   dummy_nodes = {}) -> QuantumCircuitHyperGraph:
     """
     Maps the counts and configurations of all hyperedges to hyperedge attributes based on the current assignment.
     For heterogeneous networks, it uses the network to compute the costs.
     """
     for edge in hypergraph.hyperedges:
-        root_counts, rec_counts = hedge_k_counts(hypergraph,edge,assignment,num_partitions,set_attrs=True,assignment_map=assignment_map, dummy_nodes=dummy_nodes)
+        root_counts, rec_counts = hedge_k_counts(hypergraph,edge,assignment,num_partitions,set_attrs=True, assignment_map=assignment_map, dummy_nodes=dummy_nodes)
         hypergraph.set_hyperedge_attribute(edge, 'root_counts', root_counts)
         hypergraph.set_hyperedge_attribute(edge, 'rec_counts', rec_counts)
         root_config, rec_config = counts_to_configs(root_counts,rec_counts)
         hypergraph.set_hyperedge_attribute(edge, 'root_config', root_config)
         hypergraph.set_hyperedge_attribute(edge, 'rec_config', rec_config)
         if (root_config, rec_config) not in costs:
-            edges, edge_cost = network.steiner_forest(root_config, rec_config)
+            edges, edge_cost = network.steiner_forest(root_config, rec_config, node_map=node_map)
             costs[(root_config, rec_config)] = edge_cost
         else:
             edge_cost = costs[(root_config, rec_config)]
@@ -405,13 +424,16 @@ def calculate_full_cost_hetero(hypergraph : QuantumCircuitHyperGraph,
     """
     cost = 0
     for edge in hypergraph.hyperedges:
-
+        # print("Edge", edge)
         root_counts, rec_counts = hedge_k_counts(hypergraph, edge, assignment, num_partitions, assignment_map=assignment_map, dummy_nodes=dummy_nodes)
+        # print("Root counts", root_counts)
+        # print("Rec counts", rec_counts)
         root_config, rec_config = counts_to_configs(root_counts, rec_counts)
 
         if (root_config, rec_config) in costs:
             edge_cost = costs[(root_config, rec_config)]
         else:
+            
             edges, edge_cost = network.steiner_forest(root_config, rec_config, node_map=node_map)
             costs[(root_config, rec_config)] = edge_cost
         cost += edge_cost

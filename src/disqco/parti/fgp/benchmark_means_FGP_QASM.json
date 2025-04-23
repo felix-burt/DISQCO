@@ -1,0 +1,16 @@
+[
+  {
+    "circuit_name": "adder_n28",
+    "num_qubits": 28,
+    "num_partitions": 2,
+    "mean_fgp_cost": 20.0,
+    "mean_fgp_time": 0.021778678894042967
+  },
+  {
+    "circuit_name": "qft_n29",
+    "num_qubits": 29,
+    "num_partitions": 2,
+    "mean_fgp_cost": 46.0,
+    "mean_fgp_time": 0.09571700096130371
+  }
+]

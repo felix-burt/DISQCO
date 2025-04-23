@@ -1,0 +1,1102 @@
+[
+  {
+    "num_qubits": 16,
+    "num_partitions": 2,
+    "iteration": 0,
+    "r_cost": 49,
+    "time_r": 0.33240461349487305,
+    "num_two_qubit_gates": 384,
+    "cost_fraction": 0.12760416666666666,
+    "time_fraction": 0.0008656370143095652
+  },
+  {
+    "num_qubits": 16,
+    "num_partitions": 2,
+    "iteration": 1,
+    "r_cost": 52,
+    "time_r": 0.32503247261047363,
+    "num_two_qubit_gates": 384,
+    "cost_fraction": 0.13541666666666666,
+    "time_fraction": 0.0008464387307564417
+  },
+  {
+    "num_qubits": 16,
+    "num_partitions": 2,
+    "iteration": 2,
+    "r_cost": 50,
+    "time_r": 0.3364522457122803,
+    "num_two_qubit_gates": 384,
+    "cost_fraction": 0.13020833333333334,
+    "time_fraction": 0.0008761777232090632
+  },
+  {
+    "num_qubits": 16,
+    "num_partitions": 2,
+    "iteration": 3,
+    "r_cost": 48,
+    "time_r": 0.33899784088134766,
+    "num_two_qubit_gates": 384,
+    "cost_fraction": 0.125,
+    "time_fraction": 0.0008828068772951762
+  },
+  {
+    "num_qubits": 16,
+    "num_partitions": 2,
+    "iteration": 4,
+    "r_cost": 60,
+    "time_r": 0.3245997428894043,
+    "num_two_qubit_gates": 384,
+    "cost_fraction": 0.15625,
+    "time_fraction": 0.000845311830441157
+  },
+  {
+    "num_qubits": 24,
+    "num_partitions": 2,
+    "iteration": 0,
+    "r_cost": 104,
+    "time_r": 0.7975928783416748,
+    "num_two_qubit_gates": 864,
+    "cost_fraction": 0.12037037037037036,
+    "time_fraction": 0.0009231399054880496
+  },
+  {
+    "num_qubits": 24,
+    "num_partitions": 2,
+    "iteration": 1,
+    "r_cost": 122,
+    "time_r": 0.8074140548706055,
+    "num_two_qubit_gates": 864,
+    "cost_fraction": 0.1412037037037037,
+    "time_fraction": 0.0009345070079520896
+  },
+  {
+    "num_qubits": 24,
+    "num_partitions": 2,
+    "iteration": 2,
+    "r_cost": 111,
+    "time_r": 0.7892940044403076,
+    "num_two_qubit_gates": 864,
+    "cost_fraction": 0.1284722222222222,
+    "time_fraction": 0.0009135347273614672
+  },
+  {
+    "num_qubits": 24,
+    "num_partitions": 2,
+    "iteration": 3,
+    "r_cost": 102,
+    "time_r": 0.8010060787200928,
+    "num_two_qubit_gates": 864,
+    "cost_fraction": 0.11805555555555555,
+    "time_fraction": 0.0009270903688889963
+  },
+  {
+    "num_qubits": 24,
+    "num_partitions": 2,
+    "iteration": 4,
+    "r_cost": 116,
+    "time_r": 0.8035433292388916,
+    "num_two_qubit_gates": 864,
+    "cost_fraction": 0.13425925925925927,
+    "time_fraction": 0.0009300270014339023
+  },
+  {
+    "num_qubits": 32,
+    "num_partitions": 2,
+    "iteration": 0,
+    "r_cost": 225,
+    "time_r": 1.500584363937378,
+    "num_two_qubit_gates": 1536,
+    "cost_fraction": 0.146484375,
+    "time_fraction": 0.0009769429452717304
+  },
+  {
+    "num_qubits": 32,
+    "num_partitions": 2,
+    "iteration": 1,
+    "r_cost": 194,
+    "time_r": 1.4776277542114258,
+    "num_two_qubit_gates": 1536,
+    "cost_fraction": 0.12630208333333334,
+    "time_fraction": 0.0009619972358147303
+  },
+  {
+    "num_qubits": 32,
+    "num_partitions": 2,
+    "iteration": 2,
+    "r_cost": 210,
+    "time_r": 1.6208062171936035,
+    "num_two_qubit_gates": 1536,
+    "cost_fraction": 0.13671875,
+    "time_fraction": 0.001055212380985419
+  },
+  {
+    "num_qubits": 32,
+    "num_partitions": 2,
+    "iteration": 3,
+    "r_cost": 198,
+    "time_r": 1.4591271877288818,
+    "num_two_qubit_gates": 1536,
+    "cost_fraction": 0.12890625,
+    "time_fraction": 0.0009499525961776575
+  },
+  {
+    "num_qubits": 32,
+    "num_partitions": 2,
+    "iteration": 4,
+    "r_cost": 207,
+    "time_r": 1.470149040222168,
+    "num_two_qubit_gates": 1536,
+    "cost_fraction": 0.134765625,
+    "time_fraction": 0.0009571282813946406
+  },
+  {
+    "num_qubits": 40,
+    "num_partitions": 2,
+    "iteration": 0,
+    "r_cost": 325,
+    "time_r": 2.644881248474121,
+    "num_two_qubit_gates": 2400,
+    "cost_fraction": 0.13541666666666666,
+    "time_fraction": 0.0011020338535308839
+  },
+  {
+    "num_qubits": 40,
+    "num_partitions": 2,
+    "iteration": 1,
+    "r_cost": 314,
+    "time_r": 2.6485350131988525,
+    "num_two_qubit_gates": 2400,
+    "cost_fraction": 0.13083333333333333,
+    "time_fraction": 0.0011035562554995218
+  },
+  {
+    "num_qubits": 40,
+    "num_partitions": 2,
+    "iteration": 2,
+    "r_cost": 324,
+    "time_r": 2.699127197265625,
+    "num_two_qubit_gates": 2400,
+    "cost_fraction": 0.135,
+    "time_fraction": 0.0011246363321940104
+  },
+  {
+    "num_qubits": 40,
+    "num_partitions": 2,
+    "iteration": 3,
+    "r_cost": 318,
+    "time_r": 2.658217191696167,
+    "num_two_qubit_gates": 2400,
+    "cost_fraction": 0.1325,
+    "time_fraction": 0.0011075904965400696
+  },
+  {
+    "num_qubits": 40,
+    "num_partitions": 2,
+    "iteration": 4,
+    "r_cost": 321,
+    "time_r": 2.691953659057617,
+    "num_two_qubit_gates": 2400,
+    "cost_fraction": 0.13375,
+    "time_fraction": 0.0011216473579406738
+  },
+  {
+    "num_qubits": 48,
+    "num_partitions": 2,
+    "iteration": 0,
+    "r_cost": 494,
+    "time_r": 4.259434223175049,
+    "num_two_qubit_gates": 3456,
+    "cost_fraction": 0.14293981481481483,
+    "time_fraction": 0.0012324751803168544
+  },
+  {
+    "num_qubits": 48,
+    "num_partitions": 2,
+    "iteration": 1,
+    "r_cost": 476,
+    "time_r": 4.467151403427124,
+    "num_two_qubit_gates": 3456,
+    "cost_fraction": 0.13773148148148148,
+    "time_fraction": 0.0012925785310842373
+  },
+  {
+    "num_qubits": 48,
+    "num_partitions": 2,
+    "iteration": 2,
+    "r_cost": 481,
+    "time_r": 4.235605716705322,
+    "num_two_qubit_gates": 3456,
+    "cost_fraction": 0.13917824074074073,
+    "time_fraction": 0.0012255803578429753
+  },
+  {
+    "num_qubits": 48,
+    "num_partitions": 2,
+    "iteration": 3,
+    "r_cost": 456,
+    "time_r": 4.2863733768463135,
+    "num_two_qubit_gates": 3456,
+    "cost_fraction": 0.13194444444444445,
+    "time_fraction": 0.0012402700743189565
+  },
+  {
+    "num_qubits": 48,
+    "num_partitions": 2,
+    "iteration": 4,
+    "r_cost": 473,
+    "time_r": 4.475484371185303,
+    "num_two_qubit_gates": 3456,
+    "cost_fraction": 0.13686342592592593,
+    "time_fraction": 0.001294989690736488
+  },
+  {
+    "num_qubits": 56,
+    "num_partitions": 2,
+    "iteration": 0,
+    "r_cost": 654,
+    "time_r": 6.534738063812256,
+    "num_two_qubit_gates": 4704,
+    "cost_fraction": 0.13903061224489796,
+    "time_fraction": 0.0013891875135655307
+  },
+  {
+    "num_qubits": 56,
+    "num_partitions": 2,
+    "iteration": 1,
+    "r_cost": 597,
+    "time_r": 6.537729501724243,
+    "num_two_qubit_gates": 4704,
+    "cost_fraction": 0.12691326530612246,
+    "time_fraction": 0.0013898234484958
+  },
+  {
+    "num_qubits": 56,
+    "num_partitions": 2,
+    "iteration": 2,
+    "r_cost": 608,
+    "time_r": 6.259353399276733,
+    "num_two_qubit_gates": 4704,
+    "cost_fraction": 0.1292517006802721,
+    "time_fraction": 0.0013306448552884212
+  },
+  {
+    "num_qubits": 56,
+    "num_partitions": 2,
+    "iteration": 3,
+    "r_cost": 624,
+    "time_r": 6.570317983627319,
+    "num_two_qubit_gates": 4704,
+    "cost_fraction": 0.1326530612244898,
+    "time_fraction": 0.0013967512720296173
+  },
+  {
+    "num_qubits": 56,
+    "num_partitions": 2,
+    "iteration": 4,
+    "r_cost": 638,
+    "time_r": 6.562302827835083,
+    "num_two_qubit_gates": 4704,
+    "cost_fraction": 0.13562925170068027,
+    "time_fraction": 0.0013950473698629002
+  },
+  {
+    "num_qubits": 64,
+    "num_partitions": 2,
+    "iteration": 0,
+    "r_cost": 838,
+    "time_r": 9.054047346115112,
+    "num_two_qubit_gates": 6144,
+    "cost_fraction": 0.13639322916666666,
+    "time_fraction": 0.0014736405185734232
+  },
+  {
+    "num_qubits": 64,
+    "num_partitions": 2,
+    "iteration": 1,
+    "r_cost": 849,
+    "time_r": 9.020850419998169,
+    "num_two_qubit_gates": 6144,
+    "cost_fraction": 0.13818359375,
+    "time_fraction": 0.001468237373046577
+  },
+  {
+    "num_qubits": 64,
+    "num_partitions": 2,
+    "iteration": 2,
+    "r_cost": 802,
+    "time_r": 9.027350187301636,
+    "num_two_qubit_gates": 6144,
+    "cost_fraction": 0.13053385416666666,
+    "time_fraction": 0.0014692952778811257
+  },
+  {
+    "num_qubits": 64,
+    "num_partitions": 2,
+    "iteration": 3,
+    "r_cost": 832,
+    "time_r": 9.008870124816895,
+    "num_two_qubit_gates": 6144,
+    "cost_fraction": 0.13541666666666666,
+    "time_fraction": 0.0014662874552110832
+  },
+  {
+    "num_qubits": 64,
+    "num_partitions": 2,
+    "iteration": 4,
+    "r_cost": 810,
+    "time_r": 9.346269845962524,
+    "num_two_qubit_gates": 6144,
+    "cost_fraction": 0.1318359375,
+    "time_fraction": 0.001521202774407963
+  },
+  {
+    "num_qubits": 72,
+    "num_partitions": 2,
+    "iteration": 0,
+    "r_cost": 1029,
+    "time_r": 12.690101146697998,
+    "num_two_qubit_gates": 7776,
+    "cost_fraction": 0.13233024691358025,
+    "time_fraction": 0.0016319574519930552
+  },
+  {
+    "num_qubits": 72,
+    "num_partitions": 2,
+    "iteration": 1,
+    "r_cost": 1039,
+    "time_r": 13.8287353515625,
+    "num_two_qubit_gates": 7776,
+    "cost_fraction": 0.1336162551440329,
+    "time_fraction": 0.001778386747886124
+  },
+  {
+    "num_qubits": 72,
+    "num_partitions": 2,
+    "iteration": 2,
+    "r_cost": 1048,
+    "time_r": 13.232200622558594,
+    "num_two_qubit_gates": 7776,
+    "cost_fraction": 0.13477366255144033,
+    "time_fraction": 0.001701671890761136
+  },
+  {
+    "num_qubits": 72,
+    "num_partitions": 2,
+    "iteration": 3,
+    "r_cost": 990,
+    "time_r": 12.951210498809814,
+    "num_two_qubit_gates": 7776,
+    "cost_fraction": 0.12731481481481483,
+    "time_fraction": 0.0016655363295794514
+  },
+  {
+    "num_qubits": 72,
+    "num_partitions": 2,
+    "iteration": 4,
+    "r_cost": 1036,
+    "time_r": 14.436647415161133,
+    "num_two_qubit_gates": 7776,
+    "cost_fraction": 0.1332304526748971,
+    "time_fraction": 0.001856564739604055
+  },
+  {
+    "num_qubits": 80,
+    "num_partitions": 2,
+    "iteration": 0,
+    "r_cost": 1294,
+    "time_r": 17.326212167739868,
+    "num_two_qubit_gates": 9600,
+    "cost_fraction": 0.13479166666666667,
+    "time_fraction": 0.0018048137674729029
+  },
+  {
+    "num_qubits": 80,
+    "num_partitions": 2,
+    "iteration": 1,
+    "r_cost": 1294,
+    "time_r": 18.58353304862976,
+    "num_two_qubit_gates": 9600,
+    "cost_fraction": 0.13479166666666667,
+    "time_fraction": 0.0019357846925656
+  },
+  {
+    "num_qubits": 80,
+    "num_partitions": 2,
+    "iteration": 2,
+    "r_cost": 1284,
+    "time_r": 17.081159830093384,
+    "num_two_qubit_gates": 9600,
+    "cost_fraction": 0.13375,
+    "time_fraction": 0.0017792874823013942
+  },
+  {
+    "num_qubits": 80,
+    "num_partitions": 2,
+    "iteration": 3,
+    "r_cost": 1310,
+    "time_r": 18.19113326072693,
+    "num_two_qubit_gates": 9600,
+    "cost_fraction": 0.13645833333333332,
+    "time_fraction": 0.001894909714659055
+  },
+  {
+    "num_qubits": 80,
+    "num_partitions": 2,
+    "iteration": 4,
+    "r_cost": 1310,
+    "time_r": 17.82058024406433,
+    "num_two_qubit_gates": 9600,
+    "cost_fraction": 0.13645833333333332,
+    "time_fraction": 0.0018563104420900344
+  },
+  {
+    "num_qubits": 88,
+    "num_partitions": 2,
+    "iteration": 0,
+    "r_cost": 1574,
+    "time_r": 23.54285454750061,
+    "num_two_qubit_gates": 11616,
+    "cost_fraction": 0.13550275482093663,
+    "time_fraction": 0.002026760894240755
+  },
+  {
+    "num_qubits": 88,
+    "num_partitions": 2,
+    "iteration": 1,
+    "r_cost": 1591,
+    "time_r": 23.899723529815674,
+    "num_two_qubit_gates": 11616,
+    "cost_fraction": 0.13696625344352617,
+    "time_fraction": 0.0020574830862444622
+  },
+  {
+    "num_qubits": 88,
+    "num_partitions": 2,
+    "iteration": 2,
+    "r_cost": 1555,
+    "time_r": 23.760404348373413,
+    "num_two_qubit_gates": 11616,
+    "cost_fraction": 0.13386707988980717,
+    "time_fraction": 0.0020454893550596945
+  },
+  {
+    "num_qubits": 88,
+    "num_partitions": 2,
+    "iteration": 3,
+    "r_cost": 1554,
+    "time_r": 22.85667586326599,
+    "num_two_qubit_gates": 11616,
+    "cost_fraction": 0.1337809917355372,
+    "time_fraction": 0.001967689037815598
+  },
+  {
+    "num_qubits": 88,
+    "num_partitions": 2,
+    "iteration": 4,
+    "r_cost": 1549,
+    "time_r": 23.489319324493408,
+    "num_two_qubit_gates": 11616,
+    "cost_fraction": 0.13335055096418733,
+    "time_fraction": 0.0020221521457036338
+  },
+  {
+    "num_qubits": 96,
+    "num_partitions": 2,
+    "iteration": 0,
+    "r_cost": 1926,
+    "time_r": 29.205295085906982,
+    "num_two_qubit_gates": 13824,
+    "cost_fraction": 0.13932291666666666,
+    "time_fraction": 0.0021126515542467437
+  },
+  {
+    "num_qubits": 96,
+    "num_partitions": 2,
+    "iteration": 1,
+    "r_cost": 1868,
+    "time_r": 29.55849552154541,
+    "num_two_qubit_gates": 13824,
+    "cost_fraction": 0.13512731481481483,
+    "time_fraction": 0.0021382013542784583
+  },
+  {
+    "num_qubits": 96,
+    "num_partitions": 2,
+    "iteration": 2,
+    "r_cost": 1900,
+    "time_r": 29.168261528015137,
+    "num_two_qubit_gates": 13824,
+    "cost_fraction": 0.13744212962962962,
+    "time_fraction": 0.0021099726221075763
+  },
+  {
+    "num_qubits": 96,
+    "num_partitions": 2,
+    "iteration": 3,
+    "r_cost": 1888,
+    "time_r": 29.90484046936035,
+    "num_two_qubit_gates": 13824,
+    "cost_fraction": 0.13657407407407407,
+    "time_fraction": 0.002163255242285905
+  },
+  {
+    "num_qubits": 96,
+    "num_partitions": 2,
+    "iteration": 4,
+    "r_cost": 1915,
+    "time_r": 29.332877159118652,
+    "num_two_qubit_gates": 13824,
+    "cost_fraction": 0.13852719907407407,
+    "time_fraction": 0.0021218805815334672
+  },
+  {
+    "num_qubits": 16,
+    "num_partitions": 4,
+    "iteration": 0,
+    "r_cost": 97,
+    "time_r": 0.6970980167388916,
+    "num_two_qubit_gates": 384,
+    "cost_fraction": 0.2526041666666667,
+    "time_fraction": 0.0018153594185908635
+  },
+  {
+    "num_qubits": 16,
+    "num_partitions": 4,
+    "iteration": 1,
+    "r_cost": 107,
+    "time_r": 0.7177679538726807,
+    "num_two_qubit_gates": 384,
+    "cost_fraction": 0.2786458333333333,
+    "time_fraction": 0.0018691873798767726
+  },
+  {
+    "num_qubits": 16,
+    "num_partitions": 4,
+    "iteration": 2,
+    "r_cost": 103,
+    "time_r": 0.7097692489624023,
+    "num_two_qubit_gates": 384,
+    "cost_fraction": 0.2682291666666667,
+    "time_fraction": 0.0018483574191729228
+  },
+  {
+    "num_qubits": 16,
+    "num_partitions": 4,
+    "iteration": 3,
+    "r_cost": 89,
+    "time_r": 0.7559607028961182,
+    "num_two_qubit_gates": 384,
+    "cost_fraction": 0.23177083333333334,
+    "time_fraction": 0.0019686476637919745
+  },
+  {
+    "num_qubits": 16,
+    "num_partitions": 4,
+    "iteration": 4,
+    "r_cost": 105,
+    "time_r": 0.7009501457214355,
+    "num_two_qubit_gates": 384,
+    "cost_fraction": 0.2734375,
+    "time_fraction": 0.0018253910044829051
+  },
+  {
+    "num_qubits": 24,
+    "num_partitions": 4,
+    "iteration": 0,
+    "r_cost": 238,
+    "time_r": 1.8597631454467773,
+    "num_two_qubit_gates": 864,
+    "cost_fraction": 0.27546296296296297,
+    "time_fraction": 0.0021525036405633997
+  },
+  {
+    "num_qubits": 24,
+    "num_partitions": 4,
+    "iteration": 1,
+    "r_cost": 213,
+    "time_r": 1.8419618606567383,
+    "num_two_qubit_gates": 864,
+    "cost_fraction": 0.2465277777777778,
+    "time_fraction": 0.00213190030168604
+  },
+  {
+    "num_qubits": 24,
+    "num_partitions": 4,
+    "iteration": 2,
+    "r_cost": 212,
+    "time_r": 1.794734001159668,
+    "num_two_qubit_gates": 864,
+    "cost_fraction": 0.24537037037037038,
+    "time_fraction": 0.0020772384272681344
+  },
+  {
+    "num_qubits": 24,
+    "num_partitions": 4,
+    "iteration": 3,
+    "r_cost": 226,
+    "time_r": 1.782482385635376,
+    "num_two_qubit_gates": 864,
+    "cost_fraction": 0.26157407407407407,
+    "time_fraction": 0.002063058316707611
+  },
+  {
+    "num_qubits": 24,
+    "num_partitions": 4,
+    "iteration": 4,
+    "r_cost": 211,
+    "time_r": 1.702765703201294,
+    "num_two_qubit_gates": 864,
+    "cost_fraction": 0.24421296296296297,
+    "time_fraction": 0.0019707936379644605
+  },
+  {
+    "num_qubits": 32,
+    "num_partitions": 4,
+    "iteration": 0,
+    "r_cost": 388,
+    "time_r": 3.264490842819214,
+    "num_two_qubit_gates": 1536,
+    "cost_fraction": 0.2526041666666667,
+    "time_fraction": 0.0021253195591270924
+  },
+  {
+    "num_qubits": 32,
+    "num_partitions": 4,
+    "iteration": 1,
+    "r_cost": 371,
+    "time_r": 3.3830580711364746,
+    "num_two_qubit_gates": 1536,
+    "cost_fraction": 0.24153645833333334,
+    "time_fraction": 0.002202511765062809
+  },
+  {
+    "num_qubits": 32,
+    "num_partitions": 4,
+    "iteration": 2,
+    "r_cost": 377,
+    "time_r": 3.3134114742279053,
+    "num_two_qubit_gates": 1536,
+    "cost_fraction": 0.24544270833333334,
+    "time_fraction": 0.0021571689285337925
+  },
+  {
+    "num_qubits": 32,
+    "num_partitions": 4,
+    "iteration": 3,
+    "r_cost": 378,
+    "time_r": 3.436720371246338,
+    "num_two_qubit_gates": 1536,
+    "cost_fraction": 0.24609375,
+    "time_fraction": 0.002237448158363501
+  },
+  {
+    "num_qubits": 32,
+    "num_partitions": 4,
+    "iteration": 4,
+    "r_cost": 388,
+    "time_r": 3.346407175064087,
+    "num_two_qubit_gates": 1536,
+    "cost_fraction": 0.2526041666666667,
+    "time_fraction": 0.0021786505045990148
+  },
+  {
+    "num_qubits": 40,
+    "num_partitions": 4,
+    "iteration": 0,
+    "r_cost": 576,
+    "time_r": 5.905803442001343,
+    "num_two_qubit_gates": 2400,
+    "cost_fraction": 0.24,
+    "time_fraction": 0.002460751434167226
+  },
+  {
+    "num_qubits": 40,
+    "num_partitions": 4,
+    "iteration": 1,
+    "r_cost": 574,
+    "time_r": 6.004599094390869,
+    "num_two_qubit_gates": 2400,
+    "cost_fraction": 0.23916666666666667,
+    "time_fraction": 0.002501916289329529
+  },
+  {
+    "num_qubits": 40,
+    "num_partitions": 4,
+    "iteration": 2,
+    "r_cost": 578,
+    "time_r": 5.784968614578247,
+    "num_two_qubit_gates": 2400,
+    "cost_fraction": 0.24083333333333334,
+    "time_fraction": 0.002410403589407603
+  },
+  {
+    "num_qubits": 40,
+    "num_partitions": 4,
+    "iteration": 3,
+    "r_cost": 590,
+    "time_r": 5.65556526184082,
+    "num_two_qubit_gates": 2400,
+    "cost_fraction": 0.24583333333333332,
+    "time_fraction": 0.0023564855257670087
+  },
+  {
+    "num_qubits": 40,
+    "num_partitions": 4,
+    "iteration": 4,
+    "r_cost": 593,
+    "time_r": 5.577336072921753,
+    "num_two_qubit_gates": 2400,
+    "cost_fraction": 0.24708333333333332,
+    "time_fraction": 0.0023238900303840637
+  },
+  {
+    "num_qubits": 48,
+    "num_partitions": 4,
+    "iteration": 0,
+    "r_cost": 829,
+    "time_r": 9.422188520431519,
+    "num_two_qubit_gates": 3456,
+    "cost_fraction": 0.23987268518518517,
+    "time_fraction": 0.00272632769688412
+  },
+  {
+    "num_qubits": 48,
+    "num_partitions": 4,
+    "iteration": 1,
+    "r_cost": 811,
+    "time_r": 9.320979356765747,
+    "num_two_qubit_gates": 3456,
+    "cost_fraction": 0.23466435185185186,
+    "time_fraction": 0.0026970426379530517
+  },
+  {
+    "num_qubits": 48,
+    "num_partitions": 4,
+    "iteration": 2,
+    "r_cost": 816,
+    "time_r": 9.599368572235107,
+    "num_two_qubit_gates": 3456,
+    "cost_fraction": 0.2361111111111111,
+    "time_fraction": 0.0027775950729846954
+  },
+  {
+    "num_qubits": 48,
+    "num_partitions": 4,
+    "iteration": 3,
+    "r_cost": 821,
+    "time_r": 9.265619993209839,
+    "num_two_qubit_gates": 3456,
+    "cost_fraction": 0.23755787037037038,
+    "time_fraction": 0.0026810243035908098
+  },
+  {
+    "num_qubits": 48,
+    "num_partitions": 4,
+    "iteration": 4,
+    "r_cost": 821,
+    "time_r": 9.448523759841919,
+    "num_two_qubit_gates": 3456,
+    "cost_fraction": 0.23755787037037038,
+    "time_fraction": 0.0027339478471764813
+  },
+  {
+    "num_qubits": 56,
+    "num_partitions": 4,
+    "iteration": 0,
+    "r_cost": 1106,
+    "time_r": 14.225961923599243,
+    "num_two_qubit_gates": 4704,
+    "cost_fraction": 0.23511904761904762,
+    "time_fraction": 0.003024226599404601
+  },
+  {
+    "num_qubits": 56,
+    "num_partitions": 4,
+    "iteration": 1,
+    "r_cost": 1087,
+    "time_r": 13.936532974243164,
+    "num_two_qubit_gates": 4704,
+    "cost_fraction": 0.23107993197278912,
+    "time_fraction": 0.002962698336361217
+  },
+  {
+    "num_qubits": 56,
+    "num_partitions": 4,
+    "iteration": 2,
+    "r_cost": 1097,
+    "time_r": 14.057616472244263,
+    "num_two_qubit_gates": 4704,
+    "cost_fraction": 0.23320578231292516,
+    "time_fraction": 0.002988438875902267
+  },
+  {
+    "num_qubits": 56,
+    "num_partitions": 4,
+    "iteration": 3,
+    "r_cost": 1088,
+    "time_r": 14.195022821426392,
+    "num_two_qubit_gates": 4704,
+    "cost_fraction": 0.23129251700680273,
+    "time_fraction": 0.003017649409316835
+  },
+  {
+    "num_qubits": 56,
+    "num_partitions": 4,
+    "iteration": 4,
+    "r_cost": 1112,
+    "time_r": 14.270320892333984,
+    "num_two_qubit_gates": 4704,
+    "cost_fraction": 0.23639455782312926,
+    "time_fraction": 0.0030336566522818843
+  },
+  {
+    "num_qubits": 64,
+    "num_partitions": 4,
+    "iteration": 0,
+    "r_cost": 1489,
+    "time_r": 19.654757022857666,
+    "num_two_qubit_gates": 6144,
+    "cost_fraction": 0.24235026041666666,
+    "time_fraction": 0.0031990164425224066
+  },
+  {
+    "num_qubits": 64,
+    "num_partitions": 4,
+    "iteration": 1,
+    "r_cost": 1475,
+    "time_r": 19.707945823669434,
+    "num_two_qubit_gates": 6144,
+    "cost_fraction": 0.24007161458333334,
+    "time_fraction": 0.00320767347390453
+  },
+  {
+    "num_qubits": 64,
+    "num_partitions": 4,
+    "iteration": 2,
+    "r_cost": 1415,
+    "time_r": 19.596824407577515,
+    "num_two_qubit_gates": 6144,
+    "cost_fraction": 0.23030598958333334,
+    "time_fraction": 0.0031895873059208193
+  },
+  {
+    "num_qubits": 64,
+    "num_partitions": 4,
+    "iteration": 3,
+    "r_cost": 1447,
+    "time_r": 19.504825592041016,
+    "num_two_qubit_gates": 6144,
+    "cost_fraction": 0.23551432291666666,
+    "time_fraction": 0.003174613540371259
+  },
+  {
+    "num_qubits": 64,
+    "num_partitions": 4,
+    "iteration": 4,
+    "r_cost": 1465,
+    "time_r": 19.244702100753784,
+    "num_two_qubit_gates": 6144,
+    "cost_fraction": 0.23844401041666666,
+    "time_fraction": 0.0031322757325445614
+  },
+  {
+    "num_qubits": 72,
+    "num_partitions": 4,
+    "iteration": 0,
+    "r_cost": 1795,
+    "time_r": 27.409165382385254,
+    "num_two_qubit_gates": 7776,
+    "cost_fraction": 0.23083847736625515,
+    "time_fraction": 0.0035248412271585974
+  },
+  {
+    "num_qubits": 72,
+    "num_partitions": 4,
+    "iteration": 1,
+    "r_cost": 1805,
+    "time_r": 26.024399757385254,
+    "num_two_qubit_gates": 7776,
+    "cost_fraction": 0.2321244855967078,
+    "time_fraction": 0.003346759228058803
+  },
+  {
+    "num_qubits": 72,
+    "num_partitions": 4,
+    "iteration": 2,
+    "r_cost": 1802,
+    "time_r": 27.373583555221558,
+    "num_two_qubit_gates": 7776,
+    "cost_fraction": 0.231738683127572,
+    "time_fraction": 0.003520265374899892
+  },
+  {
+    "num_qubits": 72,
+    "num_partitions": 4,
+    "iteration": 3,
+    "r_cost": 1787,
+    "time_r": 26.62593126296997,
+    "num_two_qubit_gates": 7776,
+    "cost_fraction": 0.22980967078189302,
+    "time_fraction": 0.0034241166747646565
+  },
+  {
+    "num_qubits": 72,
+    "num_partitions": 4,
+    "iteration": 4,
+    "r_cost": 1780,
+    "time_r": 27.711121797561646,
+    "num_two_qubit_gates": 7776,
+    "cost_fraction": 0.22890946502057613,
+    "time_fraction": 0.0035636730706740797
+  },
+  {
+    "num_qubits": 80,
+    "num_partitions": 4,
+    "iteration": 0,
+    "r_cost": 2259,
+    "time_r": 34.62327337265015,
+    "num_two_qubit_gates": 9600,
+    "cost_fraction": 0.2353125,
+    "time_fraction": 0.0036065909763177235
+  },
+  {
+    "num_qubits": 80,
+    "num_partitions": 4,
+    "iteration": 1,
+    "r_cost": 2240,
+    "time_r": 35.63744378089905,
+    "num_two_qubit_gates": 9600,
+    "cost_fraction": 0.23333333333333334,
+    "time_fraction": 0.003712233727176984
+  },
+  {
+    "num_qubits": 80,
+    "num_partitions": 4,
+    "iteration": 2,
+    "r_cost": 2247,
+    "time_r": 35.34206175804138,
+    "num_two_qubit_gates": 9600,
+    "cost_fraction": 0.2340625,
+    "time_fraction": 0.003681464766462644
+  },
+  {
+    "num_qubits": 80,
+    "num_partitions": 4,
+    "iteration": 3,
+    "r_cost": 2231,
+    "time_r": 36.26763939857483,
+    "num_two_qubit_gates": 9600,
+    "cost_fraction": 0.23239583333333333,
+    "time_fraction": 0.003777879104018211
+  },
+  {
+    "num_qubits": 80,
+    "num_partitions": 4,
+    "iteration": 4,
+    "r_cost": 2269,
+    "time_r": 36.03893327713013,
+    "num_two_qubit_gates": 9600,
+    "cost_fraction": 0.23635416666666667,
+    "time_fraction": 0.0037540555497010547
+  },
+  {
+    "num_qubits": 88,
+    "num_partitions": 4,
+    "iteration": 0,
+    "r_cost": 2707,
+    "time_r": 47.35918426513672,
+    "num_two_qubit_gates": 11616,
+    "cost_fraction": 0.23304063360881544,
+    "time_fraction": 0.004077064761117142
+  },
+  {
+    "num_qubits": 88,
+    "num_partitions": 4,
+    "iteration": 1,
+    "r_cost": 2717,
+    "time_r": 47.18844175338745,
+    "num_two_qubit_gates": 11616,
+    "cost_fraction": 0.23390151515151514,
+    "time_fraction": 0.004062365853425228
+  },
+  {
+    "num_qubits": 88,
+    "num_partitions": 4,
+    "iteration": 2,
+    "r_cost": 2770,
+    "time_r": 47.78166151046753,
+    "num_two_qubit_gates": 11616,
+    "cost_fraction": 0.23846418732782368,
+    "time_fraction": 0.004113435047388734
+  },
+  {
+    "num_qubits": 88,
+    "num_partitions": 4,
+    "iteration": 3,
+    "r_cost": 2666,
+    "time_r": 47.24384093284607,
+    "num_two_qubit_gates": 11616,
+    "cost_fraction": 0.22951101928374656,
+    "time_fraction": 0.0040671350665328915
+  },
+  {
+    "num_qubits": 88,
+    "num_partitions": 4,
+    "iteration": 4,
+    "r_cost": 2802,
+    "time_r": 47.62135148048401,
+    "num_two_qubit_gates": 11616,
+    "cost_fraction": 0.2412190082644628,
+    "time_fraction": 0.004099634252796488
+  },
+  {
+    "num_qubits": 96,
+    "num_partitions": 4,
+    "iteration": 0,
+    "r_cost": 3236,
+    "time_r": 60.14338946342468,
+    "num_two_qubit_gates": 13824,
+    "cost_fraction": 0.23408564814814814,
+    "time_fraction": 0.004350650279472272
+  },
+  {
+    "num_qubits": 96,
+    "num_partitions": 4,
+    "iteration": 1,
+    "r_cost": 3347,
+    "time_r": 62.102338552474976,
+    "num_two_qubit_gates": 13824,
+    "cost_fraction": 0.24211516203703703,
+    "time_fraction": 0.004492356666122322
+  },
+  {
+    "num_qubits": 96,
+    "num_partitions": 4,
+    "iteration": 2,
+    "r_cost": 3325,
+    "time_r": 60.695709466934204,
+    "num_two_qubit_gates": 13824,
+    "cost_fraction": 0.24052372685185186,
+    "time_fraction": 0.004390603983429847
+  },
+  {
+    "num_qubits": 96,
+    "num_partitions": 4,
+    "iteration": 3,
+    "r_cost": 3314,
+    "time_r": 59.45106625556946,
+    "num_two_qubit_gates": 13824,
+    "cost_fraction": 0.23972800925925927,
+    "time_fraction": 0.00430056902890404
+  },
+  {
+    "num_qubits": 96,
+    "num_partitions": 4,
+    "iteration": 4,
+    "r_cost": 3336,
+    "time_r": 61.16996741294861,
+    "num_two_qubit_gates": 13824,
+    "cost_fraction": 0.24131944444444445,
+    "time_fraction": 0.0044249108371635275
+  }
+]

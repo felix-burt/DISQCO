@@ -16,16 +16,16 @@ def FM_pass(hypergraph,
         num_qubits = hypergraph.num_qubits
         depth = hypergraph.depth
         spaces = find_spaces(num_qubits, depth, assignment, qpu_info)
-        hypergraph = map_counts_and_configs(hypergraph,assignment,num_partitions,costs)
+        map_counts_and_configs(hypergraph,assignment,num_partitions,costs)
 
         assignment = np.array(assignment, dtype=int)
 
         lock_dict = {node: False for node in active_nodes}
-  
-        max_time = 0
-        for node in active_nodes:
-            if node[1] > max_time:
-                max_time = node[1]
+        # max_time = 0
+        # for node in active_nodes:
+        #     if node[1] > max_time:
+        #         max_time = node[1]
+
         array = find_all_gains(hypergraph,active_nodes,assignment,num_partitions,costs,log=False)
 
         buckets = fill_buckets(array,max_gain)
@@ -192,12 +192,12 @@ def run_FM_bench(
         cost_list.append(cost)
         best_assignments.append(initial_assignment)
     # print("Starting FM passes...")
+    network = QuantumNetwork(qpu_info)
     for n in range(passes):
         # print(f"Pass number: {n}")
         start = time.time()
         assignment_list, gain_list = FM_pass(
-            hypergraph, max_gain, initial_assignment,
-            num_partitions, qpu_info, costs, limit, active_nodes = active_nodes
+            hypergraph, max_gain, initial_assignment,qpu_info, costs, limit, active_nodes, network=network
         )
         end = time.time()
         time_list.append(end-start)
