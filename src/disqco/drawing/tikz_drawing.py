@@ -290,7 +290,7 @@ def hypergraph_to_tikz(
     tikz_code.append(r"  \end{pgfonlayer}")
 
     # --------------- PARTITION BOUNDARY LINES ---------------
-    tikz_code.append(r"  \begin{pgfonlayer}{background}")
+    tikz_code.append(r"  \begin{pgfonlayer}{edgelayer}")
     for i in range(1, len(qpu_sizes)):
         boundary = sum(qpu_sizes[:i])
         line_y = (num_qubits_phys - boundary + 0.5) * yscale

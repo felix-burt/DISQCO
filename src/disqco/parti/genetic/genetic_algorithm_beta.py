@@ -10,6 +10,8 @@ from disqco.parti.FM.FM_methods import set_initial_partitions
 from disqco.graphs.hypergraph_methods import *
 from disqco.parti.FM.FM_methods import move_node
 import time
+from disqco.parti.partitioner import QuantumCircuitPartitioner
+from disqco.graphs.quantum_network import QuantumNetwork
 
 
 Genome = List[List]
@@ -20,134 +22,115 @@ SelectFunc = Callable[[Population,FitnessFunc],Population]
 CrossoverFunc = Callable[[Genome,Genome], Tuple[Genome,Genome]]
 MutationFunc = Callable[[Genome,int,int],Genome]
 
-class Genetic_Partitioning_Beta():
+class GeneticPartitioner(QuantumCircuitPartitioner):
 
-    def __init__(self, circuit : QuantumCircuit, 
-                 qpu_info, 
-                 costs = None, 
-                 max_depth = 10000, 
-                 multi_process = True, 
-                 gate_packing = True, 
-                 transpile_circuit=False
-                 ) -> None:
-        
-        if transpile_circuit == True:
-            self.circuit = transpile(circuit,basis_gates=['u','cp'])
-        else:
-            self.circuit = circuit
-        
-        self.qpu_info = qpu_info # List of QPU sizes
-        self.max_depth = max_depth
+    def __init__(self, 
+                 circuit : QuantumCircuit, 
+                 network : QuantumNetwork,
+                 **kwargs) -> None:
+        super().__init__(circuit=circuit, network=network, initial_assignment=None)
+
+        group_gates = kwargs.get('group_gates', True)
+        self.qpu_sizes = [size for key, size in self.network.qpu_sizes.items()] # List of QPU sizes
+
         self.num_qubits_log = circuit.num_qubits
         self.num_layers = circuit.depth()
-        self.graph = QuantumCircuitHyperGraph(self.circuit,group_gates=True)
+        self.graph = QuantumCircuitHyperGraph(circuit,group_gates=group_gates)
         self.layers = self.graph.layers
-        if costs is None:
-            configs = get_all_configs(len(qpu_info))
-            self.costs = get_all_costs(configs)
-        else:
-            
-            self.costs = costs
+        self.costs = kwargs.get('costs', self.network.get_costs())
+        self.multi_process = kwargs.get('multi_process', False)
+        self.gate_grouping = kwargs.get('gate_grouping', True)
+        self.num_qubits_phys = np.sum(self.qpu_sizes) # Total number of qubits across all QPUs
+        self.num_partitions = len(self.qpu_sizes)
+
+        self.search_method = kwargs.get('search_method', True)
+        self.search_number = kwargs.get('search_number', 10)
+        self.mutation_rate = kwargs.get('mutation_rate', 0.9)
+
+        self.pop_size = kwargs.get('pop_size', 100)
+        self.num_generations = kwargs.get('num_generations', 100)
+        self.log_frequency = kwargs.get('log_frequency', 10)
+
+    def genetic_pass(self, graph, population) -> dict:
+
+        self.best = population[0][1]
+        next_generation = population[0:2]
         
-        self.num_qubits_phys = np.sum(qpu_info) # Total number of qubits across all QPUs
-        self.num_partitions = len(qpu_info)
+        probabilities = softmax([-population[n][1] for n in range(len(population))])
 
-        # # self.num_two_qubit_gates = self.circuit.count_ops()['cp']
-        # self.initial_partition = set_initial_partitions(self.qpu_info, self.num_layers, self.num_partitions, reduced=True)
-        self.multi_process = multi_process
-        self.gate_packing = gate_packing
-
-    def run(self, pop_size, num_generations, random_start = False, mutation_rate = 0.5,search_method = False,search_number=100,log = True,log_frequency = 50,multi_process=True, choose_initial = False) -> Tuple[Population, int]:  
-        max_over_time = []
-        population = generate_population(pop_size,self.qpu_info,self.num_layers,self.num_qubits_log)
-
-        if not multi_process:
-            fitness_scores = [fitness_function(self.graph, partition,self.num_partitions,self.costs,self.qpu_info,self.num_layers
-                                               ) for partition in population]
-
-            indices = list(enumerate(fitness_scores))
-            sorted_indices = sorted(indices, key=lambda x: x[1],reverse=False)
-            population = [(population[index],value) for index, value in sorted_indices]
+        tasks = [(selection_pair(population, probabilities), 
+            self.qpu_sizes,
+            self.num_qubits_log, 
+            self.num_layers,
+            self.num_partitions,
+            graph,
+            self.costs,
+            self.mutation_rate,
+            self.search_number) for _ in range(int(len(population)/2)-1)]
+        
+            
+        if self.multi_process:
+            results = self.pool.starmap(create_offspring, tasks)
         else:
-            pool = mp.Pool(mp.cpu_count())
-            tasks = [(self.graph, partition, self.num_partitions, self.costs, self.qpu_info, self.num_layers) for partition in population]
-            fitness_scores = pool.starmap(fitness_function, tasks)
+            results = [create_offspring(*task) for task in tasks]
             
-            indices = list(enumerate(fitness_scores))
-            sorted_indices = sorted(indices, key=lambda x: x[1],reverse=False)
-            population = [(population[index],value) for index, value in sorted_indices]
-            population = sorted(population, key = lambda x : x[1],reverse=False)
 
-        for t in range(num_generations):
-            # print("Generation",t)
+        for offspring_a, offspring_b in results:
+            next_generation.append(offspring_a)
+            next_generation.append(offspring_b)
+
+        population = sorted(next_generation, key = lambda x : x[1],reverse=False)
+
+
+
+        return population
+
+    def run_genetic(self, **kwargs) -> Tuple[Population, int]:  
+        
+        graph = kwargs.get('graph', self.graph)
+        log = kwargs.get('log', False)
+
+
+        max_over_time = []
+        population = generate_population(self.pop_size,self.qpu_sizes,self.num_layers,self.num_qubits_log)
+        
+        if self.multi_process:
+            self.pool = mp.Pool(mp.cpu_count())
+
+        tasks = [(graph,
+                  partition, 
+                  self.num_partitions, 
+                  self.costs, 
+                  self.qpu_sizes, 
+                  self.num_layers) for partition in population]
+        if self.multi_process:
+            fitness_scores = self.pool.starmap(fitness_function, tasks)
+        else:
+            fitness_scores = [fitness_function(*task) for task in tasks]
+        indices = list(enumerate(fitness_scores))
+        sorted_indices = sorted(indices, key=lambda x: x[1],reverse=False)
+        population = [(population[index],value) for index, value in sorted_indices]
+        population = sorted(population, key = lambda x : x[1],reverse=False)
+
+        for t in range(self.num_generations):
             self.best = population[0][1]
-            if log == True:
-                if (t % log_frequency) == 0:
-                    print("Current best cut:", self.best)
-            next_generation = population[0:2]
-            
-            #total_fitness = np.sum([10000-population[n][1] for n in range(len(population))])
-            probabilities = softmax([-population[n][1] for n in range(len(population))])
-
-            #probabilities = [(10000-population[n][1])/total_fitness for n in range(len(population))]
-            if not multi_process:
-                for q in range(int(len(population)/2)-1):
-                    parents = selection_pair(population,probabilities)
-                    # print("Member number", q)
-                    # start = time.time()
-                    offspring_a, offspring_b = create_offspring(parents,
-                                                                self.qpu_info,
-                                                                self.num_qubits_log,
-                                                                self.num_layers,
-                                                                self.num_partitions,
-                                                                self.graph,
-                                                                self.costs,
-                                                                mutation_rate,
-                                                                number=search_number)
-                    # end = time.time()
-                    # print("Time taken for offspring creation:", end-start)
-
-                    next_generation.append(offspring_a)
-                    next_generation.append(offspring_b)
-            else:
-
-                next_generation = population[0:2]
-
-                tasks = [(selection_pair(population, probabilities), 
-                          self.qpu_info,
-                          self.num_qubits_log, 
-                          self.num_layers,
-                          self.num_partitions,
-                          self.graph,
-                          self.costs,
-                          mutation_rate,
-                          search_number) for _ in range(int(len(population)/2)-1)]
-                
-                start = time.time()
-                results = pool.starmap(create_offspring, tasks)
-                end = time.time()
-
-                # print("Time taken to map results", end - start)
-
-                for offspring_a, offspring_b in results:
-                    next_generation.append(offspring_a)
-                    next_generation.append(offspring_b)
-
-            population = sorted(next_generation, key = lambda x : x[1],reverse=False)
-
+            if log and (t % self.log_frequency) == 0:
+                print("Current best cut:", self.best) 
+            population = self.genetic_pass(graph, population)
             max_over_time.append(population[0][1])
 
-        if multi_process:
-
-            pool.close()
-            pool.join()
+        if self.multi_process:
+            self.pool.close()
+            self.pool.join()
         
-        return population,max_over_time
+        best_partition = population[0][0]
+        best_cost = population[0][1]
+        results = {'best_partition' : best_partition, 'best_cost' : best_cost, 'max_over_time' : max_over_time}
+        return results
 
-    def view_graphs(self,partition):
-        initial_graph = circuit_to_graph(self.qpu_info,self.circuit,group_gates=self.gate_packing)
-        final_graph = swap_on_graph(initial_graph,self.partition_single_layer,partition,len(partition))
-        return initial_graph,final_graph
+    def partition(self):
+        kwargs = {'partitioner' : self.run_genetic, 'log': False}
+        return super().partition(**kwargs)
 
 def generate_partition(qpu_info: int, num_layers: int, num_qubits: int, random_start = False, reduced = True):
     "Create candidate partition"

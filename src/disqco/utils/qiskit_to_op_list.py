@@ -10,22 +10,46 @@ def get_reg_mapping(circuit):
             index += 1
     return qubit_indeces
 
-def circuit_to_gate_layers(circuit):
+def circuit_to_gate_layers(circuit, qpu_sizes = None):
     "Uses qiskit DAG circuit to group gates into sublists by layer/timestep of the circuit"
     dag = circuit_to_dag(circuit)
     layers = list(dag.multigraph_layers())
     layer_gates = []
     qubit_mapping = get_reg_mapping(circuit)
+    if qpu_sizes is not None:
+        max_pairs = find_max_interactions(qpu_sizes)
     for layer in layers:
+        pairs = 0
         layer_info = []
         for node in layer:
             if isinstance(node, DAGOpNode):
-                gate_info = [node.name, [qubit_mapping[(qubit._register.name,qubit._index)] for qubit in node.qargs],[qubit._register.name for qubit in node.qargs],node.op.params]
+                gate_name = node.name
+                qubits = [qubit_mapping[(qubit._register.name,qubit._index)] for qubit in node.qargs]
+                registers = [qubit._register.name for qubit in node.qargs]
+                params = node.op.params
+
+                gate_info = [gate_name, qubits, registers, params]
                 layer_info.append(gate_info)
-        layer_gates.append(layer_info)
-    del layer_gates[-1]
-    del layer_gates[0]
+                if qpu_sizes is not None:
+                    if len(qubits) == 2:
+                        pairs += 1
+                        if pairs >= max_pairs:
+                            layer_gates.append(layer_info)
+                            layer_info = []
+                            pairs = 0
+        if layer_info != []:
+            layer_gates.append(layer_info)
     return layer_gates
+
+def find_max_interactions(qpu_info):
+    max_pairs_qpu = []
+    for n in range(len(qpu_info)):
+        if qpu_info[n] % 2 == 1:
+            max_pairs_qpu.append((qpu_info[n]-1)//2)
+        else:
+            max_pairs_qpu.append(qpu_info[n]//2)
+    max_pairs = sum(max_pairs_qpu)
+    return max_pairs
 
 def layer_list_to_dict(layers):
     d = {}

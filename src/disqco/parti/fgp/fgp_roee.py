@@ -1,18 +1,18 @@
-from disqco.parti.fgp.circuit_to_graph import *
+# from disqco.parti.fgp.circuit_to_graph import *
+from disqco.utils.qiskit_to_op_list import circuit_to_gate_layers
 import networkx as nx
 import numpy as np
 import matplotlib.pyplot as plt
 
 def circuit_to_slices(circuit, qpu_info, remove_singles = True):
     "Function to identify interacting qubits at each layer. Returns a list of lists, where each list contains the interacting qubits at each layer."
-    operations = circuit_to_gate_layers(circuit)
+    operations = circuit_to_gate_layers(circuit, qpu_info)
     interactions = []
     # Find the qubit registers and their sizes
     regs = circuit.qregs
     reg_mapping = {regs[i].name : i for i in range(len(regs))}
     sizes = [reg.size for reg in regs]
     # Scan the operations and find the qubits involved
-    max_pairs = find_max_interactions(qpu_info)
     for layer in operations:
         current_layer = []
         pairs = 0
@@ -30,32 +30,13 @@ def circuit_to_slices(circuit, qpu_info, remove_singles = True):
                 if len(qubits) > 1:
                     current_layer.append(qubits)
                     pairs += 1
-                    
             else:
                 # Can keep the single qubit gates in for easier circuit recovery after partitioning
                 current_layer.append(qubits)
-                if len(qubits) > 1:
-                    pairs += 1
-
-            if pairs >= max_pairs:
-                interactions.append(current_layer)
-                current_layer = []
-                pairs = 0
-
         if len(current_layer) > 0:
             interactions.append(current_layer)
     
     return interactions
-
-def find_max_interactions(qpu_info):
-    max_pairs_qpu = []
-    for n in range(len(qpu_info)):
-        if qpu_info[n] % 2 == 1:
-            max_pairs_qpu.append((qpu_info[n]-1)//2)
-        else:
-            max_pairs_qpu.append(qpu_info[n]//2)
-    max_pairs = sum(max_pairs_qpu)
-    return max_pairs
 
 def exp_decay(m,decay_weight):
     # Exponential decay function for weighting future interactions

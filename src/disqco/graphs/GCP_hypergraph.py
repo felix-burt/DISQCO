@@ -11,7 +11,8 @@ class QuantumCircuitHyperGraph:
                 circuit : QuantumCircuit, 
                 group_gates : bool = True, 
                 anti_diag : bool = True,
-                map_circuit : bool = True):
+                map_circuit : bool = True,
+                qpu_sizes : list = None):
         # Keep a set of all nodes (qubit, time)
         self.nodes = set()
         self.hyperedges = {}
@@ -23,17 +24,17 @@ class QuantumCircuitHyperGraph:
         self.num_qubits = circuit.num_qubits
         self.depth = circuit.depth()
         if map_circuit:
-            self.init_from_circuit(group_gates, anti_diag)
+            self.init_from_circuit(group_gates, anti_diag, qpu_sizes=qpu_sizes)
 
-    def init_from_circuit(self, group_gates=True, anti_diag=False):
+    def init_from_circuit(self, group_gates=True, anti_diag=False, qpu_sizes=None):
         
-        self.layers = self.extract_layers(self.circuit, group_gates=group_gates, anti_diag=anti_diag)
+        self.layers = self.extract_layers(self.circuit, group_gates=group_gates, anti_diag=anti_diag, qpu_sizes=qpu_sizes)
         self.depth = len(self.layers)
         self.add_time_neighbor_edges(self.depth, range(self.num_qubits))
         self.map_circuit_to_hypergraph()
 
-    def extract_layers(self, circuit, group_gates=True, anti_diag=False):
-        layers = circuit_to_gate_layers(circuit)
+    def extract_layers(self, circuit, group_gates=True, anti_diag=False, qpu_sizes=None):
+        layers = circuit_to_gate_layers(circuit, qpu_sizes=qpu_sizes)
         layers = layer_list_to_dict(layers)
         if group_gates:
             layers = group_distributable_packets(layers, group_anti_diags=anti_diag)

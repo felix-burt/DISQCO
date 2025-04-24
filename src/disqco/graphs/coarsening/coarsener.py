@@ -2,7 +2,6 @@ import copy
 import numpy as np
 import time
 from disqco.graphs.GCP_hypergraph import QuantumCircuitHyperGraph
-
 class HypergraphCoarsener:
     """
     A class that provides various coarsening methods for a quantum-circuit hypergraph.
@@ -348,27 +347,6 @@ class HypergraphCoarsener:
         
         return H_list, mapping_list
     
-    # def coarsen_region(self, graph, mapping, start, stop):
-    #     """
-    #     Coarsen a GCP hypergraph from `start` down to `stop`,
-    #     returning a list of hypergraphs at progressively coarser time-layers.
-
-    #     :param hypergraph: The original (fine) hypergraph,
-    #                        with nodes = {(q, t) | t in [0..depth]}.
-    #     :param start: The starting time-layer index.
-    #     :param stop: The stopping time-layer index.
-    #     :return: A list of hypergraphs [H_start, H_start-1, ..., H_stop]
-    #             where H_start is the original and H_stop is the final coarsened.
-    #     """
-    #     graph_ = copy.deepcopy(graph)
-        
-    #     layer = start
-    #     while layer > stop:
-    #         graph_ = self.contract(graph_, layer, layer - 1)
-    #         mapping = self.update_mapping(mapping, layer, layer - 1)
-    #         layer -= 1
-    #     return graph_, mapping
-
     def coarsen_region(self, graph, mapping, start, stop, node_list = None):
         """
         Coarsen a GCP hypergraph from `start` down to `stop`,
@@ -854,6 +832,8 @@ class HypergraphCoarsener:
         H_current = copy.deepcopy(hypergraph)
         H_init = copy.deepcopy(hypergraph)
         depth = H_current.depth
+        if node_list is None:
+            node_list = [[i for i in range(hypergraph.num_qubits)] for _ in range(depth)]
         mapping = {i: set([i]) for i in range(depth)}
 
         H_list = [H_init]
@@ -887,7 +867,7 @@ class HypergraphCoarsener:
 
         return H_list, mapping_list
 
-    def coarsen_recursive_batches_mapped(self, hypergraph, node_list):
+    def coarsen_recursive_batches_mapped(self, hypergraph, node_list=None):  
         """
         Repeatedly coarsen the hypergraph by contracting layer i into i-1
         in a pairwise fashion:
@@ -902,6 +882,8 @@ class HypergraphCoarsener:
         """
         H_current = copy.deepcopy(hypergraph)
         depth = H_current.depth
+        if node_list is None:
+            node_list = [[i for i in range(hypergraph.num_qubits)] for _ in range(depth)]
         mapping = {i: set([i]) for i in range(depth)}
 
         H_list = [H_current]
@@ -939,5 +921,4 @@ class HypergraphCoarsener:
             if len(current_layers) <= 1:
                 break
         
-
         return H_list, mapping_list
