@@ -472,11 +472,13 @@ def find_starting_assignment(initial_search_size,qpu_info,graph,num_layers,rando
     return best_candidate, mapping
 
 def run_initial_OEE(full_graph,initial_partition,qpu_info):
+    
     "Run the initial OEE algorithm to find a good starting partition."
     partition = initial_partition.copy()
     g_max = np.inf
     mapping = [n for n in range(np.sum(qpu_info))]
     num_partitions = len(qpu_info)
+
     while g_max > 0:
         N = set(list(full_graph.nodes()))
         cut = calculate_static_cut(partition, full_graph)
@@ -585,3 +587,4 @@ def build_initial_GCP_graph(circuit,qpu_info):
     "Build the initial GCP graph for the circuit."
     graph = circuit_to_graph(qpu_info, circuit, group_gates=False)
     return graph
+

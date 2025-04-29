@@ -32,7 +32,7 @@ class Genetic_Partitioning():
             self.layers = layer_list_to_dict(self.layers) # Convert to dictionary
             if gate_packing: # Pre process the gates to group distributable packets
                 self.layers = group_distributable_packets(self.layers,self.num_qubits_log)
-                self.layers = list(self.layers.values())
+            self.layers = list(self.layers.values())
         else:
             self.layers = layers
 
@@ -235,6 +235,7 @@ def create_offspring(parents, qpu_info, num_layers, num_qubits_log, layers,mutat
 
     cut_a = fitness_function(offspring_a,layers,num_qubits_log,gate_packing)
     cut_b = fitness_function(offspring_b,layers,num_qubits_log,gate_packing)
+    
     return (offspring_a, cut_a), (offspring_b, cut_b)
 
 def swap_mutation_propogate(genome: Genome, num_qubits: int, num_layers: int, num: int = 1, prob: float = 0.5) -> Genome:
@@ -321,7 +322,7 @@ def calculate_cost_layers(layers,partition,num_qubits_log):
                 if part1 != part2:
                     cost += 1
         for op in layer:
-            qubits = op[1]
+            qubits = op['qargs']
             if len(qubits) > 1:
                 if new_part[qubits[0]] != new_part[qubits[1]]:
                     cost += 1
@@ -369,36 +370,36 @@ def propogate_swap(candidate,num_layers,qubit1,qubit2,layer):
         new_candidate[n][qubit2] = store
     return new_candidate
 
-def calculate_cut_diff(gen1,gen2,layers,action,start,stop,num_qubits_log):
-    part1 = gen1
-    part2 = gen2
-    qubit1 = action[0]
-    qubit2 = action[1]
-    old_cut = 0
-    new_cut = 0
-    for l,layer in enumerate(layers[start:stop]):
-        layer_index = start + l
-        for op in layer:
-            qubits = op[1]
-            if len(qubits) > 1:
-                if qubits[0] == qubit1 or qubits[0] == qubit2 or qubits[1] == qubit1 or qubits[1] == qubit2:
-                    if action != (min(qubits[0],qubits[1]),max(qubits[0],qubits[1])):
-                        if part1[layer_index][qubits[0]] != part1[layer_index][qubits[1]]:
-                            old_cut += 1
-                        if part2[layer_index][qubits[0]] != part2[layer_index][qubits[1]]:
-                            new_cut += 1
-    if start != 0:
-        if qubit1 < num_qubits_log:
-            new_cut += 1
-        if qubit2 < num_qubits_log:
-            new_cut += 1
-    if stop != len(layers):
-        if qubit1 < num_qubits_log:
-            new_cut += 1
-        if qubit2 < num_qubits_log:
-            new_cut += 1
+# def calculate_cut_diff(gen1,gen2,layers,action,start,stop,num_qubits_log):
+#     part1 = gen1
+#     part2 = gen2
+#     qubit1 = action[0]
+#     qubit2 = action[1]
+#     old_cut = 0
+#     new_cut = 0
+#     for l,layer in enumerate(layers[start:stop]):
+#         layer_index = start + l
+#         for op in layer:
+#             qubits = op[1]
+#             if len(qubits) > 1:
+#                 if qubits[0] == qubit1 or qubits[0] == qubit2 or qubits[1] == qubit1 or qubits[1] == qubit2:
+#                     if action != (min(qubits[0],qubits[1]),max(qubits[0],qubits[1])):
+#                         if part1[layer_index][qubits[0]] != part1[layer_index][qubits[1]]:
+#                             old_cut += 1
+#                         if part2[layer_index][qubits[0]] != part2[layer_index][qubits[1]]:
+#                             new_cut += 1
+#     if start != 0:
+#         if qubit1 < num_qubits_log:
+#             new_cut += 1
+#         if qubit2 < num_qubits_log:
+#             new_cut += 1
+#     if stop != len(layers):
+#         if qubit1 < num_qubits_log:
+#             new_cut += 1
+#         if qubit2 < num_qubits_log:
+#             new_cut += 1
     
-    return old_cut - new_cut
+#     return old_cut - new_cut
 
 def calculate_cut_diff(gen1,gen2,layers,action,start,stop,num_qubits_log):
     part1 = gen1
