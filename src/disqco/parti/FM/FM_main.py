@@ -26,7 +26,7 @@ def FM_pass(hypergraph,
         #     if node[1] > max_time:
         #         max_time = node[1]
 
-        array = find_all_gains(hypergraph,active_nodes,assignment,num_partitions,costs,log=False)
+        array = find_all_gains(hypergraph,active_nodes,assignment,num_partitions,costs,network=network)
 
         buckets = fill_buckets(array,max_gain)
         gain_list = []
@@ -46,7 +46,15 @@ def FM_pass(hypergraph,
             destination = action[2]
             source = assignment[node[1]][node[0]]
             # source = assignment[node]
-            assignment_new, array, buckets = take_action_and_update(hypergraph,node,destination,array,buckets,num_partitions,lock_dict,assignment,costs)
+            assignment_new, array, buckets = take_action_and_update(hypergraph,
+                                                                    node,
+                                                                    destination,
+                                                                    array,
+                                                                    buckets,
+                                                                    num_partitions,
+                                                                    lock_dict,
+                                                                    assignment,
+                                                                    costs)
 
             # assignment_new, array, buckets = take_action_and_update_dict_simple(hypergraph,node,destination,array,buckets,num_partitions,lock_dict,assignment,costs)
 

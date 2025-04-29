@@ -36,7 +36,7 @@ def group_size(gate):
             counter += 1
     return counter
 
-def group_distributable_packets(layers,group_anti_diags=False):
+def group_distributable_packets(layers,group_anti_diags=True):
     "Uses the rules for gate packing to create groups of gates which can be distributed together"
     # new_layers = copy.deepcopy(layers)
     live_controls = {}
@@ -52,7 +52,7 @@ def group_distributable_packets(layers,group_anti_diags=False):
                 qubit = op['qargs'][0]
                 diag = None
                 diag = check_diag_gate(op, include_anti_diags=group_anti_diags)
-
+                
                 gate = copy.deepcopy(op)
                 if diag == False:
                     if qubit in live_controls:

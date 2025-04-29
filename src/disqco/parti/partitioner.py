@@ -33,7 +33,6 @@ class QuantumCircuitPartitioner:
         """
 
         partitioner = kwargs.get('partitioner')
-        print(f'Partitioner: {partitioner}')
         results = partitioner(**kwargs)
 
         return results
@@ -49,50 +48,55 @@ class QuantumCircuitPartitioner:
             A list of partitions.
         """
         level_limit = kwargs.get('level_limit', 1000)
-        log = kwargs.get('log', False)
         graph = kwargs.get('graph', self.hypergraph)
 
         graph_list, mapping_list = coarsener(hypergraph=graph)
 
-        print(f'Number of levels: {len(graph_list)}')
-
-        assignment = self.initial_assignment.copy()
+        if self.initial_assignment is not None:
+            assignment = self.initial_assignment.copy()
+        else:
+            assignment = None
+        
         list_of_assignments = []
         list_of_costs = []
         best_cost = float('inf')
         graph_list = graph_list[::-1]
-        active_nodes = graph_list[0].nodes
         mapping_list = mapping_list[::-1]
         graph_list = graph_list[:level_limit]
         mapping_list = mapping_list[:level_limit]
-        pass_list = [int(self.passes/level_limit)] * level_limit
+
+        pass_list = [10] * level_limit
+
+        
 
         for i, graph in enumerate(graph_list):
 
             self.passes = pass_list[i]
             kwargs['graph'] = graph
-            kwargs['active_nodes'] = active_nodes
+            kwargs['active_nodes'] = graph.nodes
             kwargs['assignment'] = assignment
-
+            kwargs['mapping'] = mapping_list[i]
+            kwargs['limit'] = self.num_qubits
+            kwargs['passes'] = pass_list[i]
             results = self.partition(**kwargs)
 
             best_cost_level = results['best_cost']
-            print(f'Best cost at level {i}: {best_cost_level}')
             best_assignment_level = results['best_assignment']
 
             if best_cost_level < best_cost:
             # Keep track of the result
                 best_cost = best_cost_level
                 assignment = best_assignment_level
-            else:
-                assignment = initial_assignment
-            if log:
-                print(f'Best cost at level {i}: {best_cost}')
+
+            # if log:
+            print(f'Best cost at level {i}: {best_cost}')
 
             refined_assignment = self.refine_assignment(i, len(graph_list), assignment, mapping_list)
-            initial_assignment = refined_assignment
+            assignment = refined_assignment
+            kwargs['seed_partitions'] = [assignment]
 
-            list_of_assignments.append(initial_assignment)
+
+            list_of_assignments.append(assignment)
             list_of_costs.append(best_cost)
         
         final_cost = min(list_of_costs)
@@ -102,7 +106,6 @@ class QuantumCircuitPartitioner:
 
         return results
 
-    
     def refine_assignment(self, level, num_levels, assignment, mapping_list):
         new_assignment = assignment
         if level < num_levels -1:

@@ -36,10 +36,10 @@ class GeneticPartitioner(QuantumCircuitPartitioner):
         self.num_qubits_log = circuit.num_qubits
         self.num_layers = circuit.depth()
         self.graph = QuantumCircuitHyperGraph(circuit,group_gates=group_gates)
+        self.hypergraph= self.graph
         self.layers = self.graph.layers
         self.costs = kwargs.get('costs', self.network.get_costs())
         self.multi_process = kwargs.get('multi_process', False)
-        self.gate_grouping = kwargs.get('gate_grouping', True)
         self.num_qubits_phys = np.sum(self.qpu_sizes) # Total number of qubits across all QPUs
         self.num_partitions = len(self.qpu_sizes)
 
@@ -89,11 +89,10 @@ class GeneticPartitioner(QuantumCircuitPartitioner):
         
         graph = kwargs.get('graph', self.graph)
         log = kwargs.get('log', False)
-
-
+        seed_partitions = kwargs.get('seed_partitions', [])
+        population = kwargs.get('population', generate_population(self.pop_size,self.qpu_sizes,self.num_layers,self.num_qubits_log, seed_partitions=seed_partitions))
         max_over_time = []
-        population = generate_population(self.pop_size,self.qpu_sizes,self.num_layers,self.num_qubits_log)
-        
+
         if self.multi_process:
             self.pool = mp.Pool(mp.cpu_count())
 
@@ -107,6 +106,7 @@ class GeneticPartitioner(QuantumCircuitPartitioner):
             fitness_scores = self.pool.starmap(fitness_function, tasks)
         else:
             fitness_scores = [fitness_function(*task) for task in tasks]
+        
         indices = list(enumerate(fitness_scores))
         sorted_indices = sorted(indices, key=lambda x: x[1],reverse=False)
         population = [(population[index],value) for index, value in sorted_indices]
@@ -114,6 +114,7 @@ class GeneticPartitioner(QuantumCircuitPartitioner):
 
         for t in range(self.num_generations):
             self.best = population[0][1]
+            # print("Generation", t, "Best cut:", self.best)
             if log and (t % self.log_frequency) == 0:
                 print("Current best cut:", self.best) 
             population = self.genetic_pass(graph, population)
@@ -125,12 +126,18 @@ class GeneticPartitioner(QuantumCircuitPartitioner):
         
         best_partition = population[0][0]
         best_cost = population[0][1]
-        results = {'best_partition' : best_partition, 'best_cost' : best_cost, 'max_over_time' : max_over_time}
+        results = {'best_assignment' : best_partition, 'best_cost' : best_cost, 'max_over_time' : max_over_time}
         return results
 
-    def partition(self):
-        kwargs = {'partitioner' : self.run_genetic, 'log': False}
+    def partition(self, **kwargs):
+        kwargs['partitioner'] = self.run_genetic
+        kwargs['log'] = False
+        kwargs['seed_partitions'] = kwargs.get('seed_partitions', [])
         return super().partition(**kwargs)
+
+    def multilevel_partition(self, coarsener, **kwargs):
+        self.num_generations = 50
+        return super().multilevel_partition(coarsener, **kwargs)
 
 def generate_partition(qpu_info: int, num_layers: int, num_qubits: int, random_start = False, reduced = True):
     "Create candidate partition"
@@ -155,10 +162,12 @@ def generate_partition(qpu_info: int, num_layers: int, num_qubits: int, random_s
                 layer = np.random.permutation(candidate_layer)
     return candidate
 
-def generate_population(size: int, qpu_info: list,num_layers: int, num_qubits: int, random_start = False) -> Population:
+def generate_population(size: int, qpu_info: list,num_layers: int, num_qubits: int, random_start = False, seed_partitions : list = []) -> Population:
     #population = np.zeros((size,num_layers,num_qubits_phys),dtype=int)
     population = []
-    for n in range(size):
+    for partition in seed_partitions:
+        population.append(partition)
+    for n in range(size - len(seed_partitions)):
         population.append(generate_partition(qpu_info,num_layers, num_qubits))
     return population
 
@@ -216,16 +225,25 @@ def create_offspring(parents, qpu_info, num_qubits, num_layers, num_partitions, 
         #     offspring_a = match_mutation(offspring_a, num_layers,num=1, prob=1)
         #     offspring_b = match_mutation(offspring_b, num_layers,num=1, prob=1)
 
+        # offspring_a, gain_a = move_mutation(graph, graph.nodes, offspring_a, num_partitions, costs, number, num_qubits, num_layers, qpu_info)
+        # offspring_b, gain_b = move_mutation(graph, graph.nodes, offspring_b, num_partitions, costs, number, num_qubits, num_layers, qpu_info)
         offspring_a, gain_a = search_mutation(graph, offspring_a, num_partitions, qpu_info, num_qubits, num_layers, costs, number)
-        offspring_b, gain_b = search_mutation(graph, offspring_b, num_partitions, qpu_info, num_qubits, num_layers ,costs, number)
+        offspring_b, gain_b = search_mutation(graph, offspring_b, num_partitions, qpu_info, num_qubits, num_layers ,costs, number)  
     else:
-        gain_a = 0
-        gain_b = 0
-
+        offspring_a, gain_a = search_mutation(graph, offspring_a, num_partitions, qpu_info, num_qubits, num_layers, costs, number)
+        offspring_b, gain_b = search_mutation(graph, offspring_b, num_partitions, qpu_info, num_qubits, num_layers ,costs, number)    
+        # gain_a = 0
+        # gain_b = 0
+    # print("Cut A pre mutation", cut_a) 
+    # print("Cut B pre mutation", cut_b)
     cut_a = cut_a + gain_a
     cut_b = cut_b + gain_b
+    # print("Gain A", gain_a)
+    # print("Gain B", gain_b)
     # cut_a = fitness_function(graph, offspring_a, num_partitions, costs, qpu_info, num_layers)
     # cut_b = fitness_function(graph, offspring_b, num_partitions, costs, qpu_info, num_layers)
+    # print("Cut A", cut_a)
+    # print("Cut B", cut_b)
 
     return (offspring_a, cut_a), (offspring_b, cut_b)
 
@@ -428,7 +446,7 @@ def calculate_cost_interval(graph,partition,qpu_info, start,destination,qubit,nu
     new_partition = partition.copy()
     while n < num_layers:
         node = (qubit,n)
-        if is_space(new_partition, qpu_info, destination, n):
+        if node in graph.nodes and is_space(new_partition, qpu_info, destination, n):
             cost = find_gain(graph, node, destination, new_partition, num_partitions, costs)
             gain += cost
             n += 1
@@ -469,8 +487,114 @@ def search_mutation(graph, partition, num_partitions, qpu_info, num_qubits_log, 
             best = gain
             best_partition = update_partition(partition,start,destination,qubit,stop)
     
-
     return best_partition, best
+
+def search_mutation(graph, partition, num_partitions, qpu_info, num_qubits_log, num_layers, costs, number):
+    best = 0
+    best_partition = partition.copy()
+    for n in range(number):
+        # print("Number", n)
+        start = np.random.choice(len(partition), size=1)[0]
+        qubit = np.random.choice(num_qubits_log,size=1)[0]
+        # destination = np.random.choice(num_partitions, size=1)[0]
+        partition_layer = partition[start]
+        counts = [0 for _ in range(num_partitions)]
+        for element in partition_layer:
+            counts[int(element)] += 1
+        for part in range(num_partitions):
+            if counts[part] < qpu_info[part]:
+                destination = part
+                break
+        # start = time.time()
+        gain, stop = calculate_cost_interval(graph,partition,qpu_info,start,destination,qubit,num_layers,num_partitions,costs)
+        # end = time.time()
+        # print("Time taken for gain calculation:", end-start)
+        if gain < best:
+            # print("Gain",gain)
+            best = gain
+            best_partition = update_partition(partition,start,destination,qubit,stop)
+    
+    return best_partition, best
+
+from disqco.parti.FM.FM_methods import find_spaces, update_spaces, lock_node, find_gain_unmapped
+
+def move_mutation(hypergraph, nodes, assignment, num_partitions, costs, search_number, num_qubits_log, num_layers, qpu_sizes):
+
+    
+    cumulative_gain = 0
+    gain_list = []
+    lock_dict = {node: False for node in nodes}
+    assignment_list = []
+
+    spaces = find_spaces(num_qubits_log, num_layers, assignment, qpu_sizes)
+
+    layer = np.random.choice(num_layers, size=1)[0]
+    
+    free_spaces_layer = spaces[layer]
+    # print("Free spaces layer", free_spaces_layer)
+    for qpu, element in enumerate(free_spaces_layer):
+        if element > 0:
+            destination = qpu
+    
+    assignemnt_layer = assignment[layer]
+    for qubit, partition in enumerate(assignemnt_layer):
+        if partition != destination:
+            source = partition
+            node = (qubit, layer)
+
+    gain = find_gain_unmapped(hypergraph, node, destination, assignment, num_partitions, costs)
+    # print("Node", node, "Destination", destination, "Gain", gain)
+    assignment = move_node(node, destination, assignment)
+
+    cumulative_gain += gain
+    gain_list.append(cumulative_gain)
+    assignment_list.append(assignment.copy())
+    lock_dict[node] = True
+    
+    # print("Spaces", spaces)
+    locked_nodes = set([node])
+
+    for n in range(search_number):
+        max_gain = float('inf')
+        # print("Neighbours", hypergraph.adjacency[node])
+        for neighbor in hypergraph.adjacency[node] - locked_nodes:
+            source = assignment[node[1]][node[0]]
+            if not lock_dict[neighbor]:
+                # for k in range(num_partitions):
+                # if k == source:
+                #     continue
+                if is_space(assignment, qpu_sizes, destination, neighbor[1]):
+                    # print("Neighbor", neighbor, "Destination", k)
+                    gain = find_gain_unmapped(hypergraph, neighbor, destination, assignment, num_partitions, costs)
+                    # print("Gain", gain)
+                else: 
+                    gain = float('inf')
+                
+                if gain < max_gain:
+                    max_gain = gain
+                    node = neighbor
+                    # destination = k
+        # print("Chosen neighbour", node, "Destination", destination, "Gain", max_gain)
+        if max_gain == float('inf'):
+            break
+        cumulative_gain += max_gain
+        # print("Cumulative gain", cumulative_gain)
+        gain_list.append(cumulative_gain)
+
+        source = assignment[node[1]][node[0]]
+
+        update_spaces(node, source, destination, spaces)
+
+        locked_nodes.add(node)
+        assignment = move_node(node, destination, assignment)
+        assignment_list.append(assignment.copy())
+
+    # print("Best cumulative gain", min(gain_list))
+
+    best_assignment = assignment_list[np.argmin(gain_list)]
+
+    return best_assignment, min(gain_list)
+
 
 def calculate_cost_groups(partition,layers,num_qubits_log):
     cost = 0

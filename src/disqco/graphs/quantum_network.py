@@ -151,6 +151,7 @@ class QuantumNetwork():
         """
         Computes the costs for all configurations given connectivity.
         """
+
         configs = get_all_configs(self.num_qpus, hetero=self.hetero)
         costs = {}
         if self.hetero:
@@ -164,6 +165,13 @@ class QuantumNetwork():
                 costs[tuple(config)] = cost
 
         return costs
+    
+    def is_fully_connected(self,) -> bool:
+        """
+        Check if the network is connected.
+        """
+        graph = self.qpu_graph
+        return nx.is_empty(nx.complement(graph))
 
 
 

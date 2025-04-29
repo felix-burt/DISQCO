@@ -314,3 +314,14 @@ def draw_graph_(G,qpu_info,divide=True, save_fig = False, path = None):
         plt.savefig(path)
     plt.show()
     return ax
+
+
+def layer_dict_to_list(layers):
+    "Converts the dictionary of layers to a list of layers"
+    new_layers = []
+    for layer in layers:
+        new_layer = []
+        for key in layer:
+            new_layer.append(layer[key])
+        new_layers.append(new_layer)
+    return new_layers

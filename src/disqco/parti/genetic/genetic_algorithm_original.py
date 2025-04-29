@@ -5,9 +5,10 @@ from functools import partial
 import multiprocessing as mp
 from qiskit import transpile
 from scipy.special import softmax
-from disqco.utils.qiskit_to_op_list import circuit_to_gate_layers
-from disqco.parti.fgp.circuit_to_graph import *
+from disqco.utils.qiskit_to_op_list import circuit_to_gate_layers, layer_list_to_dict
+from disqco.graphs.greedy_gate_grouping import *
 import time
+
 Genome = List[List]
 Population = List[Genome]
 FitnessFunc = Callable[[Genome,List[List]],int]
@@ -28,9 +29,10 @@ class Genetic_Partitioning():
         self.num_qubits_log = self.circuit.num_qubits
         if choose_layers == False:
             self.layers = circuit_to_gate_layers(self.circuit) # List of all operations in layers
+            self.layers = layer_list_to_dict(self.layers) # Convert to dictionary
             if gate_packing: # Pre process the gates to group distributable packets
                 self.layers = group_distributable_packets(self.layers,self.num_qubits_log)
-                self.layers = remove_duplicated(self.layers)
+                self.layers = list(self.layers.values())
         else:
             self.layers = layers
 
@@ -397,6 +399,44 @@ def calculate_cut_diff(gen1,gen2,layers,action,start,stop,num_qubits_log):
             new_cut += 1
     
     return old_cut - new_cut
+
+def calculate_cut_diff(gen1,gen2,layers,action,start,stop,num_qubits_log):
+    part1 = gen1
+    part2 = gen2
+    qubit1 = action[0]
+    qubit2 = action[1]
+    old_cut = 0
+    new_cut = 0
+    for l,layer in enumerate(layers[start:stop]):
+        layer_index = start + l
+        for op in layer:
+            if op['type'] == 'two-qubit':
+                qubits = op['qargs']
+            elif op['type'] == 'group':
+                first_gate = op['sub-gates'][0]
+                qubits = first_gate['qargs']
+            else:
+                continue
+
+            if qubits[0] == qubit1 or qubits[0] == qubit2 or qubits[1] == qubit1 or qubits[1] == qubit2:
+                if action != (min(qubits[0],qubits[1]),max(qubits[0],qubits[1])):
+                    if part1[layer_index][qubits[0]] != part1[layer_index][qubits[1]]:
+                        old_cut += 1
+                    if part2[layer_index][qubits[0]] != part2[layer_index][qubits[1]]:
+                        new_cut += 1
+
+    if start != 0:
+        if qubit1 < num_qubits_log:
+            new_cut += 1
+        if qubit2 < num_qubits_log:
+            new_cut += 1
+    if stop != len(layers):
+        if qubit1 < num_qubits_log:
+            new_cut += 1
+        if qubit2 < num_qubits_log:
+            new_cut += 1
+    
+    return old_cut - new_cut
     
 def search_mutation(partition, layers, qpu_info, num_qubits_log,number):
     change = 0
@@ -415,6 +455,44 @@ def search_mutation(partition, layers, qpu_info, num_qubits_log,number):
             best_partition = new_partition.copy()
     return best_partition
 
+# def calculate_cost_groups(partition,layers,num_qubits_log):
+#     cost = 0
+#     for l, layer in enumerate(layers):
+#         new_part = partition[l]
+#         new_part = partition[l]
+#         if l > 0:
+#             for part1,part2 in zip(current_part[:num_qubits_log],new_part[:num_qubits_log]):
+#                 if part1 != part2:
+#                     cost += 1
+#         for op in layer:
+#             op_len = len(op)
+#             if op_len > 4:
+#                 qubit1 = op[1][0]
+#                 qubit2 = op[1][1]
+#                 if op_len == 5:
+#                     if new_part[qubit1] != new_part[qubit2]:
+#                         cost += 1
+#                 if op_len > 5:
+                    
+#                     initial_part1 = partition[l][qubit1]
+#                     initial_part2 = partition[l][qubit2]
+#                     parts = set()
+#                     if initial_part1 != initial_part2:
+#                         parts.add(initial_part2)
+#                     for n in range(5,len(op)):
+#                         gate = op[n]
+#                         q2 = gate[1]
+#                         t = gate[2]
+#                         part = partition[t][q2]
+#                         part_t = partition[t][qubit1]
+#                         if part != part_t and part != initial_part1:
+#                             parts.add(part)
+#                         if part_t in parts:
+#                             parts.remove(part_t)
+#                     cost += len(parts)
+#         current_part = new_part
+#     return cost
+
 def calculate_cost_groups(partition,layers,num_qubits_log):
     cost = 0
     for l, layer in enumerate(layers):
@@ -425,31 +503,29 @@ def calculate_cost_groups(partition,layers,num_qubits_log):
                 if part1 != part2:
                     cost += 1
         for op in layer:
-            op_len = len(op)
-            if op_len > 4:
-                qubit1 = op[1][0]
-                qubit2 = op[1][1]
-                if op_len == 5:
-                    if new_part[qubit1] != new_part[qubit2]:
-                        cost += 1
-                if op_len > 5:
-                    
-                    initial_part1 = partition[l][qubit1]
-                    initial_part2 = partition[l][qubit2]
-                    parts = set()
-                    if initial_part1 != initial_part2:
-                        parts.add(initial_part2)
-                    for n in range(5,len(op)):
-                        gate = op[n]
-                        q2 = gate[1]
-                        t = gate[2]
-                        part = partition[t][q2]
-                        part_t = partition[t][qubit1]
-                        if part != part_t and part != initial_part1:
-                            parts.add(part)
-                        if part_t in parts:
-                            parts.remove(part_t)
-                    cost += len(parts)
+            if op['type'] == 'two-qubit':
+                qargs = op['qargs']
+                qubit1 = qargs[0]
+                qubit2 = qargs[1]
+                if new_part[qubit1] != new_part[qubit2]:
+                    cost += 1
+            elif op['type'] == 'group': 
+                root = op['root']    
+                root_part = new_part[root]
+                parts = set()
+                for sub_gate in op['sub-gates']:
+                    if sub_gate['type'] == 'single-qubit':
+                        continue
+                    subqargs = sub_gate['qargs']
+                    q2 = subqargs[1]
+                    t = sub_gate['time']
+                    part = partition[t][q2]
+                    part_t = partition[t][root]
+                    if part != part_t and part != root_part:
+                        parts.add(part)
+                    if part_t in parts:
+                        parts.remove(part_t)
+                cost += len(parts)
         current_part = new_part
     return cost
 
@@ -482,6 +558,8 @@ def search_mutation_layers_reuse(partition, layers, qpu_info, num_qubits_log,num
             best_partition = new_partition.copy()
 
     return best_partition
+
+
 
 def set_initial_partitions(qpu_info,num_layers,num_partitions):
     static_partition = []

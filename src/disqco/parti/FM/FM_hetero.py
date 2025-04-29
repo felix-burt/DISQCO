@@ -29,7 +29,7 @@ def FM_pass_hetero(hypergraph,
             if node[1] > max_time:
                 max_time = node[1]
 
-        array = find_all_gains_h(hypergraph,active_nodes,assignment,num_partitions,costs, network=network,node_map=node_map, assignment_map=assignment_map, dummy_nodes=dummy_nodes)
+        array = find_all_gains_hetero(hypergraph,active_nodes,assignment,num_partitions,costs, network=network,node_map=node_map, assignment_map=assignment_map, dummy_nodes=dummy_nodes)
         buckets = fill_buckets(array,max_gain)
         gain_list = []
         gain_list.append(0)
@@ -219,7 +219,7 @@ def FM_pass_hetero_dummy(hypergraph,
 
         # print("Lock dict:", lock_dict)
 
-        array = find_all_gains_h(hypergraph,active_nodes,assignment,num_partitions, costs, network=network, node_map=node_map, assignment_map=assignment_map, dummy_nodes=dummy_nodes)
+        array = find_all_gains_hetero(hypergraph,active_nodes,assignment,num_partitions, costs, network=network, node_map=node_map, assignment_map=assignment_map, dummy_nodes=dummy_nodes)
         buckets = fill_buckets(array,max_gain)
         gain_list = []
         gain_list.append(0)

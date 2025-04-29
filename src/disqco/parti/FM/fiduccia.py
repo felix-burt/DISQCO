@@ -4,6 +4,8 @@ from disqco.graphs.quantum_network import QuantumNetwork
 import numpy as np
 from disqco.graphs.GCP_hypergraph import QuantumCircuitHyperGraph
 from disqco.parti.FM.FM_methods import *
+import networkx as nx
+from disqco.graphs.coarsening.coarsener import HypergraphCoarsener
 
 class FiducciaMattheyses(QuantumCircuitPartitioner):
     """
@@ -32,21 +34,12 @@ class FiducciaMattheyses(QuantumCircuitPartitioner):
         group_gates = kwargs.get('group_gates', True)
 
         self.hypergraph = QuantumCircuitHyperGraph(circuit, group_gates=group_gates)
-        
         self.num_partitions = len(self.qpu_sizes)
 
         self.num_qubits = self.hypergraph.num_qubits
         self.depth = self.hypergraph.depth
 
-        self.active_nodes = kwargs.get('active_nodes', self.hypergraph.nodes)
-        self.costs = kwargs.get('costs', network.get_costs())
-        self.limit = kwargs.get('limit', len(self.hypergraph.nodes) * 0.125)
-        self.passes = kwargs.get('passes', 100)
-
-        self.stochastic = kwargs.get('stochastic', True)
-        self.dummy_nodes = kwargs.get('dummy_nodes', {})
-        self.level_limit = kwargs.get('level_limit', int(np.ceil(np.log2(self.depth))))
-
+        self.costs = kwargs.pop('costs', self.network.get_costs())
         self.mapping = None
 
         if self.initial_assignment is None:
@@ -56,18 +49,23 @@ class FiducciaMattheyses(QuantumCircuitPartitioner):
             # If qpu_sizes is a dictionary, we need to convert it to a list of lists
             self.qpu_sizes = list(self.qpu_sizes.values())
 
-    def FM_pass(self, hypergraph, assignment):
-
+    def FM_pass(self, hypergraph, assignment, **kwargs):
+        
+        active_nodes = kwargs.get('active_nodes', hypergraph.nodes)
+        limit = kwargs.get('limit', len(hypergraph.nodes) * 0.125)
+        # print("Limit:", limit)
         spaces = find_spaces(self.num_qubits, self.depth, assignment, self.qpu_sizes)
-        map_counts_and_configs(hypergraph, assignment, self.num_partitions, self.costs)
+        map_counts_and_configs(hypergraph, assignment, self.num_partitions, costs=self.costs, **kwargs)
 
-        lock_dict = {node: False for node in self.active_nodes}
+        lock_dict = {node: False for node in active_nodes}
 
         array = find_all_gains(hypergraph,
-                               self.active_nodes,
+                               active_nodes,
                                assignment,
                                num_partitions=self.num_partitions,
-                               costs=self.costs
+                               costs = self.costs,
+                                network=self.network,
+                               **kwargs
                                )
         
         buckets = fill_buckets(array, self.max_gain)
@@ -80,7 +78,7 @@ class FiducciaMattheyses(QuantumCircuitPartitioner):
         action = 0
         iter = 0
 
-        while iter < self.limit:
+        while iter < limit:
             action, gain = find_action(buckets, lock_dict, spaces, self.max_gain)
             if action is None:
                 break
@@ -97,7 +95,9 @@ class FiducciaMattheyses(QuantumCircuitPartitioner):
                                                                     self.num_partitions,
                                                                     lock_dict,
                                                                     assignment,
-                                                                    self.costs
+                                                                    self.costs,
+                                                                    network=self.network,
+                                                                    **kwargs
                                                                     )
             update_spaces(node, source, destination, spaces)
             lock_dict = lock_node(node, lock_dict)
@@ -108,16 +108,32 @@ class FiducciaMattheyses(QuantumCircuitPartitioner):
         
         return assignment_list, gain_list
     
-    def run_FM(self, **kwargs):  
+    def run_FM(self, **kwargs):
 
-        hypergraph = kwargs.get('graph')
-        assignment = kwargs.get('assignment')
+        passes = kwargs.pop('passes', 100)
+        stochastic = kwargs.pop('stochastic', True)
+
+        hypergraph = kwargs.pop('graph')
+        assignment = kwargs.pop('assignment')
+
+        mapping = kwargs.pop('mapping', {t : set([t]) for t in range(hypergraph.depth)})
+
+        dummy_nodes = kwargs.get('dummy_nodes', set())
+        node_map = kwargs.get('node_map', None)
+        assignment_map = kwargs.get('assignment_map', None)
+
         log = kwargs.get('log', False)
 
-        print("Running FM algorithm...")
-        
-        
-        initial_cost = calculate_full_cost(hypergraph, assignment, self.num_partitions, self.costs)
+
+        initial_cost = calculate_full_cost(hypergraph, 
+                                           assignment, 
+                                           self.num_partitions, 
+                                           self.costs,
+                                           network=self.network,
+                                           dummy_nodes=dummy_nodes,
+                                           node_map=node_map,
+                                           assignment_map=assignment_map,
+                                           hetero=self.network.hetero,)
         
         if log:
             print("Initial cost:", initial_cost)
@@ -128,13 +144,12 @@ class FiducciaMattheyses(QuantumCircuitPartitioner):
         cost_list.append(cost)
         best_assignments.append(assignment)
         # print("Starting FM passes...")
-        self.max_gain = self.find_max_gain(self.mapping)
-        for n in range(self.passes):
-            # print(f"Pass number: {n}")
-            assignment_list, gain_list = self.FM_pass(hypergraph, assignment)
+        self.max_gain = self.find_max_gain(mapping)
+        for n in range(passes):
+            assignment_list, gain_list = self.FM_pass(hypergraph, assignment, **kwargs)
 
             # Decide how to pick new assignment depending on stochastic or not
-            if self.stochastic:
+            if stochastic:
                 if n % 2 == 0:
                     # Exploratory approach
                     assignment = assignment_list[-1]
@@ -169,20 +184,34 @@ class FiducciaMattheyses(QuantumCircuitPartitioner):
     
     def partition(self, **kwargs):
 
-        kwargs = {'partitioner' : kwargs.get('partitioner', self.run_FM), 'graph' : kwargs.get('graph', self.hypergraph), 'assignment': kwargs.get('assignment', self.initial_assignment), 'log': kwargs.get('log', False)}
+        kwargs['graph'] = kwargs.get('graph', self.hypergraph)
+        kwargs['assignment'] = kwargs.get('assignment', self.initial_assignment)
+        kwargs['mapping'] = kwargs.get('mapping', None)
+        kwargs['log'] = kwargs.get('log', False)
+        kwargs['partitioner'] = kwargs.get('partitioner', self.run_FM)
+        kwargs['hetero'] = self.network.hetero
+    
         return super().partition(**kwargs)
 
-    def multilevel_partition(self, coarsener, **kwargs):
-        kwargs['partitioner'] = self.run_FM
+    def multilevel_partition(self, **kwargs):
         kwargs['graph'] = self.hypergraph
+        coarsener = kwargs.pop('coarsener', None)
+
+        if coarsener is None:
+            coarsener_class = HypergraphCoarsener()
+            coarsener = coarsener_class.coarsen_recursive_batches_mapped
+
         return super().multilevel_partition(coarsener=coarsener, **kwargs)
 
     def find_max_gain(self, mapping=None):
         if mapping is None:
-            return 4
-        largest_node = 1
-        for s_node in mapping:
-            length = len(mapping[s_node])
-            if length > largest_node:
-                largest_node = length
-        return 2 * largest_node + 2
+            base = 4
+        else:
+            largest_node = 1
+            for s_node in mapping:
+                length = len(mapping[s_node])
+                if length > largest_node:
+                    largest_node = length
+            base = 2 * largest_node + 2
+        diameter = nx.diameter(self.network.qpu_graph)
+        return base * diameter

@@ -161,7 +161,45 @@ def find_gain(graph : QuantumCircuitHyperGraph, node: tuple[int,int], destinatio
         gain += cost2 - cost1
     return gain
 
-def find_gain_h(hypergraph, node, destination, assignment, num_partitions, costs = {}, network : QuantumNetwork = None, node_map = None, assignment_map=None, dummy_nodes = {}):
+def find_gain_unmapped(graph : QuantumCircuitHyperGraph, node: tuple[int,int], destination: int, assignment: dict[tuple[int,int] : int], num_partitions: int, costs: dict):
+
+    edges = graph.node2hyperedges[node]
+    gain = 0
+    source = assignment[node[1]][node[0]]
+    for edge in edges:
+        # start = time.time()
+        root_counts, rec_counts = hedge_k_counts(graph,edge,assignment,num_partitions,set_attrs=False)
+
+        config1 = list(config_from_counts(root_counts, rec_counts)) 
+
+        if node in graph.hyperedges[edge]['root_set']:
+
+            root_counts[source] -= 1
+            root_counts[destination] += 1
+
+            config2 = update_config_from_counts(config1, root_counts, rec_counts, source, destination)
+        else:
+            rec_counts[source] -= 1
+            rec_counts[destination] += 1
+
+            config2 = update_config_from_counts(config1, root_counts, rec_counts, source, destination)
+        
+        gain += costs[tuple(config2)] - costs[tuple(config1)]
+
+
+
+    return gain
+
+def find_gain_h(hypergraph, 
+                node, 
+                destination, 
+                assignment, 
+                num_partitions, 
+                costs = {}, 
+                network : QuantumNetwork = None, 
+                node_map = None, 
+                assignment_map=None, 
+                dummy_nodes = {}):
     
     assignment_new = move_node(node,destination,assignment, assignment_map=assignment_map)
     edges = hypergraph.node2hyperedges[node]
@@ -177,34 +215,58 @@ def find_gain_h(hypergraph, node, destination, assignment, num_partitions, costs
         gain += cost2 - cost1
     return gain
 
-def find_all_gains(hypergraph,nodes,assignment,num_partitions,costs,log=None):
+def find_all_gains(graph : QuantumCircuitHyperGraph, 
+                   nodes: list[tuple[int,int]], 
+                   assignment: dict[tuple[int,int] : int], 
+                   num_partitions: int, 
+                   costs: dict, 
+                   network : QuantumNetwork = None,
+                   **kwargs):
+    
+    hetero = network.hetero
+    if hetero:
+        node_map = kwargs.get('node_map', None)
+        assignment_map = kwargs.get('assignment_map', None)
+        dummy_nodes = kwargs.get('dummy_nodes', {})
+        return find_all_gains_hetero(graph,nodes,assignment,num_partitions,costs,network=network, node_map=node_map, assignment_map=assignment_map, dummy_nodes=dummy_nodes)
+    else:
+        return find_all_gains_homo(graph,nodes,assignment,num_partitions,costs)
+
+def find_all_gains_homo(hypergraph,
+                        nodes,
+                        assignment,
+                        num_partitions,
+                        costs):
     array = {}
     for node in nodes:
         for k in range(num_partitions):
             source = assignment[node[1]][node[0]]
-            # destination = assignment[node]
             if source != k:
                 gain = find_gain(hypergraph,node,k,assignment,num_partitions, costs)
                 array[(node[1],node[0],k)] = gain
 
     return array
 
-def find_all_gains_h(hypergraph,nodes,assignment,num_partitions,costs={},network : QuantumNetwork = None, node_map = None, assignment_map=None, dummy_nodes = {}):
+def find_all_gains_hetero(hypergraph,
+                          nodes,
+                          assignment,
+                          num_partitions,
+                          costs={},
+                          network: QuantumNetwork = None,
+                          node_map=None,
+                          assignment_map=None,
+                          dummy_nodes={}):
     array = {}
     for node in nodes:
         if assignment_map is not None:
             sub_node = assignment_map[node]
         else:
             sub_node = node
-        # print("Node", node)
-        for k in range(num_partitions):  
-            # print("Destination", k)
+        for k in range(num_partitions):
             source = assignment[sub_node[1]][sub_node[0]]
-            # destination = assignment[node]
             if source != k:
                 gain = find_gain_h(hypergraph,node,k,assignment,num_partitions, costs = costs, network = network, node_map=node_map, assignment_map=assignment_map, dummy_nodes=dummy_nodes)
                 array[(node[1],node[0],k)] = gain
-                # print("Gain", gain)
     return array
 
 def fill_buckets(array, max_gain):
@@ -216,7 +278,11 @@ def fill_buckets(array, max_gain):
         buckets[gain].add(action)
     return buckets
 
-def update_counts(counts,node,destination,assignment, assignment_map=None):
+def update_counts(counts,
+                  node,
+                  destination,
+                  assignment,
+                  assignment_map=None):
     # partition = assignment[node]
     if assignment_map is not None:
         sub_node = assignment_map[node]
@@ -231,7 +297,11 @@ def update_counts(counts,node,destination,assignment, assignment_map=None):
 
     return new_counts, partition
 
-def increment_index(config, new_config, source, destination, num_partitions):
+def increment_index(config, 
+                    new_config,
+                    source, 
+                    destination, 
+                    num_partitions):
     index_inc = 0
     if new_config[source] == 0 and config[source] == 1:
         index_inc -= 2**(num_partitions-source-1)
@@ -246,7 +316,11 @@ def increment_index(config, new_config, source, destination, num_partitions):
 
     return index_inc
 
-def update_config_from_counts(config,root_counts,rec_counts,partition,destination):
+def update_config_from_counts(config,
+                              root_counts,
+                              rec_counts,
+                              partition,
+                              destination):
     # new_config = copy.deepcopy(list(config))
     new_config = config.copy()
 
@@ -268,7 +342,10 @@ def update_config_from_counts(config,root_counts,rec_counts,partition,destinatio
     
     return new_config
 
-def update_config(old_config, new_counts, source, destination):
+def update_config(old_config, 
+                  new_counts, 
+                  source, 
+                  destination):
     new_config = copy.deepcopy(list(old_config))
     if new_counts[source] == 0:
         new_config[source] = 0
@@ -307,7 +384,11 @@ def update_spaces(node,source,destination,spaces):
     spaces[t][destination] -= 1
     spaces[t][source] += 1
 
-def update_full_config(source,destination,full_config,root_config,rec_config):
+def update_full_config(source,
+                       destination,
+                       full_config,
+                       root_config,
+                       rec_config):
 
     new_full_config = full_config.copy()
 
@@ -321,7 +402,15 @@ def update_full_config(source,destination,full_config,root_config,rec_config):
         new_full_config[destination] = 0
     return new_full_config
 
-def take_action_and_update_old(hypergraph,node,destination,array,buckets,num_partitions,lock_dict,assignment,costs):
+def take_action_and_update_old(hypergraph,
+                               node,
+                               destination,
+                               array,
+                               buckets,
+                               num_partitions,
+                               lock_dict,
+                               assignment,
+                               costs):
     assignment_new = move_node(node,destination,assignment)
     delta_gains = {}
     for edge in hypergraph.node2hyperedges[node]:
@@ -429,7 +518,15 @@ def take_action_and_update_old(hypergraph,node,destination,array,buckets,num_par
         array[action] -= i
     return assignment_new, array, buckets
 
-def take_action_and_update_simple(hypergraph,node,destination,array,buckets,num_partitions,lock_dict,assignment,costs):
+def take_action_and_update_simple(hypergraph,
+                                  node,
+                                  destination,
+                                  array,
+                                  buckets,
+                                  num_partitions,
+                                  lock_dict,
+                                  assignment,
+                                  costs):
     assignment_new = move_node(node,destination,assignment)
     # print("Destination", destination)
     node_set = set()
@@ -456,143 +553,45 @@ def take_action_and_update_simple(hypergraph,node,destination,array,buckets,num_
 
     return assignment_new, array, buckets
 
-# def take_action_and_update(hypergraph,node,destination,array,buckets,num_partitions,lock_dict,assignment,costs):
-#     assignment_new = move_node(node,destination,assignment)
-#     # print("Destination", destination)
-#     delta_gains = {}
-#     for edge in hypergraph.node2hyperedges[node]:
-        
-#         info = hypergraph.hyperedge_attrs[edge]
-#         root_set = hypergraph.hyperedges[edge]['root_set']
-#         rec_set = hypergraph.hyperedges[edge]['receiver_set']
-#         # print("Info", info)
-#         cost = info['cost']
-#         # cost_new = hedge_to_cost(hypergraph,edge,assignment_new,num_partitions,costs)
-#         config = info['config']
-        
-#         root_counts = info['root_counts']
-#         # print("Root counts", root_counts)
-#         rec_counts = info['rec_counts']
-#         # print("Receiver counts", rec_counts)
-#         if node in root_set:
-#             root_counts_new, source = update_counts(root_counts,node,destination,assignment)
-#             # print("Root counts new", root_counts_new)
-#             # root_config_new = update_config(info['root_config'],root_counts_new,source,destination)
-#             # print("Root config new", root_config_new)
-#             rec_counts_new = tuple(copy.deepcopy(list(rec_counts)))
-#             config_new = update_config_from_counts(config,root_counts_new,rec_counts_new,source,destination)
-#             # rec_config_new = tuple(copy.deepcopy(list(info['rec_config'])))
-#         elif node in rec_set:
-#             rec_counts_new, source = update_counts(rec_counts,node,destination,assignment)
-#             # print("Receiver counts new", rec_counts_new)
-#             # rec_config_new = update_config(info['rec_config'],rec_counts_new,source,destination)
-#             # print("Receiver config new", rec_config_new)
-#             root_counts_new = tuple(copy.deepcopy(list(root_counts)))
-#             # root_config_new = tuple(copy.deepcopy(list(info['root_config'])))
-#             config_new = update_config_from_counts(config,root_counts_new,rec_counts_new,source,destination)
-        
-#         conf = info['config']
-#         cost = get_cost(conf,costs)
-#         conf_a = config_new
-#         cost_a = get_cost(conf_a,costs)
-#         root_counts_pre = root_counts
-#         rec_counts_pre = rec_counts
-
-#         root_counts_a = root_counts_new
-#         rec_counts_a = rec_counts_new
-
-#         for next_root_node in root_set:
-#             # print(f'Next root node {next_root_node}')
-#             source = assignment[next_root_node[1]][next_root_node[0]]
-#             # source = assignment[next_root_node]
-#             if not lock_dict[next_root_node]:
-#                 # print('Not locked')
-#                 for next_destination in range(num_partitions):
-#                     if source != next_destination:
-#                         next_action = (next_root_node[1], next_root_node[0], next_destination)
-
-#                         next_root_counts_b, source1 = update_counts(root_counts_pre, next_root_node, next_destination, assignment)
-#                         full_config_b = update_config_from_counts(conf,next_root_counts_b,rec_counts_pre,source1,next_destination)
-
-#                         next_root_counts_ab, source2 = update_counts(root_counts_a, next_root_node, next_destination, assignment_new)
-#                         full_config_ab = update_config_from_counts(conf_a,next_root_counts_ab,rec_counts_a,source2,next_destination)
-
-
-#                         # delta_gain = cost_a - cost - costs[full_config_ab] + costs[full_config_b]
-#                         delta_gain = cost_a - cost - get_cost(full_config_ab,costs) + get_cost(full_config_b,costs)
-
-#                         if next_action in delta_gains:
-#                             delta_gains[next_action] += delta_gain
-#                         else:
-#                             delta_gains[next_action] = delta_gain
-
-#         for next_rec_node in rec_set:
-#             # print(f'Next receiver node {next_rec_node}')
-#             # source = assignment[next_rec_node]
-#             source = assignment[next_rec_node[1]][next_rec_node[0]]
-#             if not lock_dict[next_rec_node]:
-#                 # print('Not locked')
-#                 for next_destination in range(num_partitions):
-#                     if source != next_destination:
-#                         next_action = (next_rec_node[1], next_rec_node[0], next_destination)
-                        
-#                         next_rec_counts_b, source1 = update_counts(rec_counts_pre, next_rec_node, next_destination, assignment)
-#                         full_config_b = update_config_from_counts(conf,root_counts_pre,next_rec_counts_b,source1,next_destination)
-
-                        
-#                         next_rec_counts_ab, source2 = update_counts(rec_counts_a, next_rec_node, next_destination, assignment_new)
-#                         full_config_ab = update_config_from_counts(conf_a,root_counts_a,next_rec_counts_ab,source2,next_destination)
-
-
-#                         # delta_gain = cost_a - cost - costs[full_config_ab] + costs[full_config_b]
-#                         delta_gain = cost_a - cost - get_cost(full_config_ab,costs) + get_cost(full_config_b,costs)
-
-#                         if next_action in delta_gains:
-#                             delta_gains[next_action] += delta_gain
-#                         else:
-#                             delta_gains[next_action] = delta_gain
-            
-#         hypergraph.set_hyperedge_attribute(edge, 'cost', cost_a)
-#         hypergraph.set_hyperedge_attribute(edge, 'root_counts', root_counts_new)
-#         hypergraph.set_hyperedge_attribute(edge, 'rec_counts', rec_counts_new)
-#         hypergraph.set_hyperedge_attribute(edge, 'config', conf_a)
-            
-
-#     for action in delta_gains:
-#         # print(f'Action {action} Gain change {delta_gains[action]}')
-#         i = delta_gains[action]
-#         old_gain = array[action]
-#         # print(f'Old gain {old_gain}')
-#         # print(f'New gain {old_gain - i}')
-#         if action in buckets[old_gain]:
-#             # print(f'Old gain in bucket - remove and add to {old_gain - i}')
-#             buckets[old_gain].remove(action)
-#             buckets[old_gain - i].add(action)
-            
-#         array[action] -= i
-#     return assignment_new, array, buckets
-
-def take_action_and_update(hypergraph,node,destination,array,buckets,num_partitions,lock_dict,assignment,costs):
+def take_action_and_update(hypergraph,
+                           node,
+                           destination,
+                           array,
+                           buckets,
+                           num_partitions,
+                           lock_dict,
+                           assignment,
+                           costs = {},
+                           network : QuantumNetwork = None,
+                           **kwargs):
+    hetero = kwargs.get('hetero', False)
+    if hetero:
+        node_map = kwargs.get('node_map', None)
+        assignment_map = kwargs.get('assignment_map', None)
+        return take_action_and_update_hetero(hypergraph,node,destination,array,buckets,num_partitions,lock_dict,assignment,costs = costs, network = network, node_map=node_map, assignment_map=assignment_map)
+    else:
+        return take_action_and_update_homo(hypergraph,node,destination,array,buckets,num_partitions,lock_dict,assignment,costs)
+    
+def take_action_and_update_homo(hypergraph,
+                                node,
+                                destination,
+                                array,
+                                buckets,
+                                num_partitions,
+                                lock_dict,
+                                assignment,
+                                costs):
     assignment_new = move_node(node,destination,assignment)
-    # print("Destination", destination)
     delta_gains = {}
     for edge in hypergraph.node2hyperedges[node]:
         
         info = hypergraph.hyperedge_attrs[edge]
         root_set = hypergraph.hyperedges[edge]['root_set']
         rec_set = hypergraph.hyperedges[edge]['receiver_set']
-        # print("Info", info)
 
         cost = info['cost']
 
-        # print("Cost", cost)
-
-        # cost_new = hedge_to_cost(hypergraph,edge,assignment_new,num_partitions,costs)
-
         conf = info['config']
-
-        # cost_index = info['index']
-
         root_counts = info['root_counts']
         # print("Root counts", root_counts)
         rec_counts = info['rec_counts']
@@ -739,7 +738,18 @@ def take_action_and_update(hypergraph,node,destination,array,buckets,num_partiti
     
     return assignment_new, array, buckets
 
-def take_action_and_update_hetero(hypergraph,node,destination,array,buckets,num_partitions,lock_dict,assignment,costs = {}, network : QuantumNetwork = None, node_map = None, assignment_map=None):
+def take_action_and_update_hetero(hypergraph,
+                                  node,
+                                  destination,
+                                  array,
+                                  buckets,
+                                  num_partitions,
+                                  lock_dict,
+                                  assignment,
+                                  costs = {},
+                                  network : QuantumNetwork = None,
+                                  node_map = None,
+                                  assignment_map = None):
     assignment_new = move_node(node,destination,assignment, assignment_map=assignment_map)
     # print("Destination", destination)
     delta_gains = {}

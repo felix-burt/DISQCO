@@ -60,62 +60,6 @@ def get_all_costs(configs : list[tuple[int]]
 
     return costs
 
-
-# def hedge_k_counts(hypergraph,hedge,assignment,num_partitions, set_attrs = False, assignment_map = None, dummy_nodes = {}):
-#     root_counts = [0 for _ in range(num_partitions)]
-#     rec_counts = [0 for _ in range(num_partitions)]
-#     info = hypergraph.hyperedges[hedge]
-#     root_set = info['root_set']
-#     receiver_set = info['receiver_set']
-#     if dummy_nodes == {}:
-#         for root_node in root_set:
-#             if assignment_map is not None:
-#                 root_node = assignment_map[root_node]
-
-#             partition_root = assignment[root_node[1]][root_node[0]]
-#             # partition_root = assignment[root_node]
-
-#             root_counts[partition_root] += 1
-#         for rec_node in receiver_set:
-#             if assignment_map is not None:
-#                 rec_node = assignment_map[rec_node]
-#             partition_rec = assignment[rec_node[1]][rec_node[0]]
-#             # partition_rec = assignment[rec_node]
-#             rec_counts[partition_rec] += 1
-        
-#         root_counts = tuple(root_counts)
-#         rec_counts = tuple(rec_counts)
-#         if set_attrs:
-#             hypergraph.set_hyperedge_attribute(hedge, 'root_counts', root_counts)
-#             hypergraph.set_hyperedge_attribute(hedge, 'rec_counts', rec_counts)
-
-#     else:
-#         for root_node in root_set:
-#             if root_node in dummy_nodes:
-#                 partition_root = root_node[2]
-#             if assignment_map is not None:
-#                 root_node = assignment_map[root_node]
-
-#             partition_root = assignment[root_node[1]][root_node[0]]
-#             # partition_root = assignment[root_node]
-
-#             root_counts[partition_root] += 1
-#         for rec_node in receiver_set:
-#             if assignment_map is not None:
-#                 rec_node = assignment_map[rec_node]
-#             partition_rec = assignment[rec_node[1]][rec_node[0]]
-#             # partition_rec = assignment[rec_node]
-#             rec_counts[partition_rec] += 1
-        
-#         root_counts = tuple(root_counts)
-#         rec_counts = tuple(rec_counts)
-#         if set_attrs:
-#             hypergraph.set_hyperedge_attribute(hedge, 'root_counts', root_counts)
-#             hypergraph.set_hyperedge_attribute(hedge, 'rec_counts', rec_counts)
-
-    
-#     return root_counts, rec_counts
-
 def get_cost(config : tuple[int], costs : np.array) -> int:
         config = list(config)
         config = [str(x) for x in config]
@@ -325,6 +269,24 @@ def map_current_costs(hypergraph : QuantumCircuitHyperGraph,
 def map_counts_and_configs(hypergraph : QuantumCircuitHyperGraph, 
                             assignment : dict[tuple[int,int]], 
                             num_partitions : int, 
+                            costs: dict,
+                            **kwargs) -> None:
+    """
+    Maps the counts and configurations of all hyperedges to hyperedge attributes based on the current assignment.
+    """
+    hetero = kwargs.get('hetero', False)
+    if hetero:
+        network = kwargs.get('network', None)
+        node_map = kwargs.get('node_map', None)
+        assignment_map = kwargs.get('assignment_map', None)
+        dummy_nodes = kwargs.get('dummy_nodes', {})
+        return map_counts_and_configs_hetero(hypergraph, assignment, num_partitions, network, costs=costs, assignment_map=assignment_map, node_map=node_map, dummy_nodes=dummy_nodes)
+    else:
+        return map_counts_and_configs_homo(hypergraph, assignment, num_partitions, costs=costs)
+
+def map_counts_and_configs_homo(hypergraph : QuantumCircuitHyperGraph, 
+                            assignment : dict[tuple[int,int]], 
+                            num_partitions : int, 
                             costs: dict) -> None:
     """
     Maps the counts and configurations of all hyperedges to hyperedge attributes based on the current assignment.
@@ -337,25 +299,12 @@ def map_counts_and_configs(hypergraph : QuantumCircuitHyperGraph,
 
         config = full_config_from_counts(root_counts, rec_counts)
         hypergraph.set_hyperedge_attribute(edge, 'config', config)
-        # print("Config", config)
-        # hypergraph.set_hyperedge_attribute(edge, 'config', config)
-        # if config not in costs:
-        # cost = config_to_cost(config)
-        cost = costs[tuple(config)]
-        # cost = get_cost(config, costs)
-        # index = list(config)
-        # index = [str(x) for x in index]
-        # index = "".join(index)
-        # index = int(index, 2)
-        # print("Index", index)
+        if tuple(config) not in costs:
+            cost = config_to_cost(config)
+            costs[tuple(config)] = cost
+        else:
+            cost = costs[tuple(config)]
 
-        # print("Cost", cost)
-
-        # hypergraph.set_hyperedge_attribute(edge, 'index', index)    
-        # costs[configint] = cost
-        # else:
-        #     # cost = costs[config]
-        # cost = get_cost(config, costs)
         hypergraph.set_hyperedge_attribute(edge, 'cost', cost)
     return hypergraph
 
@@ -389,6 +338,34 @@ def map_counts_and_configs_hetero(hypergraph : QuantumCircuitHyperGraph,
 def calculate_full_cost(hypergraph : QuantumCircuitHyperGraph,
                         assignment : dict[tuple[int,int]],
                         num_partitions : int,
+                        costs: dict = {},
+                        **kwargs) -> int:
+    """
+    Wrapper function for computing full cost under either homogeneous (fully connected) or heterogeneous (not fully connected) networks.
+    """
+    hetero = kwargs.get('hetero', False)
+    if hetero:
+        network = kwargs.get('network', None)
+        node_map = kwargs.get('node_map', None)
+        assignment_map = kwargs.get('assignment_map', None)
+        dummy_nodes = kwargs.get('dummy_nodes', {})
+        return calculate_full_cost_hetero(  hypergraph, 
+                                            assignment, 
+                                            num_partitions, 
+                                            costs=costs, 
+                                            network=network,
+                                            node_map=node_map, 
+                                            assignment_map=assignment_map, 
+                                            dummy_nodes=dummy_nodes )
+    else:  
+        return calculate_full_cost_homo(    hypergraph, 
+                                            assignment, 
+                                            num_partitions, 
+                                            costs=costs )
+
+def calculate_full_cost_homo(hypergraph : QuantumCircuitHyperGraph,
+                        assignment : dict[tuple[int,int]],
+                        num_partitions : int,
                         costs: dict = {}) -> int:
     """
     Computes the total cost of the hypergraph based on the current assignment and the costs of each configuration.
@@ -401,10 +378,6 @@ def calculate_full_cost(hypergraph : QuantumCircuitHyperGraph,
         if conf not in costs:
             edge_cost = config_to_cost(config)
             costs[conf] = edge_cost
-        #     configint = list(config)
-        #     configint = [str(x) for x in configint]
-        #     configint = "".join(configint)
-        #     costs[configint] = edge_cost
         else:
             edge_cost = costs[conf]
         cost += edge_cost
@@ -424,10 +397,7 @@ def calculate_full_cost_hetero(hypergraph : QuantumCircuitHyperGraph,
     """
     cost = 0
     for edge in hypergraph.hyperedges:
-        # print("Edge", edge)
         root_counts, rec_counts = hedge_k_counts(hypergraph, edge, assignment, num_partitions, assignment_map=assignment_map, dummy_nodes=dummy_nodes)
-        # print("Root counts", root_counts)
-        # print("Rec counts", rec_counts)
         root_config, rec_config = counts_to_configs(root_counts, rec_counts)
 
         if (root_config, rec_config) in costs:
