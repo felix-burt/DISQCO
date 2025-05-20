@@ -336,7 +336,7 @@ def map_counts_and_configs_hetero(hypergraph : QuantumCircuitHyperGraph,
     return hypergraph
 
 def calculate_full_cost(hypergraph : QuantumCircuitHyperGraph,
-                        assignment : dict[tuple[int,int]],
+                        assignment,
                         num_partitions : int,
                         costs: dict = {},
                         **kwargs) -> int:

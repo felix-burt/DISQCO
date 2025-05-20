@@ -584,7 +584,6 @@ def take_action_and_update_homo(hypergraph,
     assignment_new = move_node(node,destination,assignment)
     delta_gains = {}
     for edge in hypergraph.node2hyperedges[node]:
-        
         info = hypergraph.hyperedge_attrs[edge]
         root_set = hypergraph.hyperedges[edge]['root_set']
         rec_set = hypergraph.hyperedges[edge]['receiver_set']
@@ -593,50 +592,19 @@ def take_action_and_update_homo(hypergraph,
 
         conf = info['config']
         root_counts = info['root_counts']
-        # print("Root counts", root_counts)
         rec_counts = info['rec_counts']
-        # print("Receiver counts", rec_counts)
 
         if node in root_set:
             root_counts_new, source = update_counts(root_counts,node,destination,assignment)
-            # # print("Root counts new", root_counts_new)
-            # root_config_new = update_config(info['root_config'],root_counts_new,source,destination)
-            # # print("Root config new", root_config_new)
             rec_counts_new = rec_counts.copy()
 
             config_new = update_config_from_counts(conf,root_counts_new,rec_counts_new,source,destination)
-            # rec_config_new = tuple(copy.deepcopy(list(info['rec_config'])))
         elif node in rec_set:
             rec_counts_new, source = update_counts(rec_counts,node,destination,assignment)
-            # # print("Receiver counts new", rec_counts_new)
-            # rec_config_new = update_config(info['rec_config'],rec_counts_new,source,destination)
-            # # print("Receiver config new", rec_config_new)
             root_counts_new = root_counts.copy()
-            # # root_config_new = tuple(copy.deepcopy(list(info['root_config'])))
             config_new = update_config_from_counts(conf,root_counts_new,rec_counts_new,source,destination)
-        
-        # print("Source", source)
-        # print("Destination", destination)
-        # print("Config", conf)
 
-        # print("Root counts new", root_counts_new)
-        # print("Rec counts new", rec_counts_new)
-        # print("Config new", config_new)
-        # print("Index", cost_index)
-
-        # index_inc = increment_index(conf, config_new, source,destination, num_partitions)
-
-        # print("Index increment", index_inc)
-
-        # cost_index_new = cost_index + index_inc
-
-        # print("Cost index new", cost_index_new)
-
-        # cost_a = costs[cost_index_new]
         cost_a = costs[tuple(config_new)]
-
-        # print("New cost", cost_a)
-
         conf_a = config_new
 
         root_counts_pre = root_counts
@@ -646,11 +614,8 @@ def take_action_and_update_homo(hypergraph,
         rec_counts_a = rec_counts_new
 
         for next_root_node in root_set:
-            # print(f'Next root node {next_root_node}')
             source = assignment[next_root_node[1]][next_root_node[0]]
-            # source = assignment[next_root_node]
             if not lock_dict[next_root_node]:
-                # print('Not locked')
                 for next_destination in range(num_partitions):
                     if source != next_destination:
                         next_action = (next_root_node[1], next_root_node[0], next_destination)
@@ -660,20 +625,7 @@ def take_action_and_update_homo(hypergraph,
 
                         next_root_counts_ab, source2 = update_counts(root_counts_a, next_root_node, next_destination, assignment_new)
                         full_config_ab = update_config_from_counts(conf_a,next_root_counts_ab,rec_counts_a,source2,next_destination)
-
-
-
                         delta_gain = cost_a - cost - costs[tuple(full_config_ab)] + costs[tuple(full_config_b)]
-
-                        # index_inc_b = increment_index(conf, full_config_b, source1, next_destination, num_partitions)
-                        # index_inc_ab = increment_index(conf_a, full_config_ab, source2, next_destination, num_partitions)
-                        # index_b = cost_index + index_inc_b
-                        # index_ab = cost_index_new + index_inc_ab
-
-                        # delta_gain = cost_a - cost - costs[index_ab] + costs[index_b]
-
-                        # delta_gain = -(cost - costs[index_b]) + cost_a - costs[index_ab] 
-
 
                         if next_action in delta_gains:
                             delta_gains[next_action] += delta_gain
@@ -681,11 +633,8 @@ def take_action_and_update_homo(hypergraph,
                             delta_gains[next_action] = delta_gain
 
         for next_rec_node in rec_set:
-            # print(f'Next receiver node {next_rec_node}')
-            # source = assignment[next_rec_node]
             source = assignment[next_rec_node[1]][next_rec_node[0]]
             if not lock_dict[next_rec_node]:
-                # print('Not locked')
                 for next_destination in range(num_partitions):
                     if source != next_destination:
                         next_action = (next_rec_node[1], next_rec_node[0], next_destination)
@@ -693,21 +642,11 @@ def take_action_and_update_homo(hypergraph,
                         next_rec_counts_b, source1 = update_counts(rec_counts_pre, next_rec_node, next_destination, assignment)
                         full_config_b = update_config_from_counts(conf,root_counts_pre,next_rec_counts_b,source1,next_destination)
 
-                        
                         next_rec_counts_ab, source2 = update_counts(rec_counts_a, next_rec_node, next_destination, assignment_new)
                         full_config_ab = update_config_from_counts(conf_a,root_counts_a,next_rec_counts_ab,source2,next_destination)
 
-
-
                         delta_gain = cost_a - cost - costs[tuple(full_config_ab)] + costs[tuple(full_config_b)]
 
-                        # index_inc_b = increment_index(conf,full_config_b,source1,next_destination, num_partitions)
-
-                        # index_inc_ab = increment_index(conf_a,full_config_ab,source2,next_destination, num_partitions)
-                        # index_b = cost_index + index_inc_b
-                        # index_ab = cost_index_new + index_inc_ab
-                        
-                        # delta_gain = cost_a - cost - costs[index_ab] + costs[index_b]
 
 
                         if next_action in delta_gains:
@@ -720,7 +659,6 @@ def take_action_and_update_homo(hypergraph,
         hypergraph.set_hyperedge_attribute(edge, 'root_counts', root_counts_new)
         hypergraph.set_hyperedge_attribute(edge, 'rec_counts', rec_counts_new)
         hypergraph.set_hyperedge_attribute(edge, 'config', conf_a)
-        # hypergraph.set_hyperedge_attribute(edge, 'index', cost_index_new)
             
 
     for action in delta_gains:
