@@ -29,7 +29,6 @@ def hypergraph_to_tikz(
     else:
         qpu_sizes = qpu_info
     
-
     # Basic parameters
     depth = getattr(H, 'depth', 0)
     num_qubits = getattr(H, 'num_qubits', 0)
@@ -68,6 +67,7 @@ def hypergraph_to_tikz(
         boundary_color = "black"
         white_small_style = r"circle, draw=black, fill=white, scale=0.3"
         black_style       = r"circle, draw=black, fill=black, scale=0.6"
+        white_style       = r"circle, draw=black, fill=white, scale=0.6"
         grey_style        = r"circle, draw=black, fill=gray, scale=0.6"
         invisible_style   = r"inner sep=0pt, scale=0.1, draw=none"
         dummy_style       = r"circle, draw=black, fill=blue!20, scale=2"  # DUMMY NODES
@@ -93,7 +93,10 @@ def hypergraph_to_tikz(
         
         node_type = H.get_node_attribute(node, 'type', None)
         if node_type in ("group", "two-qubit", "root_t"):
-            return "blackStyle"
+            if H.node_attrs[node].get('name') == "target":
+                return "whiteStyle"
+            else:
+                return "blackStyle"
         elif node_type == "single-qubit":
             return "greyStyle"
         else:
@@ -156,6 +159,7 @@ def hypergraph_to_tikz(
     # Define node styles
     tikz_code.append(fr"  \tikzstyle{{whiteSmallStyle}}=[{white_small_style}]")
     tikz_code.append(fr"  \tikzstyle{{blackStyle}}=[{black_style}]")
+    tikz_code.append(fr"  \tikzstyle{{whiteStyle}}=[{white_style}]")
     tikz_code.append(fr"  \tikzstyle{{greyStyle}}=[{grey_style}]")
     tikz_code.append(fr"  \tikzstyle{{invisibleStyle}}=[{invisible_style}]")
     tikz_code.append(fr"  \tikzstyle{{dummyStyle}}=[{dummy_style}]")  # DUMMY NODES
@@ -209,7 +213,7 @@ def hypergraph_to_tikz(
                 # to fan out edges if there are multiple receivers
                 rx, ry = pick_position(root_node)
                 rx += 0.3 * xscale
-                ry -= 0.3 * yscale
+                ry += 0.3 * yscale
                 tikz_code.append(
                     f"    \\node [style=invisibleStyle] ({edge_node_name}) at ({rx:.3f},{ry:.3f}) {{}};"
                 )
@@ -238,6 +242,7 @@ def hypergraph_to_tikz(
                 continue
             node1 = list(root_set)[0]
             node2 = list(rec_set)[0]
+
             bend = "[style=edgeStyle, bend right=15]" if node1[0] != node2[0] else "[style=edgeStyle]"
             tikz_code.append(
                 f"    \\draw {bend} ({node_name(node1)}) to ({node_name(node2)});"

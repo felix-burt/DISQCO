@@ -19,7 +19,7 @@ def space_mapping(qpu_info, num_layers):
     
     return space_mapping
 
-def get_pos_list(graph,num_qubits, assignment, space_map, assignment_map = None):
+def get_pos_list(graph, num_qubits, assignment, space_map, assignment_map = None):
 
     num_layers = len(space_map)
     pos_list = [[None for _ in range(num_qubits)] for _ in range(num_layers)]
@@ -38,23 +38,23 @@ def get_pos_list(graph,num_qubits, assignment, space_map, assignment_map = None)
             partition = assignment[t][q]
             if old_partition is not None:
                 if partition == old_partition:
-                    if x_index in space_map[t][partition]:
-                        x_index = pos_list[t-1][q]
-                        pos_list[t][q] = x_index 
-                        space_map[t][partition].remove(x_index)
+                    if y_pos in space_map[t][partition]:
+                        y_pos = pos_list[t-1][q]
+                        pos_list[t][q] = y_pos 
+                        space_map[t][partition].remove(y_pos)
                     else:
                         qubit_list = space_map[t][partition]
-                        x_index = qubit_list.pop(0)
-                        pos_list[t][q] = x_index
+                        y_pos = qubit_list.pop(0)
+                        pos_list[t][q] = y_pos
 
                 else:
                     qubit_list = space_map[t][partition]
-                    x_index = qubit_list.pop(0)
-                    pos_list[t][q] = x_index
+                    y_pos = qubit_list.pop(0)
+                    pos_list[t][q] = y_pos
             else:
                 qubit_list = space_map[t][partition]
-                x_index = qubit_list.pop(0)
-                pos_list[t][q] = x_index
+                y_pos = qubit_list.pop(0)
+                pos_list[t][q] = y_pos
             old_partition = partition
     return pos_list
 
@@ -77,23 +77,23 @@ def get_pos_list_ext(graph, num_qubits, assignment, space_map, qpu_sizes, assign
             partition = assignment[t][q]
             if old_partition is not None:
                 if partition == old_partition:
-                    if x_index in space_map[t][partition]:
-                        x_index = pos_list[t-1][q]
-                        pos_list[t][q] = x_index 
-                        space_map[t][partition].remove(x_index)
+                    if y_pos in space_map[t][partition]:
+                        y_pos = pos_list[t-1][q]
+                        pos_list[t][q] = y_pos 
+                        space_map[t][partition].remove(y_pos)
                     else:
                         qubit_list = space_map[t][partition]
-                        x_index = qubit_list.pop(0)
-                        pos_list[t][q] = x_index
+                        y_pos = qubit_list.pop(0)
+                        pos_list[t][q] = y_pos
 
                 else:
                     qubit_list = space_map[t][partition]
-                    x_index = qubit_list.pop(0)
-                    pos_list[t][q] = x_index
+                    y_pos = qubit_list.pop(0)
+                    pos_list[t][q] = y_pos
             else:
                 qubit_list = space_map[t][partition]
-                x_index = qubit_list.pop(0)
-                pos_list[t][q] = x_index
+                y_pos = qubit_list.pop(0)
+                pos_list[t][q] = y_pos
             old_partition = partition
 
 

@@ -94,12 +94,18 @@ class TeleportationManager:
         instr = circ.to_instruction(label="State Teleportation")
         return instr
 
-    def build_gate_teleportation_circuit(self, gate_params) -> QuantumCircuit:
+    def build_gate_teleportation_circuit(self, gate) -> QuantumCircuit:
+        gate_params = gate['params']
+        name = gate['name']
         circ = QuantumCircuit(4, 1)
         root_entanglement_circuit = self.build_root_entanglement_circuit()
         circ.append(root_entanglement_circuit, [0, 1, 2], [0])
-
-        circ.cp(gate_params[0], 2, 3)
+        if name == 'cp':
+            circ.cp(gate_params[0], 2, 3)
+        elif name == 'cx':
+            circ.cx(2, 3)
+        elif name == 'cz':
+            circ.cz(2, 3)
         entanglement_end_circuit = self.build_end_entanglement_circuit()
         circ.append(entanglement_end_circuit, [0, 2], [0])
 
@@ -166,16 +172,12 @@ class TeleportationManager:
 
             linked_comm = group_info['linked_qubits'][p]
             if p != p_root_init and p != final_p_root:
-                
                 logger.debug(f"[close_group] Closing group {root_q} in partition {p} with linked comm qubit {linked_comm}")
-                
                 if final_p_root != p_root_init:
                     target_q = group_info['linked_qubits'][final_p_root]
                 else:
                     target_q = root_q_phys
-                
                 instr = self.build_end_entanglement_circuit()
-
                 logger.debug(f"[close_group] Appending end_entanglement_circuit on qubits {[linked_comm, target_q]} -> cbit {linked_comm}")
                 cbit = self.creg_manager.allocate_cbit()
                 self.qc.append(instr, [target_q, linked_comm], [cbit])
@@ -352,7 +354,7 @@ class TeleportationManager:
         data_q_rec = self.qubit_manager.log_to_phys_idx[rec_q]
 
         cbit1 = self.creg_manager.allocate_cbit()
-        instr = self.build_gate_teleportation_circuit(gate_params)
+        instr = self.build_gate_teleportation_circuit(gate)
 
         logger.debug(f"  Appending gate_teleport on qubits {[data_q_root, comm_root, comm_rec, data_q_rec]} -> cbit {cbit1}")
         self.qc.append(instr, [data_q_root, comm_root, comm_rec, data_q_rec], [cbit1])
@@ -458,21 +460,48 @@ class PartitionedCircuitExtractor:
     def apply_single_qubit_gate(self, gate: dict) -> None:
         q = gate['qargs'][0]
         params = gate['params']
+        print('gate:', gate)
+        name = gate['name']
         qubit_phys = self.qubit_manager.log_to_phys_idx[q]
         logger.debug(f"[apply_single_qubit_gate] Gate U({params}) on logical {q} -> physical {qubit_phys}")
-        self.qc.u(*params, qubit_phys)
+        if name == 'u' or name == 'u3':
+            self.qc.u(*params, qubit_phys)
+        elif name == 'h':
+            self.qc.h(qubit_phys)
+        elif name == 'x':
+            self.qc.x(qubit_phys)
+        elif name == 'y':
+            self.qc.y(qubit_phys)
+        elif name == 'z':
+            self.qc.z(qubit_phys)
+        elif name == 's':
+            self.qc.s(qubit_phys)
+        elif name == 'sdg':
+            self.qc.sdg(qubit_phys)
+        elif name == 't':
+            self.qc.t(qubit_phys)
+        elif name == 'tdg':
+            self.qc.tdg(qubit_phys)
+        elif name == 'rz':
+            self.qc.rz(params[0], qubit_phys)
 
     def apply_local_two_qubit_gate(self, gate: dict) -> None:
         qubit0, qubit1 = gate['qargs']
         params = gate['params']
-        logger.debug(f"[apply_local_two_qubit_gate] Gate CP({params[0]}) on logical ({qubit0}, {qubit1})") 
+        print('gate:', gate)
+        name = gate['name']
         
         if isinstance(qubit0, int):
             qubit0 = self.qubit_manager.log_to_phys_idx[qubit0]
         if isinstance(qubit1, int):
             qubit1 = self.qubit_manager.log_to_phys_idx[qubit1]
         logger.debug(f" -> physical ({qubit0}, {qubit1})")
-        self.qc.cp(params[0], qubit0, qubit1)
+        if name == 'cx':
+            self.qc.cx(qubit0, qubit1)
+        elif name == 'cz':
+            self.qc.cz(qubit0, qubit1)
+        elif name == 'cp':
+            self.qc.cp(params[0], qubit0, qubit1)
     
     def find_common_part(self, q0: int, q1: int) -> int:
         logger.debug(f'q0: {q0} assigned to {self.current_assignment[q0]}')
@@ -555,7 +584,7 @@ class PartitionedCircuitExtractor:
         else:
             if name == 'h':
                 return 'non-diagonal'
-            elif name == 'z' or name == 't' or name == 's' or name == 'rz' or name == 'u1':
+            elif name == 'z' or name == 't' or name == 's' or name == 'rz' or name == 'u1' or name =='tdg' or name == 'sdg':
                 return 'diagonal'
             elif name == 'x' or name == 'y':
                 return 'anti-diagonal'
@@ -599,6 +628,7 @@ class PartitionedCircuitExtractor:
             for sub_gate in sub_gates:
                 if sub_gate['type'] == 'two-qubit':
                     q0, q1 = sub_gate['qargs']
+
                     time_step = sub_gate['time']
                     p_rec = int(self.partition_assignment[time_step][q1])
                     p_rec_set.add(p_rec)
@@ -629,6 +659,7 @@ class PartitionedCircuitExtractor:
                     p1 = int(self.partition_assignment[time_step][q1])
                     new_gate = {
                             'type': 'two-qubit-linked',
+                            'name': sub_gate['name'],
                             'qargs': [q0, q1],
                             'params': sub_gate['params'],
                             'time': time_step

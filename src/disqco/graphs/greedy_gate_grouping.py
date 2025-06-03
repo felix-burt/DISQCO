@@ -36,7 +36,7 @@ def group_size(gate):
             counter += 1
     return counter
 
-def group_distributable_packets(layers,group_anti_diags=True):
+def group_distributable_packets_sym(layers,group_anti_diags=True):
     "Uses the rules for gate packing to create groups of gates which can be distributed together"
     # new_layers = copy.deepcopy(layers)
     live_controls = {}
@@ -80,40 +80,49 @@ def group_distributable_packets(layers,group_anti_diags=True):
                         new_layers[l].append(gate)
             elif gate_type == 'two-qubit':
                 qubits = op['qargs']
+                gate_name = op['name']
                 # We check if there is a control available for either qubit
                 qubit1 = qubits[0]
-                qubit2 = qubits[1]
                 if qubit1 in live_controls:
                     group1 = live_controls[qubit1]
                     num_sub_gates1 = group_size(group1)
                 else:
                     group1 = None
                     num_sub_gates1 = 0
-
-                if qubit2 in live_controls:
-                    group2 = live_controls[qubit2]
-                    num_sub_gates2 = group_size(group2)
+                
+                if gate_name == 'cp' or gate_name == 'cz':
+                    qubit2 = qubits[1]
+                    symmetric = True
+                    if qubit2 in live_controls:
+                        group2 = live_controls[qubit2]
+                        num_sub_gates2 = group_size(group2)
+                    else:
+                        group2 = None
+                        num_sub_gates2 = 0
                 else:
-                    group2 = None
-                    num_sub_gates2 = 0
-                    group2 = None
+                    symmetric = False
 
-                if num_sub_gates2 > num_sub_gates1:
-                    root = qubit2
-                    group = group2
-                    num_sub_gates = num_sub_gates2
-
-                    other_root = qubit1
-                    other_group = group1
-                    other_num_sub_gates = num_sub_gates1
-                else:
-                    root = qubit1
+                if not symmetric:
                     group = group1
                     num_sub_gates = num_sub_gates1
+                    root = qubit1
+                else:
+                    if num_sub_gates2 > num_sub_gates1:
+                        root = qubit2
+                        group = group2
+                        num_sub_gates = num_sub_gates2
 
-                    other_root = qubit2
-                    other_group = group2
-                    other_num_sub_gates = num_sub_gates2
+                        other_root = qubit1
+                        other_group = group1
+                        other_num_sub_gates = num_sub_gates1
+                    else:
+                        root = qubit1
+                        group = group1
+                        num_sub_gates = num_sub_gates1
+
+                        other_root = qubit2
+                        other_group = group2
+                        other_num_sub_gates = num_sub_gates2
                 
                 if group is not None:
                     sub_gates = group['sub-gates']
@@ -188,6 +197,67 @@ def group_distributable_packets(layers,group_anti_diags=True):
     # for i in layers_to_remove:
     #     del new_layers[i]
     # new_layers = remove_duplicated_dict(new_layers)
+    return new_layers
+
+def group_distributable_packets_asym(layers : dict, group_anti_diags : bool = True):
+    "Uses the rules for gate packing to create groups of gates which can be distributed together. Support for asymmetric two-qubit gates."
+    live_controls = {}
+    new_layers = {i : [] for i in range(len(layers))}
+    
+    for l in layers:
+        layer = layers[l]
+        for i in range(len(layer)):
+            op = layer[i]
+            gate_type = op['type']
+            if gate_type == 'single-qubit':
+                qubit = op['qargs'][0]
+                diag = None
+                diag = check_diag_gate(op, include_anti_diags=group_anti_diags)
+                gate = copy.deepcopy(op)
+                if diag == False:
+                    if qubit in live_controls:
+                        group = live_controls[qubit]
+                        start_layer = group['time']
+                        new_layers[start_layer].append(group)
+                        del live_controls[qubit]
+
+                    new_layers[l].append(gate)
+                else:
+                    if qubit in live_controls:
+                        group = live_controls[qubit]
+                        gate['time'] = l
+                        group['sub-gates'].append(gate)
+                    else:
+                        new_layers[l].append(gate)
+            elif gate_type == 'two-qubit':
+                qubits = op['qargs']
+                # We check if there is a root available for the control qubit
+                control_qubit = qubits[0]
+                target_qubit = qubits[1]
+                if control_qubit in live_controls:
+                    group = live_controls[control_qubit]
+                    op['time'] = l
+                    group['sub-gates'].append(op)
+                else:
+                    group = {}
+                    group['type'] = 'group'
+                    group['root'] = control_qubit
+                    group['time'] = l
+                    op['time'] = l
+                    group['sub-gates'] = [op]
+                    live_controls[control_qubit] = group
+                
+                if target_qubit in live_controls:
+                    group = live_controls[target_qubit]
+                    start_layer = group['time']
+                    new_layers[start_layer].append(group)
+                    del live_controls[target_qubit]
+
+    for root in live_controls:
+        group = live_controls[root]
+        start_layer = group['time']
+        new_layers[start_layer].append(group)
+    
     return new_layers
 
 def remove_duplicated_dict(layers):

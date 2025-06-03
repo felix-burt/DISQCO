@@ -3,8 +3,11 @@ import numpy as np
 from qiskit import QuantumCircuit
 import math as mt
 
-def cz_fraction(num_qubits,depth,fraction):
+def cz_fraction(num_qubits,depth,fraction, seed=None):
     "Fixed depth random circuit using CZ and Hadamard gates. From Sundaram et al. 2021."
+    if seed is not None:
+        np.random.seed(seed)
+        random.seed(seed)
     circuit = QuantumCircuit(num_qubits)
     for l in range(depth):
         indeces = []
@@ -21,9 +24,12 @@ def cz_fraction(num_qubits,depth,fraction):
         for pair in pairs:
             circuit.cz(pair[0],pair[1])
     return circuit
-    
-def cp_fraction(num_qubits,depth,fraction):
+
+def cp_fraction(num_qubits,depth,fraction, seed=None):
     "Generalized version of the previous function, using CPhase gates with a random phase and U gates with random parameters."
+    if seed is not None:
+        np.random.seed(seed)
+        random.seed(seed)
     circuit = QuantumCircuit(num_qubits)
     for l in range(depth):
         indeces = []

@@ -14,6 +14,7 @@ def circuit_to_gate_layers(circuit, qpu_sizes = None):
     "Uses qiskit DAG circuit to group gates into sublists by layer/timestep of the circuit"
     dag = circuit_to_dag(circuit)
     layers = list(dag.multigraph_layers())
+    print(f"Number of layers: {len(layers)}")
     layer_gates = []
     qubit_mapping = get_reg_mapping(circuit)
     if qpu_sizes is not None:

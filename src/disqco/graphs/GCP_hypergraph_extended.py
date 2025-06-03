@@ -292,15 +292,17 @@ class HyperGraph:
                             live = False
             if live == True:
                 hyperedges.append(set(hyperedge))
-        
+        index = 0
         for node, attrs in nodes.items():
             if node not in self._G:
-                self.add_node(node, key=node, **attrs)
-
+                self.add_node(node, key=index, **attrs)
+                index += 1
+        index = 0
         for hyperedge in hyperedges:
             if len(hyperedge) > 1:
-                edge_id = self.find_edge_id(hyperedge)
-                self.add_hyperedge(hyperedge, key=edge_id)
+                # edge_id = self.find_edge_id(hyperedge)
+                self.add_hyperedge(hyperedge, key=index)
+                index += 1
         
         self.node_count = len([n for n, d in self._G.nodes(data=True) if not d.get("hyperedge", False)])
         self.node_neighbours = {v: self.neighbors(v) for v in self.nodes()}

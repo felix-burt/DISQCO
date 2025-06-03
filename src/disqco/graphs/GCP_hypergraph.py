@@ -1,6 +1,6 @@
 from collections import defaultdict
 from disqco.utils.qiskit_to_op_list import circuit_to_gate_layers, layer_list_to_dict
-from disqco.graphs.greedy_gate_grouping import group_distributable_packets
+from disqco.graphs.greedy_gate_grouping import group_distributable_packets_sym, group_distributable_packets_asym
 from qiskit import QuantumCircuit
 
 class QuantumCircuitHyperGraph:
@@ -12,7 +12,7 @@ class QuantumCircuitHyperGraph:
                 group_gates : bool = True, 
                 anti_diag : bool = True,
                 map_circuit : bool = True,
-                qpu_sizes : list = None):
+                qpu_sizes = None):
         # Keep a set of all nodes (qubit, time)
         self.nodes = set()
         self.hyperedges = {}
@@ -27,17 +27,20 @@ class QuantumCircuitHyperGraph:
             self.init_from_circuit(group_gates, anti_diag, qpu_sizes=qpu_sizes)
 
     def init_from_circuit(self, group_gates=True, anti_diag=False, qpu_sizes=None):
-        
-        self.layers = self.extract_layers(self.circuit, group_gates=group_gates, anti_diag=anti_diag, qpu_sizes=qpu_sizes)
+        self.layers = self.extract_layers(group_gates=group_gates, anti_diag=anti_diag, qpu_sizes=qpu_sizes)
         self.depth = len(self.layers)
         self.add_time_neighbor_edges(self.depth, range(self.num_qubits))
         self.map_circuit_to_hypergraph()
 
-    def extract_layers(self, circuit, group_gates=True, anti_diag=False, qpu_sizes=None):
-        layers = circuit_to_gate_layers(circuit, qpu_sizes=qpu_sizes)
+    def extract_layers(self, group_gates=True, anti_diag=False, qpu_sizes=None):
+        layers = circuit_to_gate_layers(self.circuit, qpu_sizes=qpu_sizes)
         layers = layer_list_to_dict(layers)
+        basis_gates = self.circuit.count_ops()
         if group_gates:
-            layers = group_distributable_packets(layers, group_anti_diags=anti_diag)
+            if 'cx' in basis_gates or 'cu' in basis_gates:
+                layers = group_distributable_packets_asym(layers, group_anti_diags=anti_diag)
+            else:
+                layers = group_distributable_packets_sym(layers, group_anti_diags=anti_diag)
         return layers
 
     def add_node(self, qubit, time):
