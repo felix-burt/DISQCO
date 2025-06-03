@@ -460,7 +460,6 @@ class PartitionedCircuitExtractor:
     def apply_single_qubit_gate(self, gate: dict) -> None:
         q = gate['qargs'][0]
         params = gate['params']
-        print('gate:', gate)
         name = gate['name']
         qubit_phys = self.qubit_manager.log_to_phys_idx[q]
         logger.debug(f"[apply_single_qubit_gate] Gate U({params}) on logical {q} -> physical {qubit_phys}")
@@ -488,7 +487,6 @@ class PartitionedCircuitExtractor:
     def apply_local_two_qubit_gate(self, gate: dict) -> None:
         qubit0, qubit1 = gate['qargs']
         params = gate['params']
-        print('gate:', gate)
         name = gate['name']
         
         if isinstance(qubit0, int):
