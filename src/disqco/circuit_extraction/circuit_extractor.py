@@ -3,7 +3,7 @@ import copy
 import numpy as np
 import networkx as nx
 from qiskit import QuantumRegister, ClassicalRegister, QuantumCircuit
-from qiskit.circuit import Qubit, Clbit
+from qiskit.circuit import Qubit, Clbit, Instruction
 from disqco.graphs.GCP_hypergraph import QuantumCircuitHyperGraph
 from disqco.circuit_extraction.DQC_qubit_manager import DataQubitManager, CommunicationQubitManager, ClassicalBitManager
 import math as mt
@@ -40,7 +40,7 @@ class TeleportationManager:
         self.comm_manager = comm_manager
         self.creg_manager = creg_manager
 
-    def build_epr_circuit(self) -> QuantumCircuit:
+    def build_epr_circuit(self) -> Instruction:
         circ = QuantumCircuit(2)
         circ.h(0)
         circ.cx(0, 1)
@@ -49,7 +49,7 @@ class TeleportationManager:
         gate.name = "EPR"
         return gate
 
-    def build_root_entanglement_circuit(self) -> QuantumCircuit:
+    def build_root_entanglement_circuit(self) -> Instruction:
         epr_circ = self.build_epr_circuit()
         circ = QuantumCircuit(3, 1)
         circ.append(epr_circ, [1, 2])
@@ -62,7 +62,7 @@ class TeleportationManager:
         instr.name = "Entangle Root"
         return instr
     
-    def build_end_entanglement_circuit(self) -> QuantumCircuit:
+    def build_end_entanglement_circuit(self) -> Instruction:
         circ = QuantumCircuit(2, 1)
         circ.h(1)
         circ.measure(1, 0)
@@ -73,7 +73,7 @@ class TeleportationManager:
         instr.name = "Disentangle Root"
         return instr
 
-    def build_teleporation_circuit(self) -> QuantumCircuit:
+    def build_teleporation_circuit(self) -> Instruction:
 
         circ = QuantumCircuit(3, 2)
         starting = self.build_root_entanglement_circuit()
@@ -94,7 +94,7 @@ class TeleportationManager:
         instr = circ.to_instruction(label="State Teleportation")
         return instr
 
-    def build_gate_teleportation_circuit(self, gate) -> QuantumCircuit:
+    def build_gate_teleportation_circuit(self, gate) -> Instruction:
         gate_params = gate['params']
         name = gate['name']
         circ = QuantumCircuit(4, 1)
@@ -501,7 +501,7 @@ class PartitionedCircuitExtractor:
         elif name == 'cp':
             self.qc.cp(params[0], qubit0, qubit1)
     
-    def find_common_part(self, q0: int, q1: int) -> int:
+    def find_common_part(self, q0: int, q1: int) -> tuple[Qubit | None, Qubit | None]:
         logger.debug(f'q0: {q0} assigned to {self.current_assignment[q0]}')
         logger.debug(f'q1: {q1} assigned to {self.current_assignment[q1]}')
         group0_links = self.qubit_manager.groups[q0]['linked_qubits']
