@@ -81,16 +81,6 @@ class TeleportationManager:
         ending = self.build_end_entanglement_circuit()
         circ.append(ending, [2, 0], [1])
 
-        # circ.append(epr_circ, [1, 2])
-        # circ.cx(0, 1)
-        # circ.h(0)
-        # circ.measure(0, 0)
-        # circ.measure(1, 1)
-        # circ.reset(0)
-        # circ.reset(1)
-        # circ.x(2).c_if(1, 1)
-        # circ.z(2).c_if(0, 1)
-
         instr = circ.to_instruction(label="State Teleportation")
         return instr
 
@@ -112,7 +102,7 @@ class TeleportationManager:
         instr = circ.to_instruction(label="Gate Teleportation")
         return instr
 
-    def generate_epr(self, p1: int, p2: int, comm_id1: Qubit = None, comm_id2: Qubit = None) -> tuple[Qubit, Qubit]:
+    def generate_epr(self, p1: int, p2: int, comm_id1: Qubit | None = None, comm_id2: Qubit | None = None) -> tuple[Qubit, Qubit]:
         logger.debug(f"[generate_epr] Creating EPR between p1={p1}, p2={p2}")
 
         if comm_id1 is None:
@@ -138,11 +128,6 @@ class TeleportationManager:
         logger.debug(f"[entangle_root] Entangling root qubit {root_q} in partition {p_root} with partition {p_rec}")
         root_phys = self.qubit_manager.log_to_phys_idx[root_q]
         root_comm = self.comm_manager.find_comm_idx(p_root)
-
-        # if p_root == p_rec:
-        #     logger.debug("[entangle_root] Local entanglement recognized.")
-        #     self.entangle_root_local(root_q, p_root)
-        #     return
 
         rec_comm = self.comm_manager.find_comm_idx(p_rec)
         cbit = self.creg_manager.allocate_cbit()
@@ -376,6 +361,7 @@ class PartitionedCircuitExtractor:
         qpu_info: list[int],
         comm_info: list[int]
     ) -> None:
+        
         self.layer_dict = graph.layers
         self.layer_dict = self.remove_empty_groups()
         self.partition_assignment = partition_assignment
@@ -397,18 +383,8 @@ class PartitionedCircuitExtractor:
         self.teleportation_manager = TeleportationManager(self.qc, self.qubit_manager,
                                                           self.comm_manager, self.creg_manager)
 
-        # Keep track of current assignment for each qubit from the last layer
         self.current_assignment = self.partition_assignment[0]
 
-    # def assignment_to_list(self, assignment, num_qubits, depth):
-    #     assignment_list = []
-    #     for t in range(depth):
-    #         layer = []
-    #         for j in range(num_qubits):
-    #             qpu =  assignment[(j,t)]
-    #             layer.append(qpu)
-    #         assignment_list.append(layer)
-    #     return assignment_list
 
     def remove_empty_groups(self) -> dict[int, list[dict]]:
         logger.debug("[remove_empty_groups] Removing empty or single-gate groups.")
@@ -709,17 +685,6 @@ class PartitionedCircuitExtractor:
         for i, layer in sorted(self.layer_dict.items()):
             logger.debug(f"  --- LAYER {i} ---")
             new_assignment_layer = self.partition_assignment[i]
-
-            # # Check if any root qubits must teleport
-            # for q in range(self.num_qubits):
-            #     if self.current_assignment[q] != new_assignment_layer[q]:
-            #         if q in self.qubit_manager.groups:
-            #             if self.current_assignment[q] in self.qubit_manager.groups[q]['final_gates']:
-            #                 if self.qubit_manager.groups[q]['final_gates'][self.current_assignment[q]] >= int(i):
-            #                     self.teleportation_manager.entangle_root_local(q, self.current_assignment[q])
-            #                     self.qubit_manager.groups[q]['linked_qubits'][self.current_assignment[q]] = self.qubit_manager.linked_comm_qubits[q][self.current_assignment[q]]
-
-            # If assignment changes for any qubit, we do a group teleport
             for q in range(self.num_qubits):
                 if self.current_assignment[q] != new_assignment_layer[q]:
                     logger.debug(f"  [extract_partitioned_circuit] Teleporting because assignment changed: qubit {q}")
@@ -762,20 +727,6 @@ class PartitionedCircuitExtractor:
                     p_rec = self.current_assignment[q1]
 
                     self.apply_non_local_two_qubit_gate(gate, p_root, p_rec)
-                    
-                    # if q1 in self.qubit_manager.active_receivers:
-                    #     if q0 in self.qubit_manager.active_receivers[q1]:
-                    #         if self.qubit_manager.active_receivers[q1][q0] == i:
-                    #             del self.qubit_manager.active_receivers[q1][q0]
-                    #             if self.qubit_manager.active_receivers[q1] == {}:
-                    #                 del self.qubit_manager.active_receivers[q1]
-                    
-                    # if q0 in self.qubit_manager.active_receivers:
-                    #     if q1 in self.qubit_manager.active_receivers[q0]:
-                    #         if self.qubit_manager.active_receivers[q0][q1] == i:
-                    #             del self.qubit_manager.active_receivers[q0][q1]
-                    #             if self.qubit_manager.active_receivers[q0] == {}:
-                    #                 del self.qubit_manager.active_receivers[q0]
 
                     
 

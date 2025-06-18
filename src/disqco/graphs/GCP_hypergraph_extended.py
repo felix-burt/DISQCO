@@ -7,6 +7,7 @@ from disqco.graphs.GCP_hypergraph import QuantumCircuitHyperGraph
 import math as mt
 import numpy as np
 from collections import defaultdict
+import copy
 
 EdgeKey = Hashable
 PairKey = frozenset[Hashable]
@@ -29,7 +30,7 @@ class HyperGraph:
     • Every hyper-edge is an extra node with attribute `hyperedge=True`
       connected to all incident vertices.
     """
-    __slots__ = ("_G", "_hyperedges", "_inc", "node_count", "node_neighbours")
+    __slots__ = ("_G", "_hyperedges", "_inc", "node_count", "node_neighbours", "_node_counter", "qubit_nodes", "gate_nodes", "num_qubits", "depth")
 
     # --------------------------------------------------------------- #
     # Construction / low-level access                                 #
@@ -38,6 +39,13 @@ class HyperGraph:
         self._G: nx.Graph = data.copy() if data else nx.Graph()
         self._hyperedges: MutableMapping[Hashable, HyperEdge] = {}
         self._inc: defaultdict[Hashable, set[Union[EdgeKey, PairKey]]] = defaultdict(set)
+        self._node_counter = 0  # Counter for node keys
+        self.node_neighbours = {}
+
+        self.qubit_nodes = []
+        self.gate_nodes = []
+        self.num_qubits = 0
+        self.depth = 0
 
     def nx_graph(self) -> nx.Graph:
         """Return the underlying (mutable) NetworkX graph."""
@@ -47,16 +55,35 @@ class HyperGraph:
     # Vertex interface                                                #
     # --------------------------------------------------------------- #
     def add_node(self, v: Hashable, **attrs) -> None:
-        self._G.add_node(v, hyperedge=False, **attrs)
+        """Add a node with an integer key."""
+        self._G.add_node(v, hyperedge=False, key=self._node_counter, **attrs)
+        self._node_counter += 1
 
     def add_nodes_from(self, vs: Iterable[Hashable]) -> None:
+        """Add multiple nodes with sequential integer keys."""
         for v in vs:
             self.add_node(v)
 
     def remove_node(self, v: Hashable) -> None:
-        if v in self._hyperedges:
+        """
+        Delete vertex *v* (or hyper-edge *key*).  
+        If *v* is a vertex, every hyper-edge that contains it is updated;
+        empty hyper-edges are deleted automatically.
+        """
+        if v in self._hyperedges:                  # it is a hyper-edge key
             self.remove_hyperedge(v)
-        self._G.remove_node(v)
+        else:                                     # ordinary vertex
+            # 1. update the bookkeeping objects
+            for key, hedge in list(self._hyperedges.items()):
+                if v in hedge.vertices:
+                    hedge.vertices.remove(v)
+                    if self._G.has_edge(key, v):
+                        self._G.remove_edge(key, v)
+                    if not hedge.vertices:        # becomes empty → drop it
+                        self.remove_hyperedge(key)
+            # 2. finally remove the vertex node itself
+            self._G.remove_node(v)
+        self._inc.pop(v, None)
 
     def _add_inc(self, v: Hashable, key: Union[EdgeKey, PairKey]) -> None:
         self._inc[v].add(key)
@@ -112,8 +139,10 @@ class HyperGraph:
         """
         All vertices in the hypergraph (excluding hyper-edges).
         """
-        return (n for n, d in self._G.nodes(data=True) if not d.get("hyperedge", False))
+        return self.qubit_nodes + self.gate_nodes
 
+    
+    
     # --------------------------------------------------------------- #
     # Graph-like helpers                                              #
     # --------------------------------------------------------------- #
@@ -130,27 +159,6 @@ class HyperGraph:
                 neigh.add(e)
         return neigh
     
-    def remove_node(self, v: Hashable) -> None:
-        """
-        Delete vertex *v* (or hyper-edge *key*).  
-        If *v* is a vertex, every hyper-edge that contains it is updated;
-        empty hyper-edges are deleted automatically.
-        """
-        if v in self._hyperedges:                  # it is a hyper-edge key
-            self.remove_hyperedge(v)
-        else:                                     # ordinary vertex
-            # 1. update the bookkeeping objects
-            for key, hedge in list(self._hyperedges.items()):
-                if v in hedge.vertices:
-                    hedge.vertices.remove(v)
-                    if self._G.has_edge(key, v):
-                        self._G.remove_edge(key, v)
-                    if not hedge.vertices:        # becomes empty → drop it
-                        self.remove_hyperedge(key)
-            # 2. finally remove the vertex node itself
-            self._G.remove_node(v)
-        self._inc.pop(v, None)
-
     # ------------------------------------------------------------------ #
     # NEW: dynamically edit a hyper-edge                                 #
     # ------------------------------------------------------------------ #
@@ -190,6 +198,8 @@ class HyperGraph:
         """
         num_qubits = gcp_hypergraph.num_qubits
         depth = gcp_hypergraph.depth
+        self.num_qubits = num_qubits
+        self.depth = depth
         nodes = {}
         hyperedges = []
         for i in range(num_qubits):
@@ -209,8 +219,8 @@ class HyperGraph:
                                     'name': name,
                                     'params': params    }
                 print("Node type: ", node_type)
+                nodes[node] = node_attrs
                 if node_type == 'single-qubit':
-                    nodes[node] = node_attrs
                     diagonality = self.check_diag_gate(node_attrs)
                     if diagonality and live:
                         hyperedge.add(node)
@@ -292,11 +302,13 @@ class HyperGraph:
                             live = False
             if live == True:
                 hyperedges.append(set(hyperedge))
-        index = 0
         for node, attrs in nodes.items():
             if node not in self._G:
-                self.add_node(node, key=index, **attrs)
-                index += 1
+                self.add_node(node, **attrs)
+            if len(node) == 2:
+                self.qubit_nodes.append(node)
+            else:
+                self.gate_nodes.append(node)
         index = 0
         for hyperedge in hyperedges:
             if len(hyperedge) > 1:
@@ -393,3 +405,19 @@ class HyperGraph:
                     return False
             else:
                 return False
+    
+    def copy(self):
+        """Return a deep copy of the hypergraph.
+        This is a deep copy, so the nodes and hyperedges are copied.
+        """
+        new_graph = HyperGraph()
+        new_graph._G = self._G.copy()
+        new_graph._hyperedges = copy.deepcopy(self._hyperedges)
+        new_graph._inc = copy.deepcopy(self._inc)
+        new_graph.node_count = self.node_count
+        new_graph.node_neighbours = copy.deepcopy(self.node_neighbours)
+        new_graph.qubit_nodes = copy.deepcopy(self.qubit_nodes)
+        new_graph.gate_nodes = copy.deepcopy(self.gate_nodes)
+        new_graph.num_qubits = self.num_qubits
+        new_graph.depth = self.depth
+        return new_graph

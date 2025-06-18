@@ -34,7 +34,7 @@ class CommunicationQubitManager:
         self.comm_qregs = comm_qregs  # Store the QuantumRegisters for communication qubits
         self.free_comm = {}  # Store free communication qubits for each partition
         self.in_use_comm = {}  # Store in-use communication qubits for each partition
-        self.linked_qubits = {}  # Store comm qubits linked to root qubits for gate teleportation
+        # self.linked_qubits = {}  # Store comm qubits linked to root qubits for gate teleportation
 
         self.initilize_communication_qubits()
 
@@ -193,7 +193,7 @@ class DataQubitManager:
         self.partition_assignment = partition_assignment
         self.log_to_phys_idx = {}
         self.num_partitions = len(partition_qregs)
-        self.linked_comm_qubits = {i : {} for i in range(self.num_qubits_log)}
+        # self.linked_comm_qubits = {i : {} for i in range(self.num_qubits_log)}
         self.num_data_qubits_per_partition = []
         self.active_roots = {}
         self.queue = {}
@@ -264,6 +264,7 @@ class DataQubitManager:
 
         if qubit in self.in_use_data[p]:
             log_qubit = self.in_use_data[p].pop(qubit)
+            print(f"Releasing data qubit {qubit} from partition {p} with logical qubit {log_qubit}")
             del self.log_to_phys_idx[log_qubit]
             self.qc.reset(qubit)
             self.free_data[p].append(qubit)

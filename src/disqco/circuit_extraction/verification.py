@@ -9,7 +9,7 @@ def run_sampler(circuit, shots=4096):
     dec_circuit = circuit.copy()
     dec_circuit = transpile(dec_circuit, basis_gates=['u', 'cp', 'EPR'])
     dec_circuit = dec_circuit.decompose()
-    if num_qubits < 12:
+    if num_qubits <= 13:
 
         job = sampler.run([dec_circuit], shots=shots)
         job_result = job.result()
@@ -19,20 +19,26 @@ def run_sampler(circuit, shots=4096):
         data = None
     return data
 
-def plot(data):
+def plot(data, labels=False):
     from qiskit.visualization import plot_histogram
     if data is None:
         print("No data to plot")
         return
     if 'result' in data:
         info = data['result']
-    else:
+    elif 'meas' in data:
         info = data['meas']
+    elif 'measure' in data:
+        info = data['measure']
+    else:
+        print("No data to plot")
+        return
 
     counts_base = info.get_counts()
     fig, ax = plt.subplots(1, 1, figsize=(10, 6))
     plot_histogram(counts_base, bar_labels=False, ax=ax)
-    ax.set_xticks([])
+    if not labels:
+        ax.set_xticks([])
 
 def get_fidelity(data1, data2, shots):
     if data1 is None or data2 is None:
