@@ -42,8 +42,8 @@ class HyperGraph:
         self._node_counter = 0  # Counter for node keys
         self.node_neighbours = {}
 
-        self.qubit_nodes = []
-        self.gate_nodes = []
+        self.qubit_nodes = set()
+        self.gate_nodes = set()
         self.num_qubits = 0
         self.depth = 0
 
@@ -139,7 +139,7 @@ class HyperGraph:
         """
         All vertices in the hypergraph (excluding hyper-edges).
         """
-        return self.qubit_nodes + self.gate_nodes
+        return self.qubit_nodes | self.gate_nodes
 
     
     
@@ -306,9 +306,9 @@ class HyperGraph:
             if node not in self._G:
                 self.add_node(node, **attrs)
             if len(node) == 2:
-                self.qubit_nodes.append(node)
+                self.qubit_nodes.add(node)
             else:
-                self.gate_nodes.append(node)
+                self.gate_nodes.add(node)
         index = 0
         for hyperedge in hyperedges:
             if len(hyperedge) > 1:
