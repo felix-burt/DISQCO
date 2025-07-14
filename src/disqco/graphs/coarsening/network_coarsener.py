@@ -1,6 +1,7 @@
 from disqco.graphs.quantum_network import QuantumNetwork
 from disqco.graphs.GCP_hypergraph import QuantumCircuitHyperGraph
 import networkx as nx
+import matplotlib.pyplot as plt
 from copy import deepcopy
 
 class NetworkCoarsener:
@@ -40,7 +41,6 @@ class NetworkCoarsener:
                 if not G.has_edge(u, nbr):
                     G.add_edge(u, nbr)
         G.remove_node(v)
-
 
     def coarsen_network(self, network : QuantumNetwork, current_mapping : dict[int, set[int]] = None, desired_size: int = 10):
         """
@@ -102,6 +102,7 @@ class NetworkCoarsener:
             # Keep track of the updated mapping after this batch of merges
             mapping_list.append(deepcopy(current_mapping))
             node_count = G.number_of_nodes()
+        
             
         # Finally, store or update the qpu_sizes in the coarsened network
         network_coarse.qpu_sizes = {n : network_coarse.qpu_graph.nodes[n]['size'] 
@@ -130,7 +131,6 @@ class NetworkCoarsener:
         current_mapping = {i: {i} for i in network_coarse.qpu_graph.nodes()}
         self.initial_network.mapping = deepcopy(current_mapping)
         self.network_coarse_list = [self.initial_network]
-
         while k > l:
             network_coarse, mapping = self.coarsen_network(network_coarse, current_mapping, desired_size)
             self.network_coarse_list.append(network_coarse)
@@ -140,131 +140,116 @@ class NetworkCoarsener:
             desired_size = int(k / l)
             current_mapping = deepcopy(mapping)
         
+        # Mark the coarsest level network nodes as level 0
+
+        for node in self.network_coarse_list[-1].qpu_graph.nodes:
+            self.network_coarse_list[-1].qpu_graph.nodes[node]['level'] = 0
+        
         return self.network_coarse_list
-
-    # def unmerge_nodes(self, g0 : nx.Graph, source_node : int, mapping : dict[int,set[int]], level : int):
-
-    #     parent_network = self.network_coarse_list[-level-2]
-    #     g = parent_network.qpu_graph
-
-    #     g0.remove_node(source_node)
-    #     sub_nodes = mapping[source_node]
-
-    #     print("Level: ", level)
-    #     print("Source node: ", source_node)
-    #     print("Sub nodes: ", sub_nodes)
-    #     print("Mapping: ", mapping)
-
-    #     print("Nodes in g: ", g.nodes)
-
-    #     for node in sub_nodes:
-    #         if node in g.nodes:
-    #             print("Node: ", node)
-    #             g0.add_node(node, size = g.nodes[node]['size'])
+    
+    def merge_old_dummies(self, g0, nodes_to_merge, mapping, dummy_nodes):
+        """
+        Recursively merge old dummy nodes in the graph g0. 
+        Old dummy nodes can be merged together or they can be merged with new dummy nodes.
+        This function repeats until no more merges are possible.
         
-    #     for node1 in sub_nodes:
-    #         for node2 in sub_nodes:
-    #             if node1 != node2 and g.has_edge(node1, node2):
-    #                 print("Adding edge: ", node1, node2)
-    #                 g0.add_edge(node1, node2)
+        Args:
+            g0: The graph to modify
+            nodes_to_merge: Set of old dummy nodes that can be merged
+            mapping: The current mapping dictionary
+            dummy_nodes: Set of new dummy nodes that old dummies can merge into
+        """
+        merged_something = True
         
+        while merged_something:
+            merged_something = False
+            edge_list = list(g0.edges())
+            
+            for edge in edge_list:
+                node1, node2 = edge
+                
+                # Skip if either node has already been removed from the graph
+                if node1 not in g0.nodes or node2 not in g0.nodes:
+                    continue
+                
+                # Case 1: Both nodes are old dummy nodes that need to be merged
+                if node1 in nodes_to_merge and node2 in nodes_to_merge:
 
-    #             # for coarse_node in mapping:
-    #             #     print("Coarse node: ", coarse_node)
-    #             #     other_sub_nodes = mapping[coarse_node]
-    #             #     print("Other sub nodes: ", other_sub_nodes)
-    #             #     for n in other_sub_nodes:
-    #             #         print("N: ", n)
-    #             #         if g.has_edge(n, node):
-    #             #             print("Adding edge: ", n, node)
-    #             #             g0.add_edge(node, n)
-    #     nodes_to_merge = []
-    #     for node in g0.nodes:
-    #         if node not in sub_nodes:
-    #             nodes_to_merge.append(node)
-    #     print("Nodes to merge: ", nodes_to_merge)
-    #     merged_nodes = set()
-
-    #     for node1 in sub_nodes:
-    #         for node2 in g.nodes:
-    #             if node1 != node2 and g.has_edge(node1, node2):
-    #                 print("Adding edge: ", node1, node2)
-    #                 g0.add_edge(node1, nodes_to_merge[0])
-
-    #     new_mapping = deepcopy(mapping)
-    #     for node1 in nodes_to_merge:
-    #         for node2 in nodes_to_merge:
-    #             if node1 != node2 and g0.has_edge(node1, node2):
-    #                 print("Merging nodes: ", node1, node2)
-    #                 if node2 not in merged_nodes:
-    #                     merged_nodes.add(node2)
-    #                     self.merge_nodes(g0, node1, node2, new_mapping)
+                    self.merge_nodes(g0, node1, node2, mapping)
+                    nodes_to_merge.discard(node2)  # Remove the merged node
+                    merged_something = True
+                    break  # Start over with new edge list
+                
+                # Case 2: One old dummy node connected to a new dummy node
+                elif node1 in nodes_to_merge and node2 in dummy_nodes:
+                    self.merge_nodes(g0, node2, node1, mapping)
+                    nodes_to_merge.discard(node1)  # Remove the merged node
+                    merged_something = True
+                    break  # Start over with new edge list
+                
+                # Case 3: One new dummy node connected to an old dummy node
+                elif node1 in dummy_nodes and node2 in nodes_to_merge:
+                    self.merge_nodes(g0, node1, node2, mapping)
+                    nodes_to_merge.discard(node2)  # Remove the merged node
+                    merged_something = True
+                    break  # Start over with new edge list
         
 
-
-    #     qpu_sizes = {node : g0.nodes[node]['size'] for node in g0.nodes}
-    #     g0.remove_edges_from(nx.selfloop_edges(g0))
-
-    #     return g0, qpu_sizes
 
     def unmerge_nodes(self, g0 : nx.Graph, source_node : int, mapping : dict[int,set[int]], level : int, active_nodes):
+
 
         parent_network = self.network_coarse_list[-level-2]
         g = parent_network.qpu_graph
         parent_mapping = parent_network.mapping
-
+        # Remove the source node from the, this will be added back in with the sub-nodes
         g0.remove_node(source_node)
-        sub_nodes = mapping[source_node]
+        # Find the nodes to be expanded - these are the sub-nodes of the source node
+        new_active_nodes = mapping[source_node].intersection(g.nodes)
 
-        for node in sub_nodes:
-            if node in g.nodes:
-                g0.add_node(node, size = g.nodes[node]['size'])
-
+        # Add the sub-nodes to the new graph
+        for node in new_active_nodes:
+            g0.add_node(node, size = g.nodes[node]['size'], level=level+1)
+        
         
 
-                # for coarse_node in mapping:
-                #     print("Coarse node: ", coarse_node)
-                #     other_sub_nodes = mapping[coarse_node]
-                #     print("Other sub nodes: ", other_sub_nodes)
-                #     for n in other_sub_nodes:
-                #         print("N: ", n)
-                #         if g.has_edge(n, node):
-                #             print("Adding edge: ", n, node)
-                #             g0.add_edge(node, n)
+        # for node in g0.nodes:
+        #     print(f"Node: {node}, node level: {g0.nodes[node]['level']}")
 
+        # Define the dummy nodes, the nodes from the original graph that are not in the sub-nodes
         dummy_nodes = set()
-        for node in g0.nodes:
-            if node not in sub_nodes:
+        for node in active_nodes:
+            if node not in new_active_nodes:
                 dummy_nodes.add(node)
+        
 
+        old_dummy_nodes = set(g0.nodes) - dummy_nodes - set(new_active_nodes)
 
-        for node1 in sub_nodes:
-            for coarse_node in dummy_nodes:
+        # Connect sub-nodes to the dummy nodes
+        for node1 in new_active_nodes: 
+            for coarse_node in dummy_nodes | old_dummy_nodes:
                 contained_nodes = mapping[coarse_node]
                 for node2 in contained_nodes:
                     if node1 != node2 and g.has_edge(node1, node2):
                         g0.add_edge(node1, coarse_node)
 
+
+
+        # Connect sub-nodes to each other
         for node1 in g0.nodes:
             for node2 in g0.nodes:
                 if g.has_edge(node1, node2):
                     g0.add_edge(node1, node2)
+    
 
-        new_mapping = deepcopy(mapping)
-
-        nodes_to_merge = set()
-
-        for node in g0.nodes:
-            if node not in sub_nodes and node not in active_nodes:
-                nodes_to_merge.add(node)
-        
-        merged_nodes = []
-        for node1 in nodes_to_merge:
-            for node2 in nodes_to_merge:
-                if node1 != node2 and g0.has_edge(node1, node2):
-                    if node2 not in merged_nodes:
-                        merged_nodes.append((node1, node2))
-                        self.merge_nodes(g0, node1, node2, new_mapping)
+        # Merge old dummy nodes using the recursive function
+        nodes_to_merge = old_dummy_nodes.copy()  # Make a copy since the function modifies it
+        new_mapping = {node : parent_mapping[node] for node in new_active_nodes}  # Create a new mapping to avoid modifying the original
+        old_dummy_mapping = {node : mapping[node] for node in old_dummy_nodes}
+        new_mapping.update(old_dummy_mapping)
+        dummy_mapping = {node : mapping[node] for node in dummy_nodes}
+        new_mapping.update(dummy_mapping)
+        self.merge_old_dummies(g0, nodes_to_merge, new_mapping, dummy_nodes)
 
         # print("New mapping: ", new_mapping)
 
@@ -275,18 +260,27 @@ class NetworkCoarsener:
         qpu_sizes = {node : g0.nodes[node]['size'] for node in g0.nodes}
         g0.remove_edges_from(nx.selfloop_edges(g0))
 
-        new_active_nodes = set([node for node in sub_nodes if node in g.nodes])
+        # new_active_nodes = set([node for node in sub_nodes if node in g.nodes])
 
-        new_mapping = {node : parent_mapping[node] for node in new_active_nodes}
 
-        dummy_node_mapping = {node : mapping[node] for node in dummy_nodes}
+        # new_mapping = {node : parent_mapping[node] for node in new_active_nodes}
 
-        for node, partner in merged_nodes:
-            dummy_node_mapping[node] = dummy_node_mapping[partner].union(dummy_node_mapping[node])
-            del dummy_node_mapping[partner]
-
+        # Build mapping for remaining dummy nodes (both old and new)
+        remaining_dummy_nodes = set()
+        for node in g0.nodes:
+            if node not in new_active_nodes:
+                remaining_dummy_nodes.add(node)
         
-        new_mapping.update(dummy_node_mapping)
+        # old_dummy_node_mapping = {node : mapping[node] for node in remaining_dummy_nodes}
+        # dummy_node_mapping = {node : mapping[node] for node in dummy_nodes}
+
+        # new_mapping.update(old_dummy_node_mapping)
+        # new_mapping.update(dummy_node_mapping)
+
+        # nx.draw(g0, with_labels=True)
+
+        # plt.show()
+
 
 
 
@@ -330,8 +324,6 @@ class NetworkCoarsener:
         for network in networks_previous_level:
             network_coarse = network[0]
             active_nodes = network_coarse.active_nodes
-            
-
             for node in active_nodes:
                 new_graph = network_coarse.qpu_graph.copy()
                 mapping = network_coarse.mapping

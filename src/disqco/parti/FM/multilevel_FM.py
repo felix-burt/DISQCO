@@ -14,7 +14,7 @@ def assignment_to_list(assignment, num_qubits, depth):
             assignment_list.append(layer)
         return assignment_list
 
-def refine_assignment(level, num_levels, assignment, mapping_list):
+def refine_assignment(level, num_levels, assignment, mapping_list, free_indices = None, initial_assignment=None):
     new_assignment = assignment
     if level < num_levels -1:
         mapping = mapping_list[level]
@@ -145,13 +145,13 @@ def multilevel_FM_hetero(coarsened_hypergraphs,
 
     num_partitions = len(qpu_info)
 
-    if costs is None and num_partitions < 12:
-        configs = get_all_configs(len(node_map), hetero=True)
-        costs, edge_tree = get_all_costs_hetero(network, configs, node_map=node_map)
+    # if costs is None and num_partitions < 12:
+    #     configs = get_all_configs(len(node_map), hetero=True)
+    #     costs, edge_tree = get_all_costs_hetero(network, configs, node_map=node_map)
     # else:
     #     print("Costs are already available.")
 
-    # costs = {}
+    costs = {}
 
     list_of_assignments = []
     list_of_assignments.append(initial_assignment)
@@ -378,7 +378,10 @@ def MLFM_recursive_hetero(graph,
                 assignment_map = None):
 
     coarsener = HypergraphCoarsener()
-    graph_list, mapping_list = coarsener.coarsen_recursive_batches(graph)
+    start = time.time()
+    graph_list, mapping_list = coarsener.coarsen_recursive_batches_mapped(graph)
+    end = time.time()
+    print(f"Time to coarsen graph: {end - start:.2f} seconds")
 
     graph_coarse = graph_list[-1]
 
@@ -434,7 +437,10 @@ def MLFM_recursive_hetero_mapped(graph,
                 dummy_nodes = set()):
 
     coarsener = HypergraphCoarsener()
+    start = time.time()
     graph_list, mapping_list = coarsener.coarsen_recursive_batches_mapped(graph, node_list=node_list)
+    end = time.time()
+    print(f"Time to coarsen graph: {end - start:.2f} seconds")
 
     graph_coarse = graph_list[-1]
 
@@ -454,6 +460,8 @@ def MLFM_recursive_hetero_mapped(graph,
     if level_limit is None:
         level_limit = len(graph_list)
 
+    start = time.time()
+
     assignment_list, cost_list, time_list = multilevel_FM_hetero(graph_list,
                                             mapping_list,
                                             initial_assignment=initial_assignment,  
@@ -470,6 +478,10 @@ def MLFM_recursive_hetero_mapped(graph,
                                             node_map = node_map,
                                             assignment_map = assignment_map,
                                             dummy_nodes = dummy_nodes)
+    
+    stop = time.time()
+
+    print(f"Time for multilevel FM: {stop - start:.2f} seconds")
 
     return assignment_list, cost_list, time_list
 

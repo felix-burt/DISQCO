@@ -33,7 +33,6 @@ class QuantumNetwork():
         self.num_qpus = len(self.qpu_sizes)
         self.mapping = {i: set([i]) for i in range(self.num_qpus)}
 
-
     def create_qpu_graph(self):
         qpu_graph = nx.Graph()
         for qpu, qpu_size in self.qpu_sizes.items():
@@ -90,7 +89,8 @@ class QuantumNetwork():
         else:
             root_nodes = [i for i, element in enumerate(root_config) if element == 1]
             rec_nodes = [i for i, element in enumerate(rec_config) if element == 1]
-        
+        if root_nodes == [] or rec_nodes == []:
+            return set(), 0
         steiner_g = steiner_tree(self.qpu_graph, root_nodes)
         node_set = set(steiner_g.nodes())
         source_nodes = list(node_set.union(root_nodes))
@@ -299,3 +299,20 @@ def network_of_grids(num_grids, nodes_per_grid, l):
 
     return all_edges
 
+def tree_network(N, k=2):
+    """
+    Create a tree-like network of N nodes. Calculate height of tree as logk(N).
+    Each node has k children and the tree is balanced.
+    """
+    edges = []
+    for i in range(1, N):
+        edges.append([i, (i - 1) // k])  # Connect each node to its parent
+    # The root node is 0, and it has children from 1 to k
+    for i in range(k):
+        if i < N:
+            edges.append([0, i])    
+    # Ensure the tree is connected
+    if len(edges) < N - 1:
+        raise ValueError("Not enough edges to connect all nodes in the tree network.")
+ 
+    return edges

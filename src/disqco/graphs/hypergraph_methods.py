@@ -113,8 +113,10 @@ def hedge_k_counts(hypergraph,hedge,assignment,num_partitions, set_attrs = False
 
             if assignment_map is not None:
                 root_node = assignment_map[root_node]
-
-            partition_root = assignment[root_node[1]][root_node[0]]
+            try:
+                partition_root = assignment[root_node[1]][root_node[0]]
+            except Exception:
+                continue
             # partition_root = assignment[root_node]
             root_counts[partition_root] += 1
         for rec_node in receiver_set:
@@ -132,11 +134,17 @@ def hedge_k_counts(hypergraph,hedge,assignment,num_partitions, set_attrs = False
                 
             try:
                 partition_rec = assignment[rec_node[1]][rec_node[0]]
-            except IndexError:
-                print("Rec node", rec_node)
-                print("Assignment", assignment)
-                print("Assignment map", assignment_map)
-                raise IndexError
+            except Exception:
+                # print("Rec node", rec_node)
+                # print("Assignment", assignment)
+                # print("Assignment shape", np.shape(assignment))
+                # print("Assignment map", assignment_map)
+                # print("Root set", root_set)
+                # print("Receiver set", receiver_set)
+                # for node in hypergraph.nodes:
+                #     print("Node", node)
+                #     print("Mapped node", assignment_map[node] if assignment_map is not None else node)
+                continue
             # partition_rec = assignment[rec_node]
             rec_counts[partition_rec] += 1
         
@@ -246,7 +254,6 @@ def hedge_to_cost_hetero(hypergraph : QuantumCircuitHyperGraph,
     Computes the cost of a hyperedge based on its configuration and the current assignment."
     """
     root_config, rec_config = map_hedge_to_configs(hypergraph, hedge, assignment, num_partitions, assignment_map=assignment_map, dummy_nodes=dummy_nodes)
-
     if (root_config, rec_config) not in costs:
         edges, cost = network.steiner_forest(root_config, rec_config)
         costs[(root_config, rec_config)] = cost

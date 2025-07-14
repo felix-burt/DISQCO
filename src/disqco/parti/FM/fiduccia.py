@@ -215,3 +215,4 @@ class FiducciaMattheyses(QuantumCircuitPartitioner):
             base = 2 * largest_node + 2
         diameter = nx.diameter(self.network.qpu_graph)
         return base * diameter
+

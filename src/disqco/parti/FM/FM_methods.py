@@ -6,7 +6,7 @@ from disqco.graphs.quantum_network import QuantumNetwork
 from disqco.graphs.GCP_hypergraph import QuantumCircuitHyperGraph
 import time
 
-def set_initial_partitions(network : QuantumNetwork, num_qubits: int, depth: int, invert=False) -> list:
+def set_initial_partitions(network : QuantumNetwork, num_qubits: int, depth: int, invert=False, randomise_static=False, randomise_full=False) -> list:
     static_partition = []
     qpu_info = network.qpu_sizes
     num_partitions = len(qpu_info)
@@ -16,14 +16,19 @@ def set_initial_partitions(network : QuantumNetwork, num_qubits: int, depth: int
                 static_partition.append(n)
             else:
                 static_partition.append(num_partitions-n-1)
-    static_partition = static_partition[:num_qubits]
-    full_partitions = np.zeros((depth,len(static_partition)),dtype=int)
+    if randomise_static:
+        np.random.permutation(static_partition)
+    static_partition_reduced = static_partition[:num_qubits]
+    full_partitions = np.zeros((depth,len(static_partition_reduced)),dtype=int)
     for n in range(depth):
-        layer = np.array(static_partition,dtype=int)
+        if randomise_full:
+            layer = np.array(np.random.permutation(static_partition_reduced), dtype=int)
+        else:
+            layer = np.array(static_partition_reduced,dtype=int)
         full_partitions[n] = layer
     return full_partitions
 
-def set_initial_partitions_dict(network : QuantumNetwork, num_qubits : int, depth : int, invert: bool = False) -> dict[tuple[int,int] : int]:
+def set_initial_partitions_dict(network : QuantumNetwork, num_qubits : int, depth : int, invert: bool = False) -> dict[tuple[int,int], int]:
     """
     Greedy method to assign qubits to partitions. Assigns occording to logical index, fill each partition
     in order. If invert is True, assigns in reverse order.
@@ -50,7 +55,7 @@ def set_initial_partitions_dict(network : QuantumNetwork, num_qubits : int, dept
     
     return partition_assignment
 
-def find_spaces(num_qubits: int, depth: int, assignment : dict[tuple[int,int] : int], qpu_sizes: dict[int : int], assignment_map = None, graph = None) -> dict[int : int]:
+def find_spaces(num_qubits: int, depth: int, assignment : np.ndarray, qpu_sizes: dict[int, int], assignment_map = None, graph : QuantumCircuitHyperGraph | None = None) -> dict[int, int]:
     """
     Find the number of free qubits in each partition at each time step.
     num_qubits: number of logical qubits in the circuit
@@ -77,16 +82,17 @@ def find_spaces(num_qubits: int, depth: int, assignment : dict[tuple[int,int] : 
                 spaces[t] = [qpu_sizes[k] for k in keys]
             else:
                 spaces[t] = [qpu_sizes[k] for k in range(num_partitions)]
-        for node in graph.nodes:
-            if node[0] != 'dummy':
-                q,t = node
-                sub_node = assignment_map[node]
-                part = assignment[sub_node[1]][sub_node[0]]
-                spaces[t][part] -= 1
+        if graph is not None:
+            for node in graph.nodes:
+                if node[0] != 'dummy':
+                    q,t = node
+                    sub_node = assignment_map[node]
+                    part = assignment[sub_node[1]][sub_node[0]]
+                    spaces[t][part] -= 1
     
     return spaces
 
-def check_valid(node : tuple[int,int], destination: int, spaces: dict[int : int]) -> bool:
+def check_valid(node : tuple[int,int], destination: int, spaces: dict[int, int]) -> bool:
     """
     Check if the destination partition has free data qubit slots.
     node: tuple of (qubit index, time step)
@@ -904,12 +910,15 @@ def map_assignment(node_list : list[int]):
     for t in range(len(sorted_node_list)):
         for q in range(len(sorted_node_list[t])):
             assignment_map[(sorted_node_list[t][q], t)] = (q, t)
-    for t in range(len(sorted_node_list)):
-        for q in range(len(sorted_node_list[t])):
-            assignment_map[(sorted_node_list[t][q], t) ] = (q,t)
+            # print(f'Qubit {sorted_node_list[t][q]} at layer {t} assigned to position {q} in layer {t}')
+
+    # for t in range(len(sorted_node_list)):
+    #     for q in range(len(sorted_node_list[t])):
+    #         assignment_map[(sorted_node_list[t][q], t) ] = (q,t)
+
     return assignment_map, sorted_node_list
 
-def set_initial_sub_partitions(sub_network : QuantumNetwork, node_list : list[list[int]], active_nodes):
+def set_initial_sub_partitions(sub_network : QuantumNetwork, node_list : list[list[int]], active_nodes, assignment_map):
     """
     Set the initial partitions for the sub-network.
     """
@@ -920,6 +929,7 @@ def set_initial_sub_partitions(sub_network : QuantumNetwork, node_list : list[li
         num_qubits_layer = len(layer)
         if num_qubits_layer > max_qubits_per_layer:
             max_qubits_per_layer = num_qubits_layer
+            
         counter = 0
         for i, (qpu, size) in enumerate(sub_network.qpu_sizes.items()):
             if qpu in active_nodes:
@@ -928,10 +938,34 @@ def set_initial_sub_partitions(sub_network : QuantumNetwork, node_list : list[li
                 counter += 1    
         
         assignment.append(assignment_layer)
+        
 
     assignment = np.array([np.array(assignment[j][:max_qubits_per_layer]) for j in range(len(assignment))])
+
+    free_indices = np.ones((len(assignment), max_qubits_per_layer), dtype=int)
+    for key in assignment_map:
+        q, t = assignment_map[key]
+        free_indices[t][q] = 0
+        # print(f'Free indices, node {key} assigned to sub node {(q,t)}')
+
+    
+    # for t in range(len(assignment)):
+    #     for q in range(len(assignment[t])):
+    #         if free_indices[t][q] == 1:
+    #             assignment[t][q] = -1
+                # print(f'Node ({q}, {t}) is free and set to -1 in assignment')
+
+        
     
     return assignment
+
+def process_sub_partitions(sub_partitions, graph, assignment_map):
+    for t in range(graph.depth):
+        for q in range(graph.num_qubits):
+            if (q, t) not in assignment_map:
+                continue
+            sub_node = assignment_map[(q, t)]
+            sub_partitions[t][q] = sub_partitions[sub_node[1]][sub_node[0]]
 
 def refine_assignment(level, num_levels, assignment, mapping_list):
     new_assignment = assignment

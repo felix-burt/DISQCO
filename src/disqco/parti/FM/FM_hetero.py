@@ -126,6 +126,7 @@ def run_FM_hetero(
     else:
         qpu_info = {i: qpu_info[i] for i in range(len(qpu_info))}
 
+
     cost = initial_cost
     cost_list = []
     best_assignments = []
@@ -295,6 +296,8 @@ def run_FM_hetero_dummy(
         configs = get_all_configs(len(node_map), hetero=True)
         costs, edge_trees = get_all_costs_hetero(network, configs, node_map=node_map)
     
+    # costs = {}
+    
     # else:
 
     if limit is None:
@@ -317,6 +320,7 @@ def run_FM_hetero_dummy(
         cost_list.append(cost)
         best_assignments.append(initial_assignment)
     # print("Starting FM passes...")
+    # print("Assignment node (16, 23):", initial_assignment[23][16])
     for n in range(passes):
         # print(f"Pass number: {n}")
         assignment_list, gain_list = FM_pass_hetero_dummy(

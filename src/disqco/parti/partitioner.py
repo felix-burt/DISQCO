@@ -11,7 +11,7 @@ class QuantumCircuitPartitioner:
     """
     def __init__(self, circuit : QuantumCircuit, 
                  network: QuantumNetwork, 
-                 initial_assignment: np.ndarray
+                 initial_assignment: np.ndarray | None
                  ) -> None:
         """
         Initialize the CircuitPartitioner.

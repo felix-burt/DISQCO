@@ -5,25 +5,33 @@ import copy
 import heapq
 
 
-def set_initial_partitions_extended(network : QuantumNetwork, graph, num_qubits: int, depth: int, invert=False) -> tuple[np.ndarray, np.ndarray]:
+def set_initial_partitions_extended(network : QuantumNetwork, graph, num_qubits: int, depth: int) -> tuple[np.ndarray, np.ndarray]:
+    qpu_sizes = network.qpu_sizes
+    qubit_assignment = set_initial_qubit_assignment(qpu_sizes, num_qubits, depth)
+    gate_assignment = set_initial_gate_assignment(graph, qubit_assignment, randomise=True)
+    
+    return qubit_assignment, gate_assignment
+
+def set_initial_qubit_assignment(qpu_sizes : list[int] | dict[int, int], num_qubits : int, depth : int):
     static_partition = []
-    qpu_info = network.qpu_sizes
-    num_partitions = len(qpu_info)
+    num_partitions = len(qpu_sizes)
+
     for n in range(num_partitions):
-        for k in range(qpu_info[n]):
-            if invert == False:
-                static_partition.append(n)
-            else:
-                static_partition.append(num_partitions-n-1)
-    print(static_partition)
+        for k in range(qpu_sizes[n]):
+            static_partition.append(num_partitions-n-1)
+
     static_partition = static_partition[:num_qubits]
 
     qubit_assignment = np.zeros((num_qubits, depth), dtype=int)
     for i in range(num_qubits):
         for j in range(depth):
             qubit_assignment[i][j] = static_partition[i]
-    
-    gate_assignment = np.zeros((num_qubits,num_qubits, depth), dtype=int)
+    return qubit_assignment
+
+def set_initial_gate_assignment(graph : HyperGraph, qubit_assignment : np.ndarray, randomise = False):
+    num_qubits = qubit_assignment.shape[0]
+    depth = qubit_assignment.shape[1]
+    gate_assignment = np.zeros((num_qubits, num_qubits, depth), dtype=int)
     for i in range(num_qubits):
         for j in range(num_qubits):
             for k in range(depth):
@@ -37,15 +45,18 @@ def set_initial_partitions_extended(network : QuantumNetwork, graph, num_qubits:
         partner1 = (node[0], node[2])
         partner2 = (node[1], node[2])
 
-        # Randomly choose one of the partners
-        # if np.random.random() < 0.5:
-        #     gate_assignment[i][j][k] = qubit_assignment[partner1]
-        # else:
-        #     gate_assignment[i][j][k] = qubit_assignment[partner2]
+        
+        if randomise:
+            # Randomly choose one of the partners
+            if np.random.random() < 0.5:
+                gate_assignment[i][j][k] = qubit_assignment[partner1]
+            else:
+                gate_assignment[i][j][k] = qubit_assignment[partner2]
 
-        gate_assignment[i][j][k] = qubit_assignment[partner1]
+        else:
+            gate_assignment[i][j][k] = qubit_assignment[partner2]
     
-    return qubit_assignment, gate_assignment
+    return gate_assignment
 
 
 

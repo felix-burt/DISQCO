@@ -2,6 +2,7 @@ from collections import defaultdict
 from disqco.utils.qiskit_to_op_list import circuit_to_gate_layers, layer_list_to_dict
 from disqco.graphs.greedy_gate_grouping import group_distributable_packets_sym, group_distributable_packets_asym
 from qiskit import QuantumCircuit
+import numpy as np
 
 class QuantumCircuitHyperGraph:
     """
@@ -331,7 +332,45 @@ class QuantumCircuitHyperGraph:
                         if t != start_time:
                             self.set_node_attribute((root,t),'type', 'root_t')
                     self.add_hyperedge(root_node,root_set,receiver_set)
+    
+    def draw(self, assignment : np.ndarray | None = None, qpu_info : list[int] | dict[str, int] | None = None, *, show_labels=True, **kwargs):
+        """Render the hypergraph as a TikZ figure using the standard TikZ drawing utility.
 
+        Parameters
+        ----------
+        assignment : np.ndarray
+            Qubit-to-partition assignment matrix.
+        qpu_info : list[int] | dict[str, int]
+            Hardware layout (passed to the drawing helper).
+        show_labels : bool, optional
+            Whether to label nodes with (q,t) coordinates. Default True.
+        **kwargs : Any
+            Forwarded to ``draw_graph_tikz`` (e.g. invert_colors, fill_background, ...).
+
+        Returns
+        -------
+        Any
+            Whatever ``draw_graph_tikz`` returns (typically the rendered cell-magic result in a Jupyter notebook, or the raw TikZ code if you pass tikz_raw=True).
+        """
+
+        if qpu_info is None:
+            qpu_info = [self.num_qubits]
+            from disqco.graphs.quantum_network import QuantumNetwork
+            network = QuantumNetwork(qpu_info)
+            num_qubits = self.num_qubits
+            depth = self.depth
+        if assignment is None:
+            from disqco.parti.FM.FM_methods import set_initial_partitions
+            assignment = set_initial_partitions(network, num_qubits, depth)
+
+        from disqco.drawing.tikz_drawing import draw_graph_tikz
+        return draw_graph_tikz(
+            self,
+            assignment,
+            qpu_info,
+            show_labels=show_labels,
+            **kwargs,
+        )
 
 class SubGraphManager:
     """
@@ -390,6 +429,10 @@ class SubGraphManager:
         # Step 2) For each subgraph p, create dummy nodes for each foreign partition p' != p
         # -----------------------------
         dummy_map_list = []
+
+        # for t in range(len(assignment)):
+        #     for q in range(len(assignment[t])):
+        #         print(f"Node ({q}, {t}) assignment: {assignment[t][q]}")
         
         for idx1 in range(k):
             new_network = new_networks[idx1][0]
@@ -489,7 +532,15 @@ class SubGraphManager:
                         node_partition = assignment[t][q]
                     
                     if node_map is not None:
-                        node_partition = node_map[node_partition]
+                        try:
+                            node_partition = node_map[node_partition]
+                        except Exception as e:
+                            print(f"Node {node} with partition {node_partition} not found in node_map: {e}"
+                                )
+                            print("Q, t:", q, t
+                                  )
+                            print("Qsub, t_sub:", q_sub, t_sub)
+
                     else:
                         node_partition = node_partition
                 

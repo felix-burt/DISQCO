@@ -1,7 +1,10 @@
 from __future__ import annotations
-from disqco.drawing.map_positions import space_mapping, get_pos_list, get_pos_list_ext
+from disqco.drawing.map_positions import space_mapping, get_pos_list, get_pos_list_ext, space_mapping_enhanced, get_pos_list_enhanced, get_pos_list_subgraph, find_node_layout
 from typing import Dict, Tuple, Iterable, Hashable, Union, List
-from IPython import get_ipython
+try:
+    from IPython.core.getipython import get_ipython
+except ImportError:
+    get_ipython = lambda: None
 import numpy as np
 from disqco.graphs.GCP_hypergraph_extended import HyperGraph
 # 
@@ -19,6 +22,7 @@ def hypergraph_to_tikz(
     fill_background=True,
     assignment_map= None,
     show_labels=True,
+    remove_intermediate_roots=False,
 ):
     """
     Convert a QuantumCircuitHyperGraph 'H' into a full standalone TikZ/LaTeX document,
@@ -103,16 +107,22 @@ def hypergraph_to_tikz(
             q, t = node
         
         node_type = H.get_node_attribute(node, 'type', None)
-        if node_type in ("group", "two-qubit", "root_t"):
+        if node_type in ("group", "two-qubit"):
             if H.node_attrs[node].get('name') == "target":
                 return "whiteStyle"
+            else:
+                return "blackStyle"
+        elif node_type == "root_t":
+            if remove_intermediate_roots:
+                return "invisibleStyle"
             else:
                 return "blackStyle"
         elif node_type == "single-qubit":
             # Check if it's an identity gate
             params = H.get_node_attribute(node, 'params', None)
             if params is not None and len(params) > 0:
-                if abs(params[0]) < 1e-10:  # If parameter is effectively zero
+                params_sum = sum(abs(x) for x in params)
+                if params_sum < 1e-10:  # If parameter is effectively zero
                     return "invisibleStyle"
             return "greyStyle"
         else:
@@ -141,7 +151,13 @@ def hypergraph_to_tikz(
         if isinstance(node, tuple) and len(node) == 2:
 
             if assignment_map is not None:
-                q, t = assignment_map[node]
+                try:
+                    q, t = assignment_map[node]
+                except KeyError:
+                    print(f"assignment_map {assignment_map}.")
+                    print(f'Nodes in graph: {list(H.nodes)}')
+                    print(f'Number of nodes: {len(H.nodes)}')
+                    raise KeyError(f"Node {node} not found in assignment_map.")
             else:
                 q, t = node
             # These must exist in pos_list
@@ -213,6 +229,8 @@ def hypergraph_to_tikz(
     # --------------- EDGES ---------------
     tikz_code.append(r"  \begin{pgfonlayer}{edgelayer}")
 
+    full_root_t_set = set()
+
     for edge_id, edge_info in H.hyperedges.items():
         # The logic for drawing is unchanged,
         # except that if an edge connects a dummy node to a real node,
@@ -241,11 +259,22 @@ def hypergraph_to_tikz(
             receivers = edge_info["receiver_set"]
             if len(receivers) > 1:
                 edge_node_name = "edge_" + node_name(root_node)
+                # Calculate the average y position of the receivers
+                ypos_av = sum((num_qubits_phys - pos_list[root_t][r[0]]) * yscale for r in receivers) / len(receivers)
+                # Choose central vertex position based on average y position
+                if ypos_av > (num_qubits_phys - pos_list[root_t][root_node[0]]) * yscale:
+                    yscale_offset = 0.5 * yscale
+                    bending = "bend right=15"
+                else:
+                    yscale_offset = -0.5 * yscale
+                    bending = "bend left=15"
+                # Set x coordinate as midpoint of root node time interval
+                # x = (root_t * xscale + (max_time + 1) * xscale) / 2
                 # We'll place an invisible node near the root_node
                 # to fan out edges if there are multiple receivers
                 rx, ry = pick_position(root_node)
-                rx += 0.3 * xscale
-                ry += 0.3 * yscale
+                rx += 0.5 * xscale
+                ry += yscale_offset
                 tikz_code.append(
                     f"    \\node [style=invisibleStyle] ({edge_node_name}) at ({rx:.3f},{ry:.3f}) {{}};"
                 )
@@ -254,17 +283,31 @@ def hypergraph_to_tikz(
                 )
             else:
                 edge_node_name = node_name(root_node)
+                bending = "bend left=15"
 
+            
             for rnode in receivers:
                 tikz_code.append(
-                    f"    \\draw [style=edgeStyle, bend right=15] ({edge_node_name}) to ({node_name(rnode)});"
+                    f"    \\draw [style=edgeStyle, {bending}] ({edge_node_name}) to ({node_name(rnode)});"
                 )
-            # If there's more than one 'root' in root_set, also connect them
             for rnode in roots:
                 if rnode != root_node:
+                    full_root_t_set.add(rnode)
+                    if not remove_intermediate_roots:
+                    # If there's more than one 'root' in root_set, also connect them
+                        tikz_code.append(
+                            f"    \\draw [style=edgeStyle, {bending}] ({node_name(rnode)}) to ({edge_node_name});"
+                        )
+                        
+            else:
+                # Handle case where there are multiple roots but need to find the latest one
+                valid_roots = [r for r in roots if isinstance(r, tuple) and len(r) >= 2]
+                if valid_roots and isinstance(root_node, tuple) and len(root_node) >= 2:
+                    max_time_root = max(r[1] for r in valid_roots)
+                    root_node_final = (root_node[0], max_time_root)
                     tikz_code.append(
-                        f"    \\draw [style=edgeStyle, bend right=15] ({node_name(rnode)}) to ({edge_node_name});"
-                    )
+                            f"    \\draw [style=edgeStyle, {bending}] ({node_name(root_node_final)}) to ({edge_node_name});")
+
 
         else:
             # fallback for symbolic edge_id, same logic
@@ -274,8 +317,12 @@ def hypergraph_to_tikz(
                 continue
             node1 = list(root_set)[0]
             node2 = list(rec_set)[0]
-
-            bend = "[style=edgeStyle, bend right=15]" if node1[0] != node2[0] else "[style=edgeStyle]"
+            if remove_intermediate_roots:
+                print(node2)
+                print(full_root_t_set)
+                if node2 in full_root_t_set and node1[1] == node2[1]:
+                    continue
+            bend = "[style=edgeStyle, bend left=15]" if node1[0] != node2[0] else "[style=edgeStyle]"
             tikz_code.append(
                 f"    \\draw {bend} ({node_name(node1)}) to ({node_name(node2)});"
             )
@@ -355,7 +402,7 @@ def hypergraph_to_tikz(
     return final_code
 
 def draw_graph_tikz(H, assignment, qpu_info, invert_colors=False, fill_background=True, assignment_map=None, show_labels=True,
-        tikz_raw = False):
+        tikz_raw = False, remove_intermediate_roots=False):
     """
     Jupyter convenience function to compile & display the TikZ code inline.
     """
@@ -368,6 +415,7 @@ def draw_graph_tikz(H, assignment, qpu_info, invert_colors=False, fill_backgroun
         fill_background=fill_background,
         assignment_map=assignment_map,
         show_labels=show_labels,
+        remove_intermediate_roots=remove_intermediate_roots
     )
     if tikz_raw:
         return tikz_code
@@ -834,74 +882,594 @@ def draw_graph_tikz_v2(
     return ip.run_cell_magic("tikz", "-f -r --dpi=150", code)
 
 
+def hypergraph_to_tikz_subgraph(
+    H,
+    assignment,
+    qpu_info,
+    assignment_map,
+    node_map,
+    xscale=None,
+    yscale=None,
+    save=False,
+    path=None,
+    invert_colors=False,
+    fill_background=True,
+    show_labels=True,
+    remove_intermediate_roots=False,
+):
+    """
+    Convert a QuantumCircuitHyperGraph subgraph 'H' into a TikZ document,
+    with special handling for dummy nodes that represent boundary connections
+    to other regions of the full graph.
+    
+    Args:
+        H: The subgraph hypergraph
+        assignment: Qubit assignment for the subgraph
+        qpu_info: QPU partition information
+        assignment_map: Maps overall node indices to subgraph node indices
+        node_map: Maps overall partition numbers to subgraph partition numbers
+        show_labels (bool): Whether to show node labels (default: True)
+        remove_intermediate_roots (bool): Whether to remove intermediate root nodes
+    """
+
+    if isinstance(qpu_info, dict):
+        qpu_sizes = list(qpu_info.values())
+    else:
+        qpu_sizes = qpu_info
+    
+    # Basic parameters
+    depth = getattr(H, 'depth', 0)
+    num_qubits = getattr(H, 'num_qubits', 0)
+    num_qubits_phys = sum(qpu_sizes)
+
+    # Default scales if not specified
+    if xscale is None:
+        xscale = 10.0 / depth if depth else 1
+    if yscale is None:
+        yscale = 6.0 / num_qubits if num_qubits else 1
+
+    # Calculate node scaling based on circuit size
+    node_scale = min(0.6, max(0.3, 1.0 / (max(depth, num_qubits) ** 0.5)))
+    small_node_scale = node_scale * 0.5
+    gate_node_scale = node_scale * 1.2
+    dummy_node_scale = node_scale * 2.0  # Double the size of other nodes for dummy nodes
+
+    # Build the position map for real (qubit,time) nodes using original mapping
+    # Temporarily using original mapping to debug positioning issues
+    # space_map = space_mapping_enhanced(qpu_sizes, depth, track_usage=True)
+    # pos_list = get_pos_list_subgraph(H, num_qubits, assignment, space_map, assignment_map, node_map)
+    pos_list = find_node_layout(graph=H, assignment=assignment, qpu_sizes=qpu_info, assignment_map=assignment_map)
+    # Find max time for boundary calculations
+    if H.nodes:
+        max_time = max(n[1] for n in H.nodes if isinstance(n, tuple) and len(n) == 2 and n[0] != "dummy")
+        min_time = min(n[1] for n in H.nodes if isinstance(n, tuple) and len(n) == 2 and n[0] != "dummy")
+    else:
+        max_time = depth - 1
+        min_time = 0
+
+    # Style definitions
+    if invert_colors:
+        edge_color = "white"
+        boundary_color = "white"
+        white_small_style = rf"circle, draw=white, fill=white, scale={small_node_scale}"
+        black_style       = rf"circle, draw=white, fill=black, scale={node_scale}"
+        white_style       = rf"circle, draw=white, fill=white, scale={node_scale}"
+        grey_style        = rf"circle, draw=white, fill=gray!50, scale={node_scale}"
+        invisible_style   = r"inner sep=0pt, scale=0.1, draw=white"
+        dummy_style       = rf"rectangle, draw=white, fill=red!60, scale={dummy_node_scale}, minimum size=8pt"
+        background_fill   = "black"
+    else:
+        edge_color = "black"
+        boundary_color = "black"
+        white_small_style = rf"circle, draw=black, fill=white, scale={small_node_scale}"
+        black_style       = rf"circle, draw=black, fill=black, scale={node_scale}"
+        white_style       = rf"circle, draw=black, fill=white, scale={node_scale}"
+        grey_style        = rf"circle, draw=black, fill=gray, scale={node_scale}"
+        invisible_style   = r"inner sep=0pt, scale=0.1, draw=none"
+        dummy_style       = rf"rectangle, draw=black, fill=red!30, scale={dummy_node_scale}, minimum size=8pt"
+        background_fill   = "white"
+
+    if fill_background:
+        background_option = f"show background rectangle, background rectangle/.style={{fill={background_fill}}}"
+    else:
+        background_option = ""
+
+    def pick_style(node):
+        # Check if it's a dummy node
+        if isinstance(node, tuple) and len(node) >= 2 and node[0] == "dummy":
+            return "dummyStyle"
+
+        # For real circuit nodes
+        if isinstance(node, tuple) and len(node) == 2:
+            q, t = node
             
+            node_type = H.get_node_attribute(node, 'type', None)
+            if node_type in ("group", "two-qubit"):
+                if H.node_attrs[node].get('name') == "target":
+                    return "whiteStyle"
+                else:
+                    return "blackStyle"
+            elif node_type == "root_t":
+                if remove_intermediate_roots:
+                    return "invisibleStyle"
+                else:
+                    return "blackStyle"
+            elif node_type == "single-qubit":
+                # Check if it's an identity gate
+                params = H.get_node_attribute(node, 'params', None)
+                if params is not None and len(params) > 0:
+                    params_sum = sum(abs(x) for x in params)
+                    if params_sum < 1e-10:
+                        return "invisibleStyle"
+                return "greyStyle"
+            else:
+                return "invisibleStyle"
 
+        return "invisibleStyle"
 
-
-    #     # The logic for drawing is unchanged,
-    #     # except that if an edge connects a dummy node to a real node,
-    #     # the code simply uses their coordinates from pick_position.
-    #     if isinstance(edge_id[0], int):
-    #         roots = edge_info['root_set']
-    #         root_node = edge_id
-    #         for root in roots:
-    #             if root[0] != "dummy":
-    #                 break
-    #             else:
-    #                 root_node = root
+    def pick_position(node):
+        # Handle dummy nodes - place them on the boundaries
+        if isinstance(node, tuple) and len(node) >= 2 and node[0] == "dummy":
+            print(f"Processing dummy node: {node}")
+            dummy_vertical_shift = 3.0 * yscale  # Even larger shift to make dummies more visible
             
-    #         root_t = root_node[1]
+            if len(node) >= 4:  # ("dummy", q_idx, t_idx, partition) or similar
+                q_idx = node[1] if len(node) > 1 else 0
+                t_idx = node[2] if len(node) > 2 else 0
+                partition = node[3] if len(node) > 3 else 0
+                
+                # Place dummy nodes clearly outside the main circuit area
+                if t_idx <= min_time:
+                    x = (min_time - 2.0) * xscale  # Further left 
+                else:
+                    x = (max_time + 2.0) * xscale  # Further right
+                
+                # Vertical position based on partition, with good separation
+                base_y = partition * 2  # More space between partitions
+                y = base_y * yscale + dummy_vertical_shift
+                return (x, y)
+                
+            elif len(node) == 3:  # ("dummy", partition, subpartition)
+                _, p, pprime = node
+                # Map partition to subgraph partition if needed
+                if node_map and p in node_map:
+                    mapped_p = node_map[p]
+                    # Place dummy nodes outside the main graph area
+                    x = (depth + 2.0) * xscale  # Further right boundary
+                    
+                    # Distribute dummy nodes vertically with more space
+                    y_offset = mapped_p * 3  # More vertical spacing
+                    y = y_offset * yscale + dummy_vertical_shift
+                    return (x, y)
+                else:
+                    # Default position if partition not mapped
+                    return ((depth + 2.0) * xscale, (num_qubits_phys / 2) * yscale + dummy_vertical_shift)
+            
+            elif len(node) == 2:  # ("dummy", identifier)
+                # Place temporal dummy nodes on left/right boundaries
+                _, identifier = node
+                if isinstance(identifier, int):
+                    # Temporal dummy - could be before or after the subgraph
+                    if identifier < min_time:
+                        x = (min_time - 2.0) * xscale  # Further left boundary
+                    else:
+                        x = (max_time + 2.0) * xscale   # Further right boundary
+                    
+                    # Center vertically with large shift up
+                    y = (num_qubits_phys / 2) * yscale + dummy_vertical_shift
+                    return (x, y)
+                else:
+                    # Generic dummy node
+                    return ((depth + 2.0) * xscale, (num_qubits_phys / 2) * yscale + dummy_vertical_shift)
 
-    #         if root_node[0] == "dummy":
-    #             root_t, _ = pick_position(root_node)
-    #         else:   
-    #             root_t = edge_id[1]
-    #             for rt in roots:
-    #                 if isinstance(rt, tuple) and len(rt) == 2:
-    #                     if rt[1] < root_t:
-    #                         root_node = rt
-    #                         root_t = rt[1]
+        # Handle regular circuit nodes
+        if isinstance(node, tuple) and len(node) == 2:
+            q, t = node
+            
+            # For positioning, use the subgraph coordinates directly
+            # The assignment_map handling should be done in the space mapping, not here
+            
+            # Ensure we have valid indices
+            print(f"Processing node: {node}")
+            if (q,t) in pos_list:
+                print("Pos_list has position for node:", pos_list[(q,t)])
+                x = t * xscale
 
-    #         receivers = edge_info["receiver_set"]
-    #         if len(receivers) > 1:
-    #             edge_node_name = "edge_" + node_name(root_node)
-    #             # We'll place an invisible node near the root_node
-    #             # to fan out edges if there are multiple receivers
-    #             rx, ry = pick_position(root_node)
-    #             rx += 0.3 * xscale
-    #             ry -= 0.3 * yscale
-    #             tikz_code.append(
-    #                 f"    \\node [style=invisibleStyle] ({edge_node_name}) at ({rx:.3f},{ry:.3f}) {{}};"
-    #             )
-    #             tikz_code.append(
-    #                 f"    \\draw [style=edgeStyle] ({node_name(root_node)}) to ({edge_node_name});"
-    #             )
-    #         else:
-    #             edge_node_name = node_name(root_node)
+                y = (num_qubits_phys - pos_list[(q,t)]) * yscale
+                return (x, y)
+            else:
+                # Fallback positioning if pos_list doesn't have the position
+                x = t * xscale
+                y = (num_qubits_phys - q) * yscale  # Use qubit index directly
+                return (x, y)
 
-    #         for rnode in receivers:
-    #             tikz_code.append(
-    #                 f"    \\draw [style=edgeStyle, bend right=15] ({edge_node_name}) to ({node_name(rnode)});"
-    #             )
-    #         # If there's more than one 'root' in root_set, also connect them
-    #         for rnode in roots:
-    #             if rnode != root_node:
-    #                 tikz_code.append(
-    #                     f"    \\draw [style=edgeStyle, bend right=15] ({node_name(rnode)}) to ({edge_node_name});"
-    #                 )
+        # Fallback
+        return (0, 0)
 
-    #     else:
-    #         # fallback for symbolic edge_id, same logic
-    #         root_set = edge_info['root_set']
-    #         rec_set = edge_info['receiver_set']
-    #         if not root_set or not rec_set:
-    #             continue
-    #         node1 = list(root_set)[0]
-    #         node2 = list(rec_set)[0]
-    #         bend = "[style=edgeStyle, bend right=15]" if node1[0] != node2[0] else "[style=edgeStyle]"
-    #         tikz_code.append(
-    #             f"    \\draw {bend} ({node_name(node1)}) to ({node_name(node2)});"
-    #         )
-    # tikz_code.append(r"  \end{pgfonlayer}")
+    def node_name(n):
+        # Validate the node structure to prevent malformed names
+        if not isinstance(n, (tuple, list)) or len(n) == 0:
+            print(f"WARNING: Invalid node structure: {n}")
+            return "n_invalid"
+        
+        # Special handling for dummy nodes
+        if isinstance(n, tuple) and len(n) > 0 and n[0] == "dummy":
+            # Ensure all elements are properly stringified
+            name_parts = []
+            for part in n:
+                if isinstance(part, (int, float, str)):
+                    name_parts.append(str(part))
+                else:
+                    print(f"WARNING: Invalid part in dummy node: {part}")
+                    name_parts.append("invalid")
+            return "n_" + "_".join(name_parts)
+        
+        # Regular node handling
+        try:
+            return "n_" + "_".join(str(x) for x in n)
+        except Exception as e:
+            print(f"ERROR in node_name for {n}: {e}")
+            return "n_error"
+
+    # Build TikZ code
+    tikz_code = []
+    tikz_code.append(r"\documentclass[tikz,border=2pt]{standalone}")
+    tikz_code.append(r"\usepackage{tikz}")
+    tikz_code.append(r"\usetikzlibrary{calc,backgrounds}")
+    tikz_code.append(r"\pgfdeclarelayer{nodelayer}")
+    tikz_code.append(r"\pgfdeclarelayer{edgelayer}")
+    tikz_code.append(r"\pgfsetlayers{background,edgelayer,nodelayer,main}")
+    tikz_code.append(r"\begin{document}")
+    tikz_code.append(rf"\begin{{tikzpicture}}[>=latex, {background_option}]")
+
+    # Define styles
+    tikz_code.append(fr"  \tikzstyle{{whiteSmallStyle}}=[{white_small_style}]")
+    tikz_code.append(fr"  \tikzstyle{{blackStyle}}=[{black_style}]")
+    tikz_code.append(fr"  \tikzstyle{{whiteStyle}}=[{white_style}]")
+    tikz_code.append(fr"  \tikzstyle{{greyStyle}}=[{grey_style}]")
+    tikz_code.append(fr"  \tikzstyle{{invisibleStyle}}=[{invisible_style}]")
+    tikz_code.append(fr"  \tikzstyle{{dummyStyle}}=[{dummy_style}]")
+
+    tikz_code.append(r"  \tikzset{edgeStyle/.style={draw=" + edge_color + "}}")
+    tikz_code.append(r"  \tikzset{boundaryLine/.style={draw=" + boundary_color + ", dashed}}")
+    tikz_code.append(r"  \tikzset{nodeLabel/.style={scale=0.4, inner sep=1pt}}")  # Smaller labels to reduce overlap
+
+    # Draw nodes
+    tikz_code.append(r"  \begin{pgfonlayer}{nodelayer}")
+    for n in H.nodes:
+        (x, y) = pick_position(n)
+        style = pick_style(n)
+        
+        # Check if it's a dummy node - do not show labels for dummy nodes
+        is_dummy = isinstance(n, tuple) and len(n) >= 2 and n[0] == "dummy"
+        
+        if show_labels and not is_dummy:
+            if isinstance(n, tuple) and len(n) == 2 and n[0] != "dummy":
+                # Use the original node coordinates for labeling (not mapped coordinates)
+                original_q, original_t = n
+                
+                # If we have an assignment_map, find the true original coordinates
+                if assignment_map is not None:
+                    # assignment_map maps overall -> subgraph, so we need the reverse
+                    reverse_map = {v: k for k, v in assignment_map.items()}
+                    if n in reverse_map:
+                        true_original = reverse_map[n]
+                        if isinstance(true_original, tuple) and len(true_original) == 2:
+                            original_q, original_t = true_original
+                
+                label = f"$({original_q},{original_t})$"
+                tikz_code.append(
+                    f"    \\node [style={style}, label={{[nodeLabel]above:{label}}}] ({node_name(n)}) at ({x:.3f},{y:.3f}) {{}};"
+                )
+            else:
+                tikz_code.append(
+                    f"    \\node [style={style}] ({node_name(n)}) at ({x:.3f},{y:.3f}) {{}};"
+                )
+        else:
+            # No labels for dummy nodes or when show_labels is False
+            tikz_code.append(
+                f"    \\node [style={style}] ({node_name(n)}) at ({x:.3f},{y:.3f}) {{}};"
+            )
+    tikz_code.append(r"  \end{pgfonlayer}")
+
+    # Draw edges - using improved logic from hypergraph_to_tikz
+    tikz_code.append(r"  \begin{pgfonlayer}{edgelayer}")
+
+    full_root_t_set = set()
+
+    for edge_id, edge_info in H.hyperedges.items():
+        # The logic for drawing is unchanged from hypergraph_to_tikz,
+        # except that if an edge connects a dummy node to a real node,
+        # the code simply uses their coordinates from pick_position.
+        if isinstance(edge_id[0], int):
+            roots = edge_info['root_set']
+            
+            # Find the best root node - prefer non-dummy nodes
+            root_node = None
+            for root in roots:
+                if isinstance(root, tuple) and len(root) >= 2:
+                    if root[0] != "dummy":
+                        root_node = root
+                        break
+            
+            # If no non-dummy root found, use the first valid dummy node
+            if root_node is None:
+                for root in roots:
+                    if isinstance(root, tuple) and len(root) >= 2:
+                        root_node = root
+                        break
+            
+            # Fallback to edge_id if still no valid root found
+            if root_node is None:
+                root_node = edge_id
+            
+            # Determine root_t based on node type
+            if isinstance(root_node, tuple) and len(root_node) >= 2:
+                if root_node[0] == "dummy":
+                    # For dummy nodes, we can't use pos_list indexing
+                    # Use a default time or extract from the dummy node structure
+                    if len(root_node) >= 3:
+                        root_t = root_node[2] if isinstance(root_node[2], (int, float)) else 0
+                    else:
+                        root_t = 0  # Default time
+                else:   
+                    root_t = root_node[1]
+                    # Check for earlier roots in the same set
+                    for rt in roots:
+                        if isinstance(rt, tuple) and len(rt) == 2 and rt[0] != "dummy":
+                            if rt[1] < root_t:
+                                root_node = rt
+                                root_t = rt[1]
+            else:
+                root_t = edge_id[1] if isinstance(edge_id, tuple) and len(edge_id) >= 2 else 0
+
+            receivers = edge_info["receiver_set"]
+            if len(receivers) > 1:
+                edge_node_name = "edge_" + node_name(root_node)
+                # Calculate the average y position of the receivers
+                receiver_y_positions = []
+                for r in receivers:
+                    if isinstance(r, tuple) and len(r) >= 2:
+                        if r[0] != "dummy":
+                            # Regular node - use pos_list
+                            t_idx = int(root_t) if isinstance(root_t, (int, float)) else 0
+                            q_idx = int(r[0]) if isinstance(r[0], (int, float)) else 0
+                            # if (t_idx < len(pos_list) and q_idx < len(pos_list[t_idx]) and 
+                            #     pos_list[t_idx][q_idx] is not None):
+                            if (q_idx, t_idx) in pos_list:
+                                receiver_y_positions.append((num_qubits_phys - pos_list[(q_idx, t_idx)]) * yscale)
+                            else:
+                                receiver_y_positions.append((num_qubits_phys - q_idx) * yscale)
+                        else:
+                            # Dummy node - use pick_position
+                            _, ry = pick_position(r)
+                            receiver_y_positions.append(ry)
+                
+                if receiver_y_positions:
+                    ypos_av = sum(receiver_y_positions) / len(receiver_y_positions)
+                else:
+                    ypos_av = 0
+                
+                # Get y position of root node for comparison
+                if isinstance(root_node, tuple) and len(root_node) >= 2 and root_node[0] != "dummy":
+                    t_idx = int(root_t) if isinstance(root_t, (int, float)) else 0
+                    q_idx = int(root_node[0]) if isinstance(root_node[0], (int, float)) else 0
+                    # if (t_idx < len(pos_list) and q_idx < len(pos_list[t_idx]) and 
+                    #     pos_list[t_idx][q_idx] is not None):
+                    if (q_idx, t_idx) in pos_list:
+                        root_y = (num_qubits_phys - pos_list[(q_idx, t_idx)]) * yscale
+                    else:
+                        root_y = (num_qubits_phys - q_idx) * yscale
+                else:
+                    _, root_y = pick_position(root_node)
+                
+                # Choose central vertex position based on average y position
+                if ypos_av > root_y:
+                    yscale_offset = 0.5 * yscale
+                    bending = "bend right=15"
+                else:
+                    yscale_offset = -0.5 * yscale
+                    bending = "bend left=15"
+                
+                # We'll place an invisible node near the root_node
+                # to fan out edges if there are multiple receivers
+                rx, ry = pick_position(root_node)
+                rx += 0.5 * xscale
+                ry += yscale_offset
+                tikz_code.append(
+                    f"    \\node [style=invisibleStyle] ({edge_node_name}) at ({rx:.3f},{ry:.3f}) {{}};"
+                )
+                tikz_code.append(
+                    f"    \\draw [style=edgeStyle] ({node_name(root_node)}) to ({edge_node_name});"
+                )
+            else:
+                edge_node_name = node_name(root_node)
+                bending = "bend left=15"
+
+            
+            for rnode in receivers:
+                # Skip if receiver is the same as root node (prevents self-connections)
+                if rnode == root_node:
+                    print(f"DEBUG: Skipping self-connection for node {rnode}")
+                    continue
+                
+                # Validate receiver node structure
+                if not isinstance(rnode, (tuple, list)) or len(rnode) == 0:
+                    print(f"DEBUG: Skipping invalid receiver node: {rnode}")
+                    continue
+                
+                # Get valid node names
+                rnode_name = node_name(rnode)
+                if "invalid" in rnode_name or "error" in rnode_name:
+                    print(f"DEBUG: Skipping receiver with invalid name: {rnode} -> {rnode_name}")
+                    continue
+                    
+                # Special handling for dummy nodes - use thick straight lines
+                if isinstance(rnode, tuple) and len(rnode) > 0 and rnode[0] == "dummy":
+                    tikz_code.append(
+                        f"    \\draw [style=edgeStyle, thick] ({edge_node_name}) to ({rnode_name});"
+                    )
+                else:
+                    tikz_code.append(
+                        f"    \\draw [style=edgeStyle, {bending}] ({edge_node_name}) to ({rnode_name});"
+                    )
+            for rnode in roots:
+                if rnode != root_node:
+                    full_root_t_set.add(rnode)
+                    if not remove_intermediate_roots:
+                        # Validate root node structure
+                        if not isinstance(rnode, (tuple, list)) or len(rnode) == 0:
+                            print(f"DEBUG: Skipping invalid root node: {rnode}")
+                            continue
+                        
+                        # Get valid node name
+                        rnode_name = node_name(rnode)
+                        if "invalid" in rnode_name or "error" in rnode_name:
+                            print(f"DEBUG: Skipping root with invalid name: {rnode} -> {rnode_name}")
+                            continue
+                        
+                        # If there's more than one 'root' in root_set, also connect them
+                        # Special handling for dummy nodes
+                        if isinstance(rnode, tuple) and len(rnode) > 0 and rnode[0] == "dummy":
+                            tikz_code.append(
+                                f"    \\draw [style=edgeStyle, thick] ({rnode_name}) to ({edge_node_name});"
+                            )
+                        else:
+                            tikz_code.append(
+                                f"    \\draw [style=edgeStyle, {bending}] ({rnode_name}) to ({edge_node_name});"
+                            )
+
+
+        else:
+            # fallback for symbolic edge_id, same logic
+            root_set = edge_info['root_set']
+            rec_set = edge_info['receiver_set']
+            if not root_set or not rec_set:
+                continue
+            node1 = list(root_set)[0]
+            node2 = list(rec_set)[0]
+            if remove_intermediate_roots:
+                print(node2)
+                print(full_root_t_set)
+                if node2 in full_root_t_set and node1[1] == node2[1]:
+                    continue
+            
+            # Validate both nodes before creating edge
+            if not isinstance(node1, (tuple, list)) or len(node1) == 0:
+                print(f"DEBUG: Skipping edge with invalid node1: {node1}")
+                continue
+            if not isinstance(node2, (tuple, list)) or len(node2) == 0:
+                print(f"DEBUG: Skipping edge with invalid node2: {node2}")
+                continue
+                
+            # Prevent self-connections
+            if node1 == node2:
+                print(f"DEBUG: Skipping self-connection: {node1} -> {node2}")
+                continue
+            
+            # Get valid node names
+            node1_name = node_name(node1)
+            node2_name = node_name(node2)
+            if "invalid" in node1_name or "error" in node1_name:
+                print(f"DEBUG: Skipping edge with invalid node1 name: {node1} -> {node1_name}")
+                continue
+            if "invalid" in node2_name or "error" in node2_name:
+                print(f"DEBUG: Skipping edge with invalid node2 name: {node2} -> {node2_name}")
+                continue
+            
+            # Check if nodes are on same qubit for straight line (v[0] = u[0])
+            if isinstance(node1, tuple) and isinstance(node2, tuple) and len(node1) >= 2 and len(node2) >= 2:
+                if node1[0] == node2[0]:  # Same qubit - use straight line
+                    bend = "[style=edgeStyle]"
+                else:  # Different qubits - use curved line
+                    bend = "[style=edgeStyle, bend left=15]"
+            else:
+                bend = "[style=edgeStyle, bend left=15]"
+            
+            # Special handling for dummy nodes - use thick lines
+            if ((isinstance(node1, tuple) and len(node1) > 0 and node1[0] == "dummy") or 
+                (isinstance(node2, tuple) and len(node2) > 0 and node2[0] == "dummy")):
+                bend = bend.replace("[style=edgeStyle", "[style=edgeStyle, thick")
+            
+            tikz_code.append(
+                f"    \\draw {bend} ({node1_name}) to ({node2_name});"
+            )
+
+    tikz_code.append(r"  \end{pgfonlayer}")
+
+    # Add boundary lines between partitions (if applicable)
+    tikz_code.append(r"  \begin{pgfonlayer}{edgelayer}")
+    print("QPU sizes:", qpu_sizes)
+    for i in range(1, len(qpu_sizes)):
+        boundary = sum(qpu_sizes[:i])+1
+        line_y = (num_qubits_phys - boundary + 0.5) * yscale
+        left_x = (min_time - 1.5) * xscale
+        right_x = (max_time + 2) * xscale
+        tikz_code.append(
+            f"    \\draw[style=boundaryLine] ({left_x:.3f},{line_y:.3f}) -- ({right_x:.3f},{line_y:.3f});"
+        )
+    tikz_code.append(r"  \end{pgfonlayer}")
+
+    tikz_code.append(r"\end{tikzpicture}")
+    tikz_code.append(r"\end{document}")
+
+    final_code = "\n".join(tikz_code)
+    if save and path is not None:
+        with open(path, "w") as f:
+            f.write(final_code)
+
+    return final_code
+
+
+def draw_subgraph_tikz(
+    H, 
+    assignment, 
+    qpu_info, 
+    assignment_map, 
+    node_map,
+    invert_colors=False, 
+    fill_background=True, 
+    show_labels=True,
+    tikz_raw=False, 
+    remove_intermediate_roots=False
+):
+    """
+    Jupyter convenience function to compile & display the subgraph TikZ code inline.
+    
+    Args:
+        H: The subgraph hypergraph
+        assignment: Qubit assignment for the subgraph  
+        qpu_info: QPU partition information
+        assignment_map: Maps overall node indices to subgraph node indices
+        node_map: Maps overall partition numbers to subgraph partition numbers
+        invert_colors: Whether to use inverted color scheme
+        fill_background: Whether to fill the background
+        show_labels: Whether to show node labels
+        tikz_raw: Whether to return raw TikZ code instead of rendering
+        remove_intermediate_roots: Whether to remove intermediate root nodes
+    """
+    tikz_code = hypergraph_to_tikz_subgraph(
+        H,
+        assignment,
+        qpu_info,
+        assignment_map,
+        node_map,
+        save=False,
+        invert_colors=invert_colors,
+        fill_background=fill_background,
+        show_labels=show_labels,
+        remove_intermediate_roots=remove_intermediate_roots
+    )
+    
+    if tikz_raw:
+        return tikz_code
+        
+    ip = get_ipython()
+    if ip is not None:
+        args = "-f -r --dpi=150"
+        return ip.run_cell_magic('tikz', args, tikz_code)
+    else:
+        # Return the code if not in a Jupyter environment
+        return tikz_code
 
 

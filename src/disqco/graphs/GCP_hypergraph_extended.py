@@ -8,6 +8,7 @@ import math as mt
 import numpy as np
 from collections import defaultdict
 import copy
+from qiskit import QuantumCircuit
 
 EdgeKey = Hashable
 PairKey = frozenset[Hashable]
@@ -192,6 +193,13 @@ class HyperGraph:
             self.remove_hyperedge(key)
         self._del_inc(v, key)
 
+    def from_circuit(self, circuit: QuantumCircuit) -> None:
+        """
+        Convert from a QuantumCircuit to this hypergraph.
+        """
+        gcp_hypergraph = QuantumCircuitHyperGraph(circuit, group_gates=False)
+        self.convert_from_GCP(gcp_hypergraph)
+
     def convert_from_GCP(self, gcp_hypergraph: QuantumCircuitHyperGraph) -> None:
         """
         Convert from GCP hypergraph to this hypergraph.
@@ -206,7 +214,6 @@ class HyperGraph:
             live = False
             for t in range(depth):
                 node = (i, t)
-                print("Node: ", node)
                 node_attrs = gcp_hypergraph.node_attrs[node]
                 if node_attrs != {}:
                     node_type = node_attrs["type"]
@@ -218,27 +225,19 @@ class HyperGraph:
                     node_attrs = {  'type': node_type,
                                     'name': name,
                                     'params': params    }
-                print("Node type: ", node_type)
                 nodes[node] = node_attrs
                 if node_type == 'single-qubit':
                     diagonality = self.check_diag_gate(node_attrs)
                     if diagonality and live:
                         hyperedge.add(node)
-                        print("Gate is diagonal and root is live: ", node)
-                        print("Added node to hyperedge: ", node)
                     else:
                         if live:
                             hyperedges.append(set(hyperedge))
                             hyperedge = set()
                             live = False
-                            print("Non diagonal gate, end live group: ", node)
-                            print("Hyperedge: ", hyperedge)
                         
                         prev_node = (i, t-1)
-                        print("Previous node: ", prev_node)
                         if prev_node in gcp_hypergraph.nodes:
-                            print("Previous node exists: ", prev_node)
-                            print("Create state hyperedge: ")
                             hyperedge = set()
                             hyperedge.add(prev_node)
                             hyperedge.add(node)
@@ -248,43 +247,27 @@ class HyperGraph:
                 elif node_type == 'two-qubit':
                     partner = self.find_partner(node, gcp_hypergraph)
                     partner_q = partner[0]
-                    print("Gate partner: ", partner)
                     if node_attrs['name'] == 'control':
                         if (partner_q, node[0], t) in nodes:
-                            print("Gate node exists: ", (partner_q, node[0], t))
                             gate_node = (partner_q, node[0], t)
                         else:
-                            print("Gate node does not exist: ", (partner_q, node[0], t))
                             gate_node = (node[0], partner_q, t)
                             if gate_node not in nodes:
-                                print("Create gate node: ", gate_node)
                                 edge_attrs = gcp_hypergraph.hyperedge_attrs.get((node,partner), gcp_hypergraph.hyperedge_attrs.get((partner,node)))
-                                print("Edge attributes: ", edge_attrs)
                                 nodes[gate_node] = {'qubits' : [node[0], partner_q], 'params': edge_attrs['params']}
                         if live: 
-                            print("Group is live on root: ", node[0])
                             hyperedge.add(node)
-                            print("Added node to hyperedge: ", node)
                             hyperedge.add(gate_node)
-                            print("Added gate node to hyperedge: ", gate_node)
-                            print("Hyperedge: ", hyperedge)
                         else:
-
-                            print("Group is not live on root: ", node[0])
                             prev_node = (i, t-1)
                             if prev_node in nodes:
-                                print("Previous node exists: ", prev_node)
                                 hyperedge = set()
                                 hyperedge.add(prev_node)
                                 hyperedge.add(node)
                                 hyperedges.append(set(hyperedge))
                             hyperedge = set()
-                            print("Create new hyperedge: ", hyperedge)
                             hyperedge.add(node)
                             hyperedge.add(gate_node)
-                            print("Added node to hyperedge: ", node)
-                            print("Added gate node to hyperedge: ", gate_node)
-                            print("Hyperedge: ", hyperedge)
                             live = True
 
                     elif node_attrs['name'] == 'target':
@@ -421,3 +404,64 @@ class HyperGraph:
         new_graph.num_qubits = self.num_qubits
         new_graph.depth = self.depth
         return new_graph
+
+    # ------------------------------------------------------------------ #
+    # Drawing helper                                                     #
+    # ------------------------------------------------------------------ #
+
+    def draw(
+        self,
+        qubit_assignment : np.ndarray | None = None,
+        gate_assignment : np.ndarray | None = None,
+        qpu_info : list[int] | dict[int, int] | None = None,
+        *,
+        show_labels: bool = True,
+        **kwargs,
+    ):
+        """Render the hyper-graph as a TikZ figure (v2 layout).
+
+        Parameters
+        ----------
+        qubit_assignment : np.ndarray
+            Current qubit-to-partition assignment matrix.
+        gate_assignment : np.ndarray
+            Gate assignment array.
+        qpu_info : list[int] | dict[str, int]
+            Hardware layout (passed straight to the drawing helper).
+        show_labels : bool, optional
+            Whether to label nodes with (q,t) coordinates.  Default *True*.
+        **kwargs : Any
+            Forwarded to ``draw_graph_tikz_v2`` (e.g. *invert_colors*, *fill_background*, …).
+
+        Returns
+        -------
+        Any
+            Whatever ``draw_graph_tikz_v2`` returns – typically the rendered
+            cell-magic result in a Jupyter notebook, or the raw TikZ code if
+            you pass ``tikz_raw=True`` in *kwargs*.
+        """
+
+        if qpu_info is None:
+            qpu_info = [self.num_qubits]
+
+        if qubit_assignment is None:
+            from disqco.parti.FM.FM_methods_ext import set_initial_qubit_assignment
+            qubit_assignment = set_initial_qubit_assignment(qpu_info, self.num_qubits, self.depth)
+
+        if gate_assignment is None:
+            from disqco.parti.FM.FM_methods_ext import set_initial_gate_assignment
+            gate_assignment = set_initial_gate_assignment(self, qubit_assignment, randomise=False)
+
+        # Local import to avoid heavy dependencies when drawing is not used
+        from disqco.drawing.tikz_drawing import draw_graph_tikz_v2
+
+        return draw_graph_tikz_v2(
+            self,
+            qubit_assignment=qubit_assignment,
+            gate_assignment=gate_assignment,
+            qpu_info=qpu_info,
+            depth=self.depth,
+            num_qubits=self.num_qubits,
+            show_labels=show_labels,
+            **kwargs,
+        )
