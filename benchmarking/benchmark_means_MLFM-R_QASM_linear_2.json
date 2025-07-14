@@ -1,0 +1,16 @@
+[
+  {
+    "circuit_name": "QV_n100",
+    "num_qubits": 100,
+    "num_partitions": 6,
+    "mean_r_cost": 10840.0,
+    "mean_r_time": 119.77700853347778
+  },
+  {
+    "circuit_name": "QV_n100",
+    "num_qubits": 100,
+    "num_partitions": 8,
+    "mean_r_cost": 16084.0,
+    "mean_r_time": 177.46400666236877
+  }
+]

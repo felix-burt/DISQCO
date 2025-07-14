@@ -638,10 +638,10 @@ class HypergraphCoarsener:
         # 2) For each (source, target) in merges, unify old_node with new_node
         #    by pointing old_node’s representative to new_node’s representative.
         # print("Node list:", node_list)
-        carry_over = []  # to carry over nodes that are not in the merges
+        # carry_over = []  # to carry over nodes that are not in the merges
         for (source, target) in merges:
-            layer_nodes = [(node_list[source][i], source) for i in range(len(node_list[source]))] + carry_over
-            carry_over = []  # to carry over nodes that are not in the merges
+            layer_nodes = [(node_list[source][i], source) for i in range(len(node_list[source]))]
+            # carry_over = []  # to carry over nodes that are not in the merges
             # print("Layer nodes:", layer_nodes)
             # if source not in node_list:
             #     continue
@@ -656,8 +656,9 @@ class HypergraphCoarsener:
                 if new_node not in rep:
                     continue
 
-                if old_node[0] != new_node[0]:
-                    carry_over.append(old_node)
+                # if old_node[0] != new_node[0]:
+                #     carry_over.append(old_node)
+                #     continue
 
 
                 # "Unify" old_node into whatever new_node currently maps to

@@ -1,0 +1,18 @@
+[
+  {
+    "circuit_name": "QV_n100",
+    "num_qubits": 100,
+    "num_partitions": 6,
+    "iteration": 0,
+    "r_cost": 10840,
+    "time_r": 119.77700853347778
+  },
+  {
+    "circuit_name": "QV_n100",
+    "num_qubits": 100,
+    "num_partitions": 8,
+    "iteration": 0,
+    "r_cost": 16084,
+    "time_r": 177.46400666236877
+  }
+]
