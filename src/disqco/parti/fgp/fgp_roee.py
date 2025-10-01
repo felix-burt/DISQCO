@@ -144,15 +144,19 @@ def calculate_W_matrix(graph):
         w_matrix[qubit2][qubit1] = graph.edges()[edge]['weight']
     return w_matrix
 
-def calculate_W_matrix_cols(W, num_partitions, partition):
-    "Calculate the weight matrix of the graph."
-    num_qubits = len(W)
-    W_cols = np.zeros((num_qubits,num_partitions))
-    for i in range(num_qubits):
-        for j in range(num_qubits):
-            partition_j = partition[j]
-            W_cols[i][partition_j] += W[i][j]
-
+def calculate_W_matrix_cols(graph, W, num_partitions, partition):
+    """Vectorized numpy implementation"""
+    max_node_index = len(graph.nodes())
+    W_cols = np.zeros((max_node_index, num_partitions))
+    
+    # Use numpy advanced indexing for speed
+    for i in graph.nodes():
+        for p in range(num_partitions):
+            # Find all nodes in partition p
+            nodes_in_partition = np.where(partition == p)[0]
+            if len(nodes_in_partition) > 0:
+                W_cols[i][p] = np.sum(W[i][nodes_in_partition])
+    
     return W_cols
 
 def calculate_D_from_W(W_cols, partition, num_partitions):
@@ -278,7 +282,7 @@ def exchange_until_valid(graph, partition, num_partitions, max_cost = 10000, ran
     while not valid:
         N = set(list(graph.nodes()))
         W = calculate_W_matrix(graph)
-        W_cols = calculate_W_matrix_cols(W, num_partitions, partition)
+        W_cols = calculate_W_matrix_cols(graph, W, num_partitions, partition)
         D = calculate_D_from_W(W_cols, partition, num_partitions)
         g = 0
         partition_list = []
@@ -477,12 +481,11 @@ def run_initial_OEE(full_graph,initial_partition,qpu_info):
     g_max = np.inf
     mapping = [n for n in range(np.sum(qpu_info))]
     num_partitions = len(qpu_info)
-    print("Running OEE")
     while g_max > 0:
         N = set(list(full_graph.nodes()))
         cut = calculate_static_cut(partition, full_graph)
         W = calculate_W_matrix(full_graph)
-        W_cols = calculate_W_matrix_cols(W, num_partitions, partition)
+        W_cols = calculate_W_matrix_cols(full_graph, W, num_partitions, partition)
         D = calculate_D_from_W(W_cols, partition, num_partitions)
         g = 0
         partition_list = []

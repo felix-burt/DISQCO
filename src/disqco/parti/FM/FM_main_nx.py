@@ -1,22 +1,5 @@
 from disqco.parti.FM.FM_methods_nx import *
 
-def calculate_cut_size(graph: nx.Graph, assignment: np.ndarray):
-    """Calculate the cut size of a partition"""
-    cut_size = 0
-    for u, v in graph.edges():
-        if assignment[u] != assignment[v]:
-            weight = graph[u][v].get('weight', 1)
-            cut_size += weight
-    return cut_size
-
-
-def set_sparse_assignment(subgraph: nx.Graph, full_graph: nx.Graph, global_assignment: np.ndarray, qpu_sizes: dict):
-
-    qpus = list(qpu_sizes.keys())
-    for i, node in enumerate(subgraph.nodes()):
-        global_assignment[node] = qpus[i%len(qpus)]
-    return global_assignment
-
 def fm_algorithm(graph: nx.Graph, qpu_sizes: dict, max_iterations=10, move_limit=None, total_graph=None, global_assignment='round_robin', ancilla=False):
     """
     Main FM algorithm loop
@@ -51,6 +34,8 @@ def fm_algorithm(graph: nx.Graph, qpu_sizes: dict, max_iterations=10, move_limit
     
     cuts_from_all_passes = [best_cut]
 
+    current_cut = best_cut
+
     for iteration in range(max_iterations):
         
         # Initialize for this pass
@@ -61,7 +46,6 @@ def fm_algorithm(graph: nx.Graph, qpu_sizes: dict, max_iterations=10, move_limit
         else:
             spaces = find_spaces(assignment, qpu_sizes, graph)
 
-        print(f'Spaces: {spaces}')
 
         D = find_all_gains(current_assignment, num_partitions, qpu_sizes,W, graph, max_gain=max_gain)
         # Fill buckets with current gains
@@ -79,7 +63,7 @@ def fm_algorithm(graph: nx.Graph, qpu_sizes: dict, max_iterations=10, move_limit
         move_count = 0
         while move_count < move_limit:
             # Find best valid action
-            result = find_action(graph, buckets, current_assignment, spaces, max_gain, random=True, ancilla=ancilla)
+            result = find_action(graph, buckets, current_assignment, spaces, max_gain, random=False, ancilla=ancilla)
             
             if result[0] is None:  # No valid moves found
                 break
@@ -120,11 +104,12 @@ def fm_algorithm(graph: nx.Graph, qpu_sizes: dict, max_iterations=10, move_limit
                 # Roll back to the best state found during this pass
                 current_assignment = best_state_in_pass
                 # Check if this pass improved the overall solution
-                current_cut = calculate_cut_size(graph, current_assignment)
+                current_cut = current_cut - best_cumulative_gain
 
             else:
                 # Skip the roll back, keep the current assignment
-                current_cut = calculate_cut_size(graph, current_assignment)
+                current_cut = current_cut - cumulative_gains[-1]
+
             cuts_from_all_passes.append(current_cut)
             if current_cut < best_cut:
                 best_cut = current_cut

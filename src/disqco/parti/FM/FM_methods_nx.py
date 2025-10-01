@@ -125,20 +125,40 @@ def calculate_W_matrix(graph):
     for edge in graph.edges():
         qubit1 = edge[0]
         qubit2 = edge[1]
-        w_matrix[qubit1][qubit2] = graph.edges()[edge]['weight']
-        w_matrix[qubit2][qubit1] = graph.edges()[edge]['weight']
+        w_matrix[qubit1][qubit2] = graph.edges()[edge].get('weight', 1)
+        w_matrix[qubit2][qubit1] = graph.edges()[edge].get('weight', 1)
     return w_matrix
 
+# def calculate_W_matrix_cols(graph, W, num_partitions, qpu_sizes, partition):
+#     """Calculate the weight matrix columns efficiently - O(E) instead of O(n²)"""
+#     max_node_index = max(graph.nodes()) + 1
+#     num_partitions = max(qpu_sizes.keys()) + 1
+#     W_cols = np.zeros((max_node_index, num_partitions))
+    
+#     # Only iterate over actual neighbors instead of all node pairs
+#     # This is much faster for sparse graphs (O(E) vs O(n²))
+#     for node in graph.nodes():
+#         for neighbor in graph.neighbors(node):
+#             weight = graph[node][neighbor].get('weight', 1)
+#             neighbor_partition = partition[neighbor]
+#             W_cols[node][neighbor_partition] += weight
+    
+#     return W_cols
+
 def calculate_W_matrix_cols(graph, W, num_partitions, qpu_sizes, partition):
-    "Calculate the weight matrix of the graph."
+    """Vectorized numpy implementation"""
     max_node_index = max(graph.nodes()) + 1
     num_partitions = max(qpu_sizes.keys()) + 1
-    W_cols = np.zeros((max_node_index,num_partitions))
+    W_cols = np.zeros((max_node_index, num_partitions))
+    
+    # Use numpy advanced indexing for speed
     for i in graph.nodes():
-        for j in graph.nodes():
-            partition_j = partition[j]
-            W_cols[i][partition_j] += W[i][j]
-
+        for p in range(num_partitions):
+            # Find all nodes in partition p
+            nodes_in_partition = np.where(partition == p)[0]
+            if len(nodes_in_partition) > 0:
+                W_cols[i][p] = np.sum(W[i][nodes_in_partition])
+    
     return W_cols
 
 def calculate_D_from_W(graph, W_cols, partition, num_partitions, qpu_sizes, max_gain):
@@ -314,3 +334,20 @@ def take_action_and_update(graph : nx.Graph,
 
 def lock_node(node : int, locked : set[int]):
     locked.add(node)
+
+def calculate_cut_size(graph: nx.Graph, assignment: np.ndarray):
+    """Calculate the cut size of a partition"""
+    cut_size = 0
+    for u, v in graph.edges():
+        if assignment[u] != assignment[v]:
+            weight = graph[u][v].get('weight', 1)
+            cut_size += weight
+    return cut_size
+
+
+def set_sparse_assignment(subgraph: nx.Graph, full_graph: nx.Graph, global_assignment: np.ndarray, qpu_sizes: dict):
+
+    qpus = list(qpu_sizes.keys())
+    for i, node in enumerate(subgraph.nodes()):
+        global_assignment[node] = qpus[i%len(qpus)]
+    return global_assignment
