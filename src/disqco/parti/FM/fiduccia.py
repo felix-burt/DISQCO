@@ -6,6 +6,7 @@ from disqco.graphs.QC_hypergraph import QuantumCircuitHyperGraph
 from disqco.parti.FM.FM_methods import *
 import networkx as nx
 from disqco.graphs.coarsening.coarsener import HypergraphCoarsener
+import matplotlib.pyplot as plt
 
 class FiducciaMattheyses(QuantumCircuitPartitioner):
     """
@@ -47,21 +48,18 @@ class FiducciaMattheyses(QuantumCircuitPartitioner):
         self.dummy_nodes = kwargs.get('dummy_nodes', set())
         self.node_map = kwargs.get('node_map', {qpu : index for index, qpu in enumerate(self.qpu_sizes)})
 
-        
-
         for node in self.hypergraph.nodes:
             if node[0] == 'dummy':
                 qpu_index = node[2]
                 self.dummy_nodes.add(node)
                 if qpu_index not in self.node_map:
                     self.node_map[qpu_index] = len(self.node_map)
-        
-        
-
-
 
         self.sparse = kwargs.get('sparse', False)
         self.num_partitions = len(self.qpu_sizes)
+
+        # Add boundary node tracking information
+
 
 
         if self.initial_assignment is None:
@@ -74,6 +72,9 @@ class FiducciaMattheyses(QuantumCircuitPartitioner):
         # print("Limit:", limit)
         spaces = find_spaces(assignment, self.qpu_sizes, hypergraph)
 
+        boundary_counts = {v : 0 for v in self.hypergraph.nodes}
+        boundary_nodes = set()
+
         map_counts_and_configs(hypergraph, 
                                assignment, 
                                self.num_partitions, 
@@ -81,6 +82,16 @@ class FiducciaMattheyses(QuantumCircuitPartitioner):
                                node_map=self.node_map, 
                                dummy_nodes=self.dummy_nodes,
                                hetero=self.network.hetero)
+        
+        for edge in hypergraph.hyperedges:
+            cost = hypergraph.hyperedge_attrs[edge]['cost']
+            if cost > 0:
+                nodes = hypergraph.hyperedges[edge]['root_set'] | hypergraph.hyperedges[edge]['receiver_set']
+                for node in nodes:
+                    boundary_counts[node] += 1
+                    if boundary_counts[node] == 1:
+                        boundary_nodes.add(node)
+
 
         lock_dict = {node: False for node in active_hypergraph_nodes}
         lock_dict.update({node: True for node in self.dummy_nodes})
@@ -95,7 +106,7 @@ class FiducciaMattheyses(QuantumCircuitPartitioner):
                                active_qpu_nodes=self.network.active_nodes,
                                )
         
-        buckets = fill_buckets(array, self.max_gain)
+        buckets = fill_buckets(array, self.max_gain, boundary_nodes)
         
         gain_list = []
         gain_list.append(0)
@@ -126,6 +137,8 @@ class FiducciaMattheyses(QuantumCircuitPartitioner):
                                                                     network=self.network,
                                                                     node_map=self.node_map,
                                                                     dummy_nodes=self.dummy_nodes,
+                                                                    boundary_nodes = boundary_nodes,
+                                                                    boundary_counts = boundary_counts,
                                                                     **kwargs
                                                                     )
             update_spaces(node, source, destination, spaces)

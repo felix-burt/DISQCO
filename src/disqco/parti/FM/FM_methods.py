@@ -354,13 +354,18 @@ def find_all_gains_hetero_sparse(hypergraph,
             array[(t,q,k)] = gain
     return array
 
-def fill_buckets(array, max_gain):
+def fill_buckets(array, max_gain, boundary_nodes = None):
     buckets = {}
     for i in range(-max_gain,max_gain+1):
         buckets[i] = set()
     for action in array.keys():
-        gain = array[action]
-        buckets[gain].add(action)
+        if boundary_nodes is not None:
+            if (action[1], action[0]) in boundary_nodes:
+                gain = array[action]
+                buckets[gain].add(action)
+        else:
+            gain = array[action]
+            buckets[gain].add(action)
     return buckets
 
 def update_counts(counts,
@@ -498,6 +503,8 @@ def take_action_and_update(hypergraph,
                            assignment,
                            costs = {},
                            network : QuantumNetwork = None,
+                           boundary_nodes = None,
+                           boundary_counts = None,
                            **kwargs):
     hetero = kwargs.get('hetero', False)
     sparse = kwargs.get('sparse', False)
@@ -535,7 +542,9 @@ def take_action_and_update(hypergraph,
                                            num_partitions,
                                            lock_dict,
                                            assignment,
-                                           costs)
+                                           costs,
+                                           boundary_nodes,
+                                           boundary_counts)
 
 def take_action_and_update_homo(hypergraph,
                                 node,
@@ -545,19 +554,23 @@ def take_action_and_update_homo(hypergraph,
                                 num_partitions,
                                 lock_dict,
                                 assignment,
-                                costs):
+                                costs,
+                                boundary_nodes=None,
+                                boundary_counts=None):
+    
     assignment_new = move_node(node,destination,assignment)
     delta_gains = {}
     for edge in hypergraph.node2hyperedges[node]:
+
         info = hypergraph.hyperedge_attrs[edge]
         root_set = hypergraph.hyperedges[edge]['root_set']
         rec_set = hypergraph.hyperedges[edge]['receiver_set']
 
         cost = info['cost']
-
         conf = info['config']
         root_counts = info['root_counts']
         rec_counts = info['rec_counts']
+
 
         if node in root_set:
             root_counts_new, source = update_counts(root_counts,node,destination,assignment)
@@ -576,6 +589,18 @@ def take_action_and_update_homo(hypergraph,
             cost_a = costs[tuple(config_new)]
 
         conf_a = config_new
+
+        if boundary_nodes is not None:
+            if cost == 0 and cost_a == 1:
+                for b_node in root_set | rec_set:
+                    boundary_counts[b_node] += 1
+                    if boundary_counts[b_node] == 1:
+                        boundary_nodes.add(b_node)
+            if cost_a == 0 and cost > 0:
+                for b_node in root_set | rec_set:
+                    boundary_counts[b_node] -= 1
+                    if boundary_counts[b_node] == 0:
+                        boundary_nodes.remove(b_node)
 
         root_counts_pre = root_counts
         rec_counts_pre = rec_counts
@@ -660,13 +685,18 @@ def take_action_and_update_homo(hypergraph,
         old_gain = array[action]
         # print(f'Old gain {old_gain}')
         # print(f'New gain {old_gain - i}')
+        node = (action[1], action[0])
         if action in buckets[old_gain]:
             # print(f'Old gain in bucket - remove and add to {old_gain - i}')
             buckets[old_gain].remove(action)
+            if node in boundary_nodes:
+                buckets[old_gain - i].add(action)
+
+        elif action not in buckets[old_gain] and node in boundary_nodes:
             buckets[old_gain - i].add(action)
             
         array[action] -= i
-    
+    # print(f'New buckets: {buckets}')
     return assignment_new, array, buckets
 
 def take_action_and_update_hetero(hypergraph,
