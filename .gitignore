@@ -74,3 +74,6 @@ benchmarking/*.dat
 
 benchmarking/old/
 benchmarking/old/
+
+demos/test/
+CLAUDE.md

@@ -854,9 +854,13 @@ class PartitionedCircuitExtractor:
             # This means the root qubit will undergo nested state teleportation, so we must transfer 
             # the state onto a communication qubit.
             root_q = self.qubit_manager.log_to_phys_idx[root_idx]
-            self.qubit_manager.release_data_qubit(p_root, root_q)
             root_comm = self.comm_manager.find_comm_idx(p_root)
             self.teleportation_manager.transfer_state(root_q, root_comm)
+            # Source data qubit is reset by transfer_state; now free the slot in bookkeeping.
+            if root_q in self.qubit_manager.in_use_data[p_root]:
+                self.qubit_manager.in_use_data[p_root].pop(root_q, None)
+            if root_q not in self.qubit_manager.free_data[p_root]:
+                self.qubit_manager.free_data[p_root].append(root_q)
             self.qubit_manager.log_to_phys_idx[root_idx] = root_comm
             # p_rec_set.add(final_p_root)
 
@@ -1025,5 +1029,4 @@ def reorder_registers_by_index(circuit):
     for instruction in circuit.data:
         new_circ.append(instruction.operation, instruction.qubits, instruction.clbits)
     return new_circ
-
 

@@ -195,16 +195,16 @@ class DataQubitManager:
         Release a data qubit, clearing any state. 
         Note: Qiskit doesn't have a direct 'free' notion, so we reset or reuse.
         """
-
+        released = False
         if qubit in self.in_use_data[p]:
             log_qubit = self.in_use_data[p].pop(qubit)
             del self.log_to_phys_idx[log_qubit]
             self.qc.reset(qubit)
-            self.free_data[p].append(qubit)
+            released = True
         # """
         # Release a data qubit after the state has been teleported to another partition.
         # """
         # if qubit in self.in_use_data[p]:
         #     del self.in_use_data[p][qubit] # Remove the logical qubit from the in_use_data dictionary
-        if qubit not in self.free_data[p]:
+        if released and qubit not in self.free_data[p]:
             self.free_data[p].append(qubit) # Add the slot to the free_data list
