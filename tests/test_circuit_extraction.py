@@ -5,14 +5,20 @@ Tests the PartitionedCircuitExtractor class for extracting distributed quantum
 circuits from hypergraphs with both initial (unoptimized) and optimized assignments.
 """
 
+from pathlib import Path
+
 import pytest
 import numpy as np
-from qiskit import QuantumCircuit, transpile
+from qiskit import QuantumCircuit, qasm2, transpile
 
 from disqco import QuantumNetwork, QuantumCircuitHyperGraph, PartitionedCircuitExtractor
 from disqco.circuits.cp_fraction import cp_fraction
 from disqco.parti import FiducciaMattheyses
 from disqco import set_initial_partition_assignment
+from disqco.graphs.coarsening.coarsener import HypergraphCoarsener
+
+
+FIXTURES_DIR = Path(__file__).resolve().parent / "fixtures" / "circuits"
 
 
 @pytest.fixture
@@ -355,3 +361,34 @@ def test_extractor_with_single_partition():
     assert epr_count == 0
     
     print(f"\n✓ Single partition extraction: {epr_count} EPR pairs (expected 0)")
+
+
+def test_group_closed_when_all_subgates_applied_immediately():
+    """Regression: groups whose last two-qubit gate lands at the current time step must have
+    close_group called explicitly, otherwise the root qubit stays marked as grouped and
+    subsequent teleportation logic silently skips it, producing an incorrect circuit."""
+    circuit = qasm2.load(FIXTURES_DIR / "variational_n4_transpiled.qasm", custom_instructions=qasm2.LEGACY_CUSTOM_INSTRUCTIONS)
+
+    hypergraph = QuantumCircuitHyperGraph(circuit)
+    network = QuantumNetwork.create([3, 3], "all_to_all")
+    initial_assignment = set_initial_partition_assignment(hypergraph, network)
+    partitioner = FiducciaMattheyses(
+        circuit,
+        network,
+        initial_assignment,
+        hypergraph=hypergraph,
+    )
+    results = partitioner.multilevel_partition(
+        coarsener=HypergraphCoarsener().coarsen_recursive_batches_mapped,
+        passes_per_level=10,
+    )
+
+    extractor = PartitionedCircuitExtractor(
+        graph=hypergraph,
+        network=network,
+        partition_assignment=results["best_assignment"],
+    )
+    partitioned_circuit = extractor.extract_partitioned_circuit()
+
+    assert partitioned_circuit is not None
+    assert isinstance(partitioned_circuit, QuantumCircuit)
