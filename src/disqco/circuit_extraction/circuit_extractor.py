@@ -937,6 +937,11 @@ class PartitionedCircuitExtractor:
                 else:
                     self.layer_dict[time_step].append(sub_gate)
 
+        # groups whose last two-qubit gate lands at the current
+        # time step must have close_group called explicitly
+        if root_idx in self.qubit_manager.groups and final_t == t:
+            self.teleportation_manager.close_group(root_idx)
+
     def extract_partitioned_circuit(self) -> QuantumCircuit:
         for i, layer in sorted(self.layer_dict.items()):
             new_assignment_layer = self.partition_assignment[i]
