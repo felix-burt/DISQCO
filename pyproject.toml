@@ -3,7 +3,7 @@ name = "disqco"
 version = "0.0.5"
 description = "DIStributed Quantum Circuit Optimisation"
 readme = "README.md"
-requires-python = ">=3.11"
+requires-python = "==3.12.*" # qiskit-aer does not build for >3.12
 dependencies = [
     "numpy",
     "qiskit",
@@ -21,3 +21,7 @@ dependencies = [
 [build-system]
 requires = ["setuptools>=61.0"]
 build-backend = "setuptools.build_meta"
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "-v"
