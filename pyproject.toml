@@ -1,0 +1,23 @@
+[project]
+name = "disqco"
+version = "0.0.5"
+description = "DIStributed Quantum Circuit Optimisation"
+readme = "README.md"
+requires-python = ">=3.11"
+dependencies = [
+    "numpy==2.2.4",
+    "qiskit==1.2.4",
+    "qiskit-aer==0.15.1",
+    "qiskit-qasm3-import==0.5.1",
+    "networkx",
+    "matplotlib",
+    "pylatexenc",
+    "jupyter-tikz",
+    "ipykernel",
+    "pytest",
+    "tqdm",
+]
+
+[build-system]
+requires = ["setuptools>=61.0"]
+build-backend = "setuptools.build_meta"
