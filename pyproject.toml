@@ -3,6 +3,7 @@ name = "disqco"
 version = "0.0.5"
 description = "DIStributed Quantum Circuit Optimisation"
 readme = "README.md"
+license = "MIT"
 requires-python = "==3.12.*" # qiskit-aer does not build for >3.12
 dependencies = [
     "numpy",
