@@ -5,7 +5,7 @@ description = "DIStributed Quantum Circuit Optimisation"
 authors = [
     {name = "Felix Burt", email = "ftaburt@gmail.com"},
 ]
-mainters = [
+maintainers = [
     {name = "Felix Burt", email = "ftaburt@gmail.com"},
 ]
 readme = "README.md"
