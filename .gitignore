@@ -78,3 +78,6 @@ benchmarking/old/
 # uv-related
 uv.lock
 .python-version
+
+# MacOS junk
+**/*.DS_Store
