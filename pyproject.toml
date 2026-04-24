@@ -2,6 +2,9 @@
 name = "disqco"
 version = "0.0.5"
 description = "DIStributed Quantum Circuit Optimisation"
+authors = [
+    {name = "Felix Burt", email = "ftaburt@gmail.com"},
+]
 readme = "README.md"
 license = "MIT"
 requires-python = ">=3.11,<3.13" # qiskit-aer does not build for >3.12
