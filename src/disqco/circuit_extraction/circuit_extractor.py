@@ -517,9 +517,22 @@ class PartitionedCircuitExtractor:
         self,
         graph: QuantumCircuitHyperGraph,
         network: QuantumNetwork,
-        partition_assignment: np.ndarray
+        partition_assignment: np.ndarray,
     ) -> None:
-        
+        """
+        Initialise the extractor and build the skeleton Qiskit circuit.
+
+        Args:
+            graph: Hypergraph of the original quantum circuit, including gate
+                layer information (``graph.layers``).
+            network: The QPU network describing qubit capacities and
+                communication qubit budgets per QPU.
+            partition_assignment: 2-D integer array of shape
+                ``(depth, num_qubits)`` produced by a
+                :class:`~disqco.parti.partitioner.QuantumCircuitPartitioner`.
+                Entry ``[t][q]`` gives the QPU id for qubit ``q`` at timestep
+                ``t``.
+        """
         # The gate edges of the graph stored as a list of gates and gate groups.
         self.layer_dict = graph.layers
         self.layer_dict = self.remove_empty_groups()
@@ -942,6 +955,18 @@ class PartitionedCircuitExtractor:
                     self.layer_dict[time_step].append(sub_gate)
 
     def extract_partitioned_circuit(self) -> QuantumCircuit:
+        """
+        Generate and return the full distributed quantum circuit.
+
+        Iterates over each gate layer in temporal order. Between layers,
+        state-teleportation primitives are inserted wherever a qubit changes
+        QPU. Within a layer, single-qubit and two-qubit gates are applied
+        locally or via gate-teleportation as appropriate.
+
+        Returns:
+            The compiled Qiskit ``QuantumCircuit`` with separate qubit
+            registers per QPU and EPR-based communication primitives.
+        """
         for i, layer in sorted(self.layer_dict.items()):
             new_assignment_layer = self.partition_assignment[i]
             for q in range(self.num_qubits):
