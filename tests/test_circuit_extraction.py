@@ -16,7 +16,7 @@ import pytest
 import numpy as np
 from bosonic_converters import CircuitConverters
 from bosonic_model import DistributedCircuit
-from qiskit import QuantumCircuit, qasm2, transpile
+from qiskit import ClassicalRegister, QuantumCircuit, QuantumRegister, qasm2, transpile
 
 from disqco import QuantumNetwork, QuantumCircuitHyperGraph, PartitionedCircuitExtractor
 from disqco.circuits.cp_fraction import cp_fraction
@@ -207,6 +207,39 @@ def test_extraction_with_four_partitions(test_circuit):
 
     assert isinstance(distributed, DistributedCircuit)
     assert sorted(distributed.qubits_per_node.keys()) == [0, 1, 2, 3]
+
+
+def test_hypergraph_preserves_measurement_to_conditional_ordering():
+    """A classical dependency must force the conditional op into a later layer."""
+    qreg = QuantumRegister(2, "q")
+    creg = ClassicalRegister(1, "c")
+    qiskit_circuit = QuantumCircuit(qreg, creg)
+    qiskit_circuit.measure(qreg[0], creg[0])
+    with qiskit_circuit.if_test((creg[0], 1)):
+        qiskit_circuit.x(qreg[1])
+
+    hypergraph = QuantumCircuitHyperGraph(_to_bosonic(qiskit_circuit), group_gates=False)
+
+    assert set(hypergraph.layers) == {0, 1}
+    assert [gate["name"] for gate in hypergraph.layers[0]] == ["measure"]
+    assert [gate["name"] for gate in hypergraph.layers[1]] == ["x"]
+    assert hypergraph.layers[1][0]["classical_control_bit"] == 0
+
+
+def test_classically_controlled_input_marks_hypergraph_control_metadata():
+    """Coverage for classically controlled input circuits after the bosonic refactor."""
+    qreg = QuantumRegister(2, "q")
+    creg = ClassicalRegister(1, "c")
+    qiskit_circuit = QuantumCircuit(qreg, creg)
+    qiskit_circuit.measure(qreg[0], creg[0])
+    with qiskit_circuit.if_test((creg[0], 1)):
+        qiskit_circuit.x(qreg[1])
+
+    hypergraph = QuantumCircuitHyperGraph(_to_bosonic(qiskit_circuit), group_gates=False)
+
+    assert hypergraph.node_attrs[(0, 0)]["type"] == "measure"
+    assert hypergraph.node_attrs[(1, 1)]["classically_controlled"] is True
+    assert hypergraph.node_attrs[(1, 1)]["control_bit"] == 0
 
 
 def test_full_workflow_initial_to_optimized():

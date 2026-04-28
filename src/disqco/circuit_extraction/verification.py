@@ -49,17 +49,17 @@ def check_no_cross_partition_instructions(distributed: DistributedCircuit, qpu_g
     - Cross-QPU C-C gates between unconnected QPUs.
     """
     valid = True
-    for node, circ in distributed.circuits.items():
-        # Build a global-qubit-index -> (kind, qpu) lookup from this circuit's qregs.
-        qubit_kind: dict[int, tuple[str, int]] = {}
+    global_qubit_kind: dict[int, tuple[str, int]] = {}
+    for circ in distributed.circuits.values():
         for reg in circ.qregs.values():
             parsed = _parse_reg_name(reg.name)
             if parsed is None:
                 continue
             kind, idx = parsed
             for offset in range(reg.size):
-                qubit_kind[reg.base + offset] = (kind, idx)
+                global_qubit_kind[reg.base + offset] = (kind, idx)
 
+    for node, circ in distributed.circuits.items():
         for raw in circ.instructions:
             inst = raw.op if isinstance(raw, ConditionalInstruction) else raw
             if isinstance(inst, (BarrierInstruction, MeasureInstruction, ResetInstruction)):
@@ -67,7 +67,7 @@ def check_no_cross_partition_instructions(distributed: DistributedCircuit, qpu_g
             qubits = list(getattr(inst, "qubits", []) or [])
             if len(qubits) != 2:
                 continue
-            kinds = [qubit_kind.get(q) for q in qubits]
+            kinds = [global_qubit_kind.get(q) for q in qubits]
             if any(k is None for k in kinds):
                 continue
             (k0, r0), (k1, r1) = kinds  # type: ignore[misc]

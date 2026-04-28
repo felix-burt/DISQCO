@@ -128,6 +128,7 @@ def bosonic_to_layer_dict(circuit: Circuit, qpu_sizes=None) -> dict[int, list[di
     qubit_to_reg = _build_qubit_to_reg(circuit)
     num_qubits = circuit.qubits()
     qubit_last = [-1] * num_qubits
+    cbit_last: dict[int, int] = {}
     layers: dict[int, list[dict]] = {}
     pair_count: dict[int, int] = {}
     max_pairs = find_max_interactions(qpu_sizes) if qpu_sizes is not None else None
@@ -157,6 +158,8 @@ def bosonic_to_layer_dict(circuit: Circuit, qpu_sizes=None) -> dict[int, list[di
             qubits = [inst.qubit]
 
         t = max((qubit_last[q] + 1) for q in qubits)
+        if ccbit is not None:
+            t = max(t, cbit_last.get(ccbit, -1) + 1)
         gate_dict = _make_gate_dict(inst, qubit_to_reg, classical_control_bit=ccbit)
 
         if max_pairs is not None and gate_dict["type"] == "two-qubit":
@@ -168,6 +171,8 @@ def bosonic_to_layer_dict(circuit: Circuit, qpu_sizes=None) -> dict[int, list[di
             pair_count[t] = pair_count.get(t, 0) + 1
         for q in qubits:
             qubit_last[q] = t
+        if isinstance(inst, MeasureInstruction):
+            cbit_last[inst.cbit] = t
 
     if not layers:
         return {0: []}
