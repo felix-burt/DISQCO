@@ -167,43 +167,75 @@ class DistributedCircuit:
     def add_event(self, event: DistributedCircuitEvent) -> None:
         self.events.append(event)
 
-    def merge_fan_ins(self) -> None:
+    def merge_fan_ins(self, adjacent_time_only: bool = False) -> None:
         """Post-process: merge compatible FanIn events into JointFanIn events.
 
-        FanIn events that share the same (root_qubit, target_partition) and are
-        not self-loops (source == target) are merged into a single JointFanIn
-        placed at the position of the last such event in the stream.  This
-        allows the lowering backends to emit a single classically-controlled Z
-        correction (conditioned on the XOR of all measurement outcomes) instead
-        of one per source, saving classically-controlled gates.
+        Only FanIn events that are adjacent in a root-qubit's own event timeline
+        and share the same (root_qubit, target_partition) are merged. Self-loops
+        (source == target) are excluded.
 
-        Reordering is always safe: by construction, no event uses a copy after
-        its individual FanIn would have fired.
+        If ``adjacent_time_only`` is True, then merged FanIn events must also be
+        on consecutive integer time steps.
+
+        "Adjacent in qubit timeline" means no other event touching that root
+        qubit appears between the merged FanIn events. Events on other qubits are
+        ignored for adjacency.
         """
-        from collections import defaultdict
-
-        # Map (root_qubit, target_partition) -> list of (index, FanIn)
-        groups: dict[tuple[int, int], list[tuple[int, FanIn]]] = defaultdict(list)
-        for i, event in enumerate(self.events):
-            if isinstance(event, FanIn) and event.source_partition != event.target_partition:
-                groups[(event.root_qubit, event.target_partition)].append((i, event))
-
-        # Only act on groups with more than one member.
         remove: set[int] = set()
         replacements: dict[int, JointFanIn] = {}
-        for (root_q, target_p), members in groups.items():
-            if len(members) < 2:
-                continue
-            sources = [ev.source_partition for _, ev in members]
-            last_idx, last_ev = members[-1]
-            replacements[last_idx] = JointFanIn(
-                root_qubit=root_q,
-                source_partitions=sources,
-                target_partition=target_p,
-                time=last_ev.time,
-            )
-            for idx, _ in members[:-1]:
-                remove.add(idx)
+
+        root_qubits = {
+            event.root_qubit
+            for event in self.events
+            if isinstance(event, (FanOut, ImmediateFanIn, FanIn, JointFanIn, LinkedGate))
+        }
+
+        for root_q in root_qubits:
+            touches = [
+                (idx, event)
+                for idx, event in enumerate(self.events)
+                if self._event_touches_qubit(event, root_q)
+            ]
+
+            pos = 0
+            while pos < len(touches):
+                idx, event = touches[pos]
+                if not isinstance(event, FanIn) or event.source_partition == event.target_partition:
+                    pos += 1
+                    continue
+
+                target_p = event.target_partition
+                run: list[tuple[int, FanIn]] = [(idx, event)]
+                pos += 1
+
+                while pos < len(touches):
+                    next_idx, next_event = touches[pos]
+                    prev_time = run[-1][1].time
+                    if (
+                        isinstance(next_event, FanIn)
+                        and next_event.source_partition != next_event.target_partition
+                        and next_event.target_partition == target_p
+                        and (
+                            not adjacent_time_only
+                            or next_event.time == prev_time + 1
+                        )
+                    ):
+                        run.append((next_idx, next_event))
+                        pos += 1
+                        continue
+                    break
+
+                if len(run) >= 2:
+                    sources = [ev.source_partition for _, ev in run]
+                    last_idx, last_ev = run[-1]
+                    replacements[last_idx] = JointFanIn(
+                        root_qubit=root_q,
+                        source_partitions=sources,
+                        target_partition=target_p,
+                        time=last_ev.time,
+                    )
+                    for rem_idx, _ in run[:-1]:
+                        remove.add(rem_idx)
 
         if not replacements:
             return
@@ -213,6 +245,18 @@ class DistributedCircuit:
             for i, ev in enumerate(self.events)
             if i not in remove
         ]
+
+    @staticmethod
+    def _event_touches_qubit(event: DistributedCircuitEvent, qubit: int) -> bool:
+        if isinstance(event, LocalGate):
+            return any(q == qubit for q, _ in event.qubits)
+        if isinstance(event, StateTransfer):
+            return event.qubit == qubit
+        if isinstance(event, (FanOut, ImmediateFanIn, FanIn, JointFanIn)):
+            return event.root_qubit == qubit
+        if isinstance(event, LinkedGate):
+            return event.root_qubit == qubit or event.target_qubit == qubit
+        return False
 
     # ------------------------------------------------------------------
     # Query helpers

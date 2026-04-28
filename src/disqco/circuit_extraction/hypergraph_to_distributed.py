@@ -129,7 +129,7 @@ class HypergraphToDistributed:
                         dc, gate, i, active_roots, deferred
                     )
 
-        dc.merge_fan_ins()
+        dc.merge_fan_ins(adjacent_time_only=True)
         return dc
 
     # ------------------------------------------------------------------
@@ -208,11 +208,10 @@ class HypergraphToDistributed:
         # This includes receiver partitions AND any new root locations (nested case).
         target_partitions = list((p_rec_set | p_root_set) - {p_root})
 
-        # Mark root as active so state transfers skip it.
-        active_roots[root_idx] = final_t
-
         # Build the communication tree and classify intermediate nodes.
         if target_partitions:
+            # Mark root as active so state transfers skip it while fan-out copies are live.
+            active_roots[root_idx] = final_t
             directed_tree, intermediates, nearest_targets = (
                 self._build_directed_tree_and_intermediates(p_root, target_partitions)
             )
@@ -221,13 +220,14 @@ class HypergraphToDistributed:
             intermediates = []
             nearest_targets = {}
 
-        # Emit the combined fan-out.
-        dc.add_event(FanOut(root_idx, p_root, directed_tree,
-                            target_partitions, intermediates, start_time,
-                            final_root_partition=final_p_root))
-        if intermediates:
-            dc.add_event(ImmediateFanIn(root_idx, intermediates,
-                                        nearest_targets, start_time))
+        # Emit fan-out only if there is at least one remote target.
+        if target_partitions:
+            dc.add_event(FanOut(root_idx, p_root, directed_tree,
+                                target_partitions, intermediates, start_time,
+                                final_root_partition=final_p_root))
+            if intermediates:
+                dc.add_event(ImmediateFanIn(root_idx, intermediates,
+                                            nearest_targets, start_time))
 
         # Schedule sub-gate events.
         for sg in sub_gates:

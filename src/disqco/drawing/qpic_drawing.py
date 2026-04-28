@@ -10,6 +10,7 @@ from __future__ import annotations
 
 from collections import defaultdict
 from pathlib import Path
+import re
 
 import networkx as nx
 
@@ -70,21 +71,42 @@ class DistributedCircuitQPIC:
         The distributed circuit to render.
     show_params:
         If True, gate parameter values are included in gate labels.
+    draw_qpu_boundaries:
+        If True, draw dashed rounded QPU boundary rectangles with light-gray fill.
+    qpu_boundary_fills:
+        TikZ fill color spec (or list of specs) for QPU boundaries. If a list is
+        provided, colors are applied cyclically across QPU regions.
     """
 
     def __init__(
         self,
         circuit: DistributedCircuit,
         show_params: bool = True,
+        prune_unused_data_wires: bool = True,
+        prune_unused_comm_wires: bool = True,
+        draw_qpu_boundaries: bool = False,
+        qpu_boundary_fills: str | list[str] | None = None,
     ) -> None:
         self.circuit = circuit
         self.show_params = show_params
+        self.prune_unused_data_wires = prune_unused_data_wires
+        self.prune_unused_comm_wires = prune_unused_comm_wires
+        self.draw_qpu_boundaries = draw_qpu_boundaries
+        if qpu_boundary_fills is None:
+            self.qpu_boundary_fills = ["gray!20"]
+        elif isinstance(qpu_boundary_fills, str):
+            self.qpu_boundary_fills = [qpu_boundary_fills]
+        else:
+            self.qpu_boundary_fills = list(qpu_boundary_fills)
+            if not self.qpu_boundary_fills:
+                self.qpu_boundary_fills = ["gray!20"]
         self.initial_assignment = {
             q: int(p)
             for q, p in enumerate(circuit.initial_assignment or [])
         }
         self.data_wire_pairs = self._data_wire_pairs()
         self.comm_slots_per_partition = self._comm_slot_budget()
+        self.comm_slot_labels: dict[tuple[int, int], list[str]] = {}
 
     # ------------------------------------------------------------------
     # Public API
@@ -92,26 +114,12 @@ class DistributedCircuitQPIC:
 
     def to_qpic_string(self) -> str:
         """Return the complete QPIC diagram as a string."""
-        lines: list[str] = []
+        raw_event_lines: list[str] = []
 
-        # --- Wire declarations ---
-
-        for partition in range(self.circuit.num_partitions):
-            ordered_data = self._ordered_data_wires(partition)
-            for q, p in ordered_data:
-                name = _wire_name(q, p)
-                lines.append(f"{name} W {_wire_label(q, p)}")
-            for slot in range(self.comm_slots_per_partition.get(partition, 0)):
-                lines.append(f"{_comm_wire_name(partition, slot)} W")
-            # Keep a visible vertical gap between QPU blocks.
-            if partition < self.circuit.num_partitions - 1:
-                lines.append(f"gap_p{partition} W type=o")
-
-        lines.append("")
-
-        # --- Events ---
+        # --- Events (render first so we can safely prune unused data wires) ---
         active_comm: dict[tuple[int, int], int] = {}
         self.comm_alias: dict[tuple[int, int], str] = {}
+        self.comm_slot_labels = {}
         free_comm: dict[int, list[int]] = {
             p: list(range(self.comm_slots_per_partition.get(p, 0)))
             for p in range(self.circuit.num_partitions)
@@ -119,7 +127,69 @@ class DistributedCircuitQPIC:
         for event in self.circuit.events:
             rendered = self._render_event(event, active_comm, free_comm)
             if rendered:
-                lines.extend(rendered)
+                raw_event_lines.extend(rendered)
+        event_lines, boundary_end = self._schedule_event_lines(raw_event_lines)
+        boundary_start = 0
+
+        used_data_wire_names: set[str] | None = None
+        if self.prune_unused_data_wires:
+            used_data_wire_names = set(
+                re.findall(r"\bq\d+p\d+\b", "\n".join(event_lines))
+            )
+        used_comm_wire_names: set[str] | None = None
+        if self.prune_unused_comm_wires:
+            used_comm_wire_names = set(
+                re.findall(r"\bc\d+_\d+\b", "\n".join(event_lines))
+            )
+
+        lines: list[str] = []
+        partition_boundaries: list[tuple[str, str]] = []
+
+        # --- Wire declarations ---
+
+        for partition in range(self.circuit.num_partitions):
+            first_wire: str | None = None
+            last_wire: str | None = None
+            ordered_data = self._ordered_data_wires(partition)
+            for q, p in ordered_data:
+                name = _wire_name(q, p)
+                if used_data_wire_names is not None and name not in used_data_wire_names:
+                    continue
+                lines.append(f"{name} W {_wire_label(q, p)}")
+                if first_wire is None:
+                    first_wire = name
+                last_wire = name
+            for slot in range(self.comm_slots_per_partition.get(partition, 0)):
+                comm_name = _comm_wire_name(partition, slot)
+                if used_comm_wire_names is not None and comm_name not in used_comm_wire_names:
+                    continue
+                labels = self.comm_slot_labels.get((partition, slot), [])
+                if labels:
+                    label_tokens = [labels[0]]
+                    for lbl in labels[1:]:
+                        label_tokens.extend(["{}", lbl])
+                    lines.append(f"{comm_name} W {' '.join(label_tokens)}")
+                else:
+                    lines.append(f"{comm_name} W")
+                if first_wire is None:
+                    first_wire = comm_name
+                last_wire = comm_name
+            if first_wire is not None and last_wire is not None:
+                partition_boundaries.append((first_wire, last_wire))
+            # Keep a visible vertical gap between QPU blocks.
+            if partition < self.circuit.num_partitions - 1:
+                lines.append(f"gap_p{partition} W type=o")
+
+        if self.draw_qpu_boundaries:
+            for i, (first_wire, last_wire) in enumerate(partition_boundaries):
+                fill = self._boundary_fill(i)
+                lines.append(
+                    f"{first_wire} {last_wire} @ {boundary_start} {boundary_end} "
+                    f"color=black style=dashed,rounded_corners=5pt,fill={fill}"
+                )
+
+        lines.append("")
+        lines.extend(event_lines)
 
         return "\n".join(lines) + "\n"
 
@@ -177,12 +247,7 @@ class DistributedCircuitQPIC:
         partition_to_wire: dict[int, str] = {event.root_partition: root_name}
         for p in new_wires:
             slot = self._allocate_comm_slot(event.root_qubit, p, active_comm, free_comm)
-            draw_wire = _comm_wire_name(p, slot)
-            alias_wire = _wire_name(event.root_qubit, p)
-            if (event.root_qubit, p) in self.data_wire_pairs:
-                self.comm_alias[(event.root_qubit, p)] = alias_wire
-                draw_wire = alias_wire
-            partition_to_wire[p] = draw_wire
+            partition_to_wire[p] = _comm_wire_name(p, slot)
 
         # Build one starting op per root-to-leaf path in the tree.
         # For a linear chain p0→p1→p2 this gives one op: "root c1 c2 starting".
@@ -353,6 +418,8 @@ class DistributedCircuitQPIC:
         for event in self.circuit.events:
             if isinstance(event, LocalGate):
                 pairs.update((int(q), int(p)) for q, p in event.qubits)
+            elif isinstance(event, LinkedGate):
+                pairs.add((event.target_qubit, event.target_partition))
             elif isinstance(event, StateTransfer):
                 pairs.add((event.qubit, event.source_partition))
                 pairs.add((event.qubit, event.target_partition))
@@ -428,6 +495,12 @@ class DistributedCircuitQPIC:
         else:
             slot = slots.pop(0)
         active_comm[key] = slot
+        self.comm_alias[key] = _comm_wire_name(partition, slot)
+        slot_key = (partition, slot)
+        logical_label = _wire_label(root_qubit, partition)
+        labels = self.comm_slot_labels.setdefault(slot_key, [])
+        if not labels or labels[-1] != logical_label:
+            labels.append(logical_label)
         return slot
 
     def _release_comm_slot(self, root_qubit: int, partition: int, active_comm, free_comm) -> None:
@@ -450,6 +523,66 @@ class DistributedCircuitQPIC:
     def _ending_op(self, keep_wire: str, die_wire: str) -> str:
         """Render ending using qpic lowercase macro syntax."""
         return f"{keep_wire} {die_wire} ending"
+
+    def _boundary_fill(self, index: int) -> str:
+        """Return boundary fill color at index, cycling through configured specs."""
+        fills = self.qpu_boundary_fills
+        return fills[index % len(fills)]
+
+    def _wire_names_in_line(self, line: str) -> set[str]:
+        """Return qpic wire names referenced by one operation line."""
+        wire_pattern = re.compile(
+            r"(?:\+|-)?((?:q\d+p\d+)|(?:c\d+_\d+)|(?:ep\d+_\d+)|(?:cl_\d+))(?::[A-Za-z_]+)?"
+        )
+        return set(wire_pattern.findall(line))
+
+    def _schedule_event_lines(self, event_lines: list[str]) -> tuple[list[str], int]:
+        """Greedily schedule lines into slices and merge parallel ops with ';'.
+
+        qpic schedules operations greedily into earliest possible slices based on
+        wire dependencies; this helper mirrors that logic so we can emit an
+        explicit schedule and keep boundary ranges aligned with rendered depth.
+        """
+        last_slice_for_wire: dict[str, int] = {}
+        max_slice = -1
+        slice_to_ops: dict[int, list[str]] = defaultdict(list)
+        slice_to_comments: dict[int, list[str]] = defaultdict(list)
+        pending_comments: list[str] = []
+
+        for line in event_lines:
+            stripped = line.strip()
+            if not stripped:
+                continue
+            if stripped.startswith("%"):
+                pending_comments.append(stripped)
+                continue
+
+            wires = self._wire_names_in_line(stripped)
+            if not wires:
+                continue
+
+            # Earliest valid slice: one after the latest dependency slice.
+            op_slice = 1 + max((last_slice_for_wire.get(w, -1) for w in wires), default=-1)
+            for wire in wires:
+                last_slice_for_wire[wire] = op_slice
+            max_slice = max(max_slice, op_slice)
+            slice_to_ops[op_slice].append(stripped)
+            if pending_comments:
+                slice_to_comments[op_slice].extend(pending_comments)
+                pending_comments = []
+
+        scheduled: list[str] = []
+        for slice_index in sorted(slice_to_ops.keys()):
+            scheduled.extend(slice_to_comments.get(slice_index, []))
+            scheduled.append(" ; ".join(slice_to_ops[slice_index]))
+        scheduled.extend(pending_comments)
+
+        return scheduled, max(max_slice, 0)
+
+    def _boundary_time_window(self, event_lines: list[str]) -> tuple[int, int]:
+        """Return [start, end] qpic slice coordinates for boundary overlays."""
+        _, boundary_end = self._schedule_event_lines(event_lines)
+        return (0, boundary_end)
 
 
     # ------------------------------------------------------------------
@@ -515,24 +648,13 @@ class DistributedCircuitQPIC:
         - FanIn: H + M on die wire (→ cwire), Z correction on keep wire via ``c:o``
         """
         lines: list[str] = []
+        partition_boundaries: list[tuple[str, str]] = []
 
         epr_budget = self._lowered_epr_budget()
 
-        # --- Wire declarations ---
-        for partition in range(self.circuit.num_partitions):
-            for q, p in self._ordered_data_wires(partition):
-                lines.append(f"{_wire_name(q, p)} W {_wire_label(q, p)}")
-            for slot in range(self.comm_slots_per_partition.get(partition, 0)):
-                lines.append(f"{_comm_wire_name(partition, slot)} W")
-            for slot in range(epr_budget.get(partition, 0)):
-                lines.append(f"{_epr_wire_name(partition, slot)} W")
-            if partition < self.circuit.num_partitions - 1:
-                lines.append(f"gap_p{partition} W type=o")
-
-        lines.append("")
-
-        # --- Events ---
+        # Render events first so boundary time windows match actual qpic depth.
         self.comm_alias: dict[tuple[int, int], str] = {}
+        self.comm_slot_labels = {}
         active_comm: dict[tuple[int, int], int] = {}
         free_comm: dict[int, list[int]] = {
             p: list(range(self.comm_slots_per_partition.get(p, 0)))
@@ -542,11 +664,60 @@ class DistributedCircuitQPIC:
             p: list(range(epr_budget.get(p, 0)))
             for p in range(self.circuit.num_partitions)
         }
-
+        raw_event_lines: list[str] = []
         for event in self.circuit.events:
-            rendered = self._render_event_lowered(event, active_comm, free_comm, free_epr)
+            rendered = self._render_event_lowered(
+                event, active_comm, free_comm, free_epr, epr_budget
+            )
             if rendered:
-                lines.extend(rendered)
+                raw_event_lines.extend(rendered)
+        event_lines, boundary_end = self._schedule_event_lines(raw_event_lines)
+        boundary_start = 0
+
+        # --- Wire declarations ---
+        for partition in range(self.circuit.num_partitions):
+            first_wire: str | None = None
+            last_wire: str | None = None
+            for q, p in self._ordered_data_wires(partition):
+                wire_name = _wire_name(q, p)
+                lines.append(f"{wire_name} W {_wire_label(q, p)}")
+                if first_wire is None:
+                    first_wire = wire_name
+                last_wire = wire_name
+            for slot in range(self.comm_slots_per_partition.get(partition, 0)):
+                comm_wire_name = _comm_wire_name(partition, slot)
+                labels = self.comm_slot_labels.get((partition, slot), [])
+                if labels:
+                    label_tokens = [labels[0]]
+                    for lbl in labels[1:]:
+                        label_tokens.extend(["{}", lbl])
+                    lines.append(f"{comm_wire_name} W {' '.join(label_tokens)}")
+                else:
+                    lines.append(f"{comm_wire_name} W")
+                if first_wire is None:
+                    first_wire = comm_wire_name
+                last_wire = comm_wire_name
+            for slot in range(epr_budget.get(partition, 0)):
+                epr_wire_name = _epr_wire_name(partition, slot)
+                lines.append(f"{epr_wire_name} W")
+                if first_wire is None:
+                    first_wire = epr_wire_name
+                last_wire = epr_wire_name
+            if first_wire is not None and last_wire is not None:
+                partition_boundaries.append((first_wire, last_wire))
+            if partition < self.circuit.num_partitions - 1:
+                lines.append(f"gap_p{partition} W type=o")
+
+        if self.draw_qpu_boundaries:
+            for i, (first_wire, last_wire) in enumerate(partition_boundaries):
+                fill = self._boundary_fill(i)
+                lines.append(
+                    f"{first_wire} {last_wire} @ {boundary_start} {boundary_end} "
+                    f"color=black style=dashed,rounded_corners=5pt,fill={fill}"
+                )
+
+        lines.append("")
+        lines.extend(event_lines)
 
         return "\n".join(lines) + "\n"
 
@@ -554,9 +725,18 @@ class DistributedCircuitQPIC:
         """Write the lowered QPIC diagram to *path*."""
         Path(path).write_text(self.to_qpic_string_lowered())
 
-    def _render_event_lowered(self, event, active_comm, free_comm, free_epr) -> list[str]:
+    def _render_event_lowered(
+        self,
+        event,
+        active_comm,
+        free_comm,
+        free_epr,
+        epr_budget,
+    ) -> list[str]:
         if isinstance(event, FanOut):
-            return self._render_fan_out_lowered(event, active_comm, free_comm, free_epr)
+            return self._render_fan_out_lowered(
+                event, active_comm, free_comm, free_epr, epr_budget
+            )
         elif isinstance(event, ImmediateFanIn):
             return self._render_immediate_fan_in_lowered(event, active_comm, free_comm)
         elif isinstance(event, FanIn):
@@ -577,6 +757,7 @@ class DistributedCircuitQPIC:
         active_comm,
         free_comm,
         free_epr,
+        epr_budget,
     ) -> list[str]:
         """Render FanOut at the physical level.
 
@@ -608,18 +789,13 @@ class DistributedCircuitQPIC:
         partition_to_comm_wire: dict[int, str] = {event.root_partition: root_wire}
         for p in event.target_partitions + event.intermediate_partitions:
             slot = self._allocate_comm_slot(event.root_qubit, p, active_comm, free_comm)
-            draw_wire = _comm_wire_name(p, slot)
-            alias_wire = _wire_name(event.root_qubit, p)
-            if (event.root_qubit, p) in self.data_wire_pairs:
-                self.comm_alias[(event.root_qubit, p)] = alias_wire
-                draw_wire = alias_wire
-            partition_to_comm_wire[p] = draw_wire
+            partition_to_comm_wire[p] = _comm_wire_name(p, slot)
 
-        # Allocate one parent-side EPR wire per BFS edge.
+        # Allocate one parent-side Bell-prep comm wire per BFS edge.
         edge_epr: dict[tuple[int, int], str] = {}
         edge_epr_slot: dict[tuple[int, int], int] = {}
         for p_parent, p_child in bfs_edges:
-            epr_slot = free_epr[p_parent].pop(0)
+            epr_slot = self._allocate_epr_slot(p_parent, free_epr, epr_budget)
             edge_epr[(p_parent, p_child)] = _epr_wire_name(p_parent, epr_slot)
             edge_epr_slot[(p_parent, p_child)] = epr_slot
 
@@ -643,9 +819,9 @@ class DistributedCircuitQPIC:
             lines.append(f"{epr_wire} M")            # measure → ep wire becomes cwire
             node_in_wire[p_child] = partition_to_comm_wire[p_child]
 
-        # Release EPR slots (each ep wire has been measured; its cwire will trail).
+        # Release Bell-prep slots (each ep wire has been measured; its cwire will trail).
         for p_parent, p_child in bfs_edges:
-            free_epr[p_parent].insert(0, edge_epr_slot[(p_parent, p_child)])
+            self._release_epr_slot(p_parent, edge_epr_slot[(p_parent, p_child)], free_epr)
 
         # Phase 3: XOR-parity accumulation then corrections.
         # Classical XOR accumulations go first (before any quantum corrections).
@@ -669,6 +845,30 @@ class DistributedCircuitQPIC:
             lines.append(f"+{child_wire} {ep_wire}:owire")
 
         return lines
+
+    def _allocate_epr_slot(
+        self,
+        partition: int,
+        free_epr: dict[int, list[int]],
+        epr_budget: dict[int, int],
+    ) -> int:
+        """Allocate a parent-side Bell-prep slot in lowered mode."""
+        slots = free_epr[partition]
+        if not slots:
+            slot = epr_budget.get(partition, 0)
+            epr_budget[partition] = slot + 1
+        else:
+            slot = slots.pop(0)
+        return slot
+
+    def _release_epr_slot(
+        self,
+        partition: int,
+        slot: int,
+        free_epr: dict[int, list[int]],
+    ) -> None:
+        """Return a parent-side Bell-prep slot to the lowered-mode free list."""
+        free_epr[partition].insert(0, slot)
 
     def _render_fan_in_lowered(self, event: FanIn, active_comm, free_comm) -> list[str]:
         """Render FanIn at the physical level.
