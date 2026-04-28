@@ -76,7 +76,6 @@ benchmarking/old/
 benchmarking/old/
 
 # uv-related
-uv.lock
 .python-version
 
 # MacOS junk
