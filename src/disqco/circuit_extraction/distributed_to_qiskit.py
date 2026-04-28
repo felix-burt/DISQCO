@@ -2,7 +2,8 @@
 
 Each FanOut operation becomes a single named custom instruction whose sub-circuit
 implements the full k-fold cat-entanglement tree.  Each FanIn (ending process)
-and local state transfer also becomes a named custom instruction.  EPR generation
+and local state transfer (moving qubit state from communication qubit to data qubit) 
+also becomes a named custom instruction (this may be a shuttling operation).  EPR generation
 is itself a named sub-instruction inside each FanOut block.
 """
 
@@ -39,9 +40,6 @@ if TYPE_CHECKING:
     from disqco import QuantumNetwork
 
 
-# ---------------------------------------------------------------------------
-# Standalone sub-circuit builders (return Qiskit Instructions)
-# ---------------------------------------------------------------------------
 
 def _make_epr_gate() -> object:
     """EPR pair generator: H on qubit 0, CX(0→1).  Kept as a named primitive."""
@@ -178,10 +176,6 @@ def _make_fan_out_instruction(
     return sub_qc.to_instruction(label=label)
 
 
-# ---------------------------------------------------------------------------
-# Main converter class
-# ---------------------------------------------------------------------------
-
 class DistributedCircuitToQiskit:
     """Lower a DistributedCircuit to a Qiskit QuantumCircuit.
 
@@ -256,9 +250,6 @@ class DistributedCircuitToQiskit:
         # pending_settles[q_log] = (partition, comm_qubit)
         self.pending_settles: dict[int, tuple[int, Qubit]] = {}
 
-    # ------------------------------------------------------------------
-    # Public entry point
-    # ------------------------------------------------------------------
 
     def build(self) -> QuantumCircuit:
         """Process all events and return the concrete Qiskit circuit."""
@@ -279,9 +270,7 @@ class DistributedCircuitToQiskit:
         self.qc = reorder_registers_by_index(self.qc)
         return self.qc
 
-    # ------------------------------------------------------------------
-    # Event dispatch
-    # ------------------------------------------------------------------
+
 
     def _process_event(self, event) -> None:
         if isinstance(event, LocalGate):
@@ -299,9 +288,7 @@ class DistributedCircuitToQiskit:
         elif isinstance(event, JointFanIn):
             self._apply_joint_fan_in(event)
 
-    # ------------------------------------------------------------------
-    # LocalGate
-    # ------------------------------------------------------------------
+
 
     def _apply_local_gate(self, event: LocalGate) -> None:
         name   = event.gate_name
@@ -335,9 +322,6 @@ class DistributedCircuitToQiskit:
         elif name == 'cz':  self.qc.cz(q0, q1)
         elif name == 'cp':  self.qc.cp(params[0], q0, q1)
 
-    # ------------------------------------------------------------------
-    # StateTransfer (non-group qubit move between partitions)
-    # ------------------------------------------------------------------
 
     def _apply_state_transfer(self, event: StateTransfer) -> None:
         """Full state teleportation from source to destination partition."""

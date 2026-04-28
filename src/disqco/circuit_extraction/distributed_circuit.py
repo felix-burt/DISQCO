@@ -15,11 +15,6 @@ import networkx as nx
 if TYPE_CHECKING:
     from disqco import QuantumNetwork
 
-
-# ---------------------------------------------------------------------------
-# Event types
-# ---------------------------------------------------------------------------
-
 @dataclass
 class LocalGate:
     """A gate that acts entirely within a single partition."""
@@ -128,11 +123,6 @@ class JointFanIn:
     target_partition: int
     time: int
 
-
-# ---------------------------------------------------------------------------
-# DistributedCircuit
-# ---------------------------------------------------------------------------
-
 DistributedCircuitEvent = (
     LocalGate | StateTransfer | FanOut | ImmediateFanIn | LinkedGate | FanIn | JointFanIn
 )
@@ -160,9 +150,6 @@ class DistributedCircuit:
         self.initial_assignment: list[int] | None = None
         self.wire_order: list[tuple[int, int]] = []
 
-    # ------------------------------------------------------------------
-    # Mutation
-    # ------------------------------------------------------------------
 
     def add_event(self, event: DistributedCircuitEvent) -> None:
         self.events.append(event)
@@ -258,9 +245,6 @@ class DistributedCircuit:
             return event.root_qubit == qubit or event.target_qubit == qubit
         return False
 
-    # ------------------------------------------------------------------
-    # Query helpers
-    # ------------------------------------------------------------------
 
     def get_events_by_type(self, event_type: type) -> list:
         return [e for e in self.events if isinstance(e, event_type)]
@@ -305,9 +289,6 @@ class DistributedCircuit:
         self.initial_assignment = [int(p) for p in initial_assignment]
         self.wire_order = [(int(q), int(p)) for q, p in wire_order]
 
-    # ------------------------------------------------------------------
-    # Summary
-    # ------------------------------------------------------------------
 
     def summary(self) -> str:
         counts: dict[str, int] = {}
