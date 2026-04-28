@@ -181,15 +181,17 @@ def test_quantum_network_factory_in_partitioning_workflow():
     """Test using factory method in a complete partitioning workflow"""
     from disqco.circuits.cp_fraction import cp_fraction
     from disqco.parti import FiducciaMattheyses
+    from bosonic_converters import CircuitConverters
     from qiskit import transpile
-    
-    # Create circuit
+
+    # Create circuit (Qiskit factory) then convert to bosonic for DISQCO.
     circuit = cp_fraction(num_qubits=32, depth=32, fraction=0.5, seed=42)
     circuit = transpile(circuit, basis_gates=['u', 'cp'])
-    
+    circuit = CircuitConverters.from_qiskit(circuit)
+
     # Create network using factory
     network = QuantumNetwork.create([9, 9, 9, 9], 'linear')
-    
+
     # Create partitioner and run
     partitioner = FiducciaMattheyses(circuit, network=network)
     results = partitioner.partition(num_passes=3)

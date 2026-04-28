@@ -6,7 +6,8 @@ support multilevel partitioning with coarsening.
 """
 
 from disqco.parti.partitioner import QuantumCircuitPartitioner
-from qiskit import QuantumCircuit
+from bosonic_converters import CircuitConverters
+from bosonic_model import Circuit
 from disqco.graphs.quantum_network import QuantumNetwork
 import numpy as np
 from disqco.parti.fgp.fgp_roee import main_algorithm, set_initial_partition_fgp
@@ -21,7 +22,7 @@ class FGPPartitioner(QuantumCircuitPartitioner):
     """
     
     def __init__(self, 
-                 circuit: QuantumCircuit, 
+                 circuit: Circuit, 
                  network: QuantumNetwork, 
                  initial_assignment: np.ndarray = None, 
                  **kwargs) -> None:
@@ -49,7 +50,10 @@ class FGPPartitioner(QuantumCircuitPartitioner):
                 "The provided network has hetero=True, indicating non-uniform connectivity."
             )
         
-        self.num_qubits = circuit.num_qubits
+        self.num_qubits = circuit.qubits()
+        # FGP's underlying algorithm depends on Qiskit-specific circuit attributes (qregs,
+        # num_qubits, depth) and Qiskit DAG layering. Keep a Qiskit copy for the inner pass.
+        self._qiskit_circuit = CircuitConverters.to_qiskit(circuit)
         self.num_qpus = len(network.qpu_sizes)
         
         # Extract qpu_info as a list (required by fgp_roee main_algorithm)
@@ -95,7 +99,7 @@ class FGPPartitioner(QuantumCircuitPartitioner):
         
         # Call the main FGP algorithm
         full_partition, cost, full_mapping = main_algorithm(
-            circuit=self.circuit,
+            circuit=self._qiskit_circuit,
             qpu_info=self.qpu_info,
             initial_partition=assignment,
             remove_singles=self.remove_singles,

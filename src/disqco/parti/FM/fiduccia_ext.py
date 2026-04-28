@@ -4,7 +4,7 @@ from disqco.parti.FM.FM_methods_ext import *
 from disqco.parti.FM.FM_main_ext import run_FM, partition_multilevel          # single-pass driver
 from disqco.graphs.QC_hypergraph_extended import HyperGraph
 from disqco.graphs.quantum_network import QuantumNetwork
-from qiskit import QuantumCircuit
+from bosonic_model import Circuit
 import numpy as np
 
 
@@ -16,7 +16,7 @@ class FiducciaMattheysesExt(QuantumCircuitPartitioner):
 
     def __init__(
         self,
-        circuit: QuantumCircuit,
+        circuit: Circuit,
         network: QuantumNetwork,
         initial_qubit_assignment: np.ndarray | None = None,
         initial_gate_assignment: np.ndarray | None = None,

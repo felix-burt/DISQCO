@@ -2,7 +2,7 @@ from typing import List, Callable, Tuple
 import numpy as np
 import random
 import multiprocessing as mp
-from qiskit import transpile
+from bosonic_model import Circuit
 from scipy.special import softmax
 from disqco.graphs.QC_hypergraph import *
 from disqco.graphs.hypergraph_methods import *
@@ -23,7 +23,7 @@ MutationFunc = Callable[[Genome,int,int],Genome]
 class GeneticPartitioner(QuantumCircuitPartitioner):
 
     def __init__(self, 
-                 circuit : QuantumCircuit, 
+                 circuit : Circuit,
                  network : QuantumNetwork,
                  **kwargs) -> None:
         super().__init__(circuit=circuit, network=network, initial_assignment=None)
@@ -31,9 +31,9 @@ class GeneticPartitioner(QuantumCircuitPartitioner):
         group_gates = kwargs.get('group_gates', True)
         self.qpu_sizes = [size for key, size in self.network.qpu_sizes.items()] # List of QPU sizes
 
-        self.num_qubits_log = circuit.num_qubits
-        self.num_layers = circuit.depth()
         self.graph = QuantumCircuitHyperGraph(circuit,group_gates=group_gates)
+        self.num_qubits_log = self.graph.num_qubits
+        self.num_layers = self.graph.depth
         self.hypergraph= self.graph
         self.layers = self.graph.layers
         self.costs = kwargs.get('costs', self.network.get_costs())

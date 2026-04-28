@@ -90,9 +90,9 @@ class ClassicalBitManager:
         Allocate a classical bit for a measurement operation.
         """
         if len(self.free_cbit) == 0:
-            # Add a new classical register of size 1
+            # Add a new classical register of size 1, sharing the cl_global naming convention
             idx = len(self.creg)
-            new_creg = ClassicalRegister(1, name=f"cl_{idx}")
+            new_creg = ClassicalRegister(1, name=f"cl_global_extra_{idx}")
             self.qc.add_register(new_creg)
             self.creg = new_creg
             self.free_cbit.append(new_creg[0])

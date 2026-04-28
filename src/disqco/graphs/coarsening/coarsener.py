@@ -630,6 +630,8 @@ class HypergraphCoarsener:
 
         # 8) Construct the new hypergraph object or mutate the old one
         new_H = QuantumCircuitHyperGraph(circuit=circuit, map_circuit=False)
+        new_H.num_qubits = hypergraph.num_qubits
+        new_H.depth = hypergraph.depth
         new_H.nodes = new_nodes
         new_H.adjacency = new_adjacency
         new_H.node2hyperedges = new_node2hyperedges
@@ -744,6 +746,8 @@ class HypergraphCoarsener:
             new_node_attrs[rv].update(attrs)  # could do something more advanced if needed
         # 9) Construct the new hypergraph object
         new_H = QuantumCircuitHyperGraph(circuit=circuit, map_circuit=False)
+        new_H.num_qubits = hypergraph.num_qubits
+        new_H.depth = hypergraph.depth
         new_H.nodes = new_nodes
         new_H.hyperedges = new_hyperedges
         new_H.adjacency = new_adjacency
@@ -986,6 +990,8 @@ class HypergraphCoarsener:
             
         # Construct the new hypergraph object
         new_H = QuantumCircuitHyperGraph(circuit=circuit, map_circuit=False)
+        new_H.num_qubits = hypergraph.num_qubits
+        new_H.depth = hypergraph.depth
         new_H.nodes = new_nodes
         new_H.hyperedges = new_hyperedges
         new_H.adjacency = new_adjacency
@@ -1352,6 +1358,8 @@ class HypergraphCoarsener:
             
         # Construct the new hypergraph object
         new_H = QuantumCircuitHyperGraph(circuit=circuit, map_circuit=False)
+        new_H.num_qubits = hypergraph.num_qubits
+        new_H.depth = hypergraph.depth
         new_H.nodes = new_nodes
         new_H.hyperedges = new_hyperedges
         new_H.adjacency = new_adjacency

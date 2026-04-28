@@ -1,5 +1,5 @@
 from disqco.parti.partitioner import QuantumCircuitPartitioner
-from qiskit import QuantumCircuit
+from bosonic_model import Circuit
 from disqco.graphs.quantum_network import QuantumNetwork
 import numpy as np
 from disqco.graphs.QC_hypergraph import QuantumCircuitHyperGraph
@@ -15,7 +15,7 @@ class FiducciaMattheyses(QuantumCircuitPartitioner):
     quantum circuits into smaller sub-circuits.
     """
     def __init__(self, 
-                 circuit : QuantumCircuit, 
+                 circuit : Circuit,
                  network : QuantumNetwork, 
                  initial_assignment : np.ndarray = None, 
                  **kwargs) -> None:

@@ -3,6 +3,7 @@ Test suite for hypergraph coarsening
 """
 
 import pytest
+from bosonic_converters import CircuitConverters
 from qiskit import transpile
 from disqco import QuantumCircuitHyperGraph
 from disqco.coarsening import HypergraphCoarsener
@@ -11,10 +12,10 @@ from disqco.circuits.cp_fraction import cp_fraction
 
 @pytest.fixture
 def test_circuit():
-    """Create a cp_fraction circuit with 16 qubits"""
+    """Create a cp_fraction circuit with 16 qubits as a bosonic Circuit."""
     circuit = cp_fraction(num_qubits=16, depth=16, fraction=0.5, seed=42)
     circuit = transpile(circuit, basis_gates=['u', 'cp'])
-    return circuit
+    return CircuitConverters.from_qiskit(circuit)
 
 
 @pytest.fixture

@@ -3,6 +3,7 @@ Test suite for multilevel partitioning with FiducciaMattheyses
 """
 
 import pytest
+from bosonic_converters import CircuitConverters
 from qiskit import transpile
 from disqco import QuantumNetwork
 from disqco.parti import FiducciaMattheyses
@@ -12,10 +13,10 @@ from disqco.circuits.cp_fraction import cp_fraction
 
 @pytest.fixture
 def test_circuit():
-    """Create a cp_fraction circuit with 16 qubits"""
+    """Create a cp_fraction circuit with 32 qubits as a bosonic Circuit."""
     circuit = cp_fraction(num_qubits=32, depth=32, fraction=0.5, seed=42)
     circuit = transpile(circuit, basis_gates=['u', 'cp'])
-    return circuit
+    return CircuitConverters.from_qiskit(circuit)
 
 
 @pytest.fixture

@@ -1,8 +1,7 @@
 from collections import defaultdict
-from disqco.utils.qiskit_to_op_list import circuit_to_gate_layers, layer_list_to_dict
+from disqco.utils.bosonic_to_op_list import bosonic_to_layer_dict, basis_gates_from_circuit
 from disqco.graphs.greedy_gate_grouping import group_distributable_packets_sym, group_distributable_packets_asym
-from qiskit import QuantumCircuit
-from qiskit.transpiler.passes import RemoveBarriers
+from bosonic_model import Circuit
 from disqco.graphs.quantum_network import QuantumNetwork
 import numpy as np
 from typing import Optional
@@ -10,10 +9,13 @@ from typing import Optional
 class QuantumCircuitHyperGraph:
     """
     Class for temporal hypergraph representation of quantum circuit.
+
+    Accepts a bosonic_model.Circuit as input. Use bosonic_converters.CircuitConverters.from_qiskit
+    if you have a Qiskit QuantumCircuit and need to convert.
     """
-    def __init__(self, 
-                circuit : QuantumCircuit, 
-                group_gates : bool = True, 
+    def __init__(self,
+                circuit : Circuit,
+                group_gates : bool = True,
                 anti_diag : bool = True,
                 map_circuit : bool = True,
                 qpu_sizes = None):
@@ -24,11 +26,13 @@ class QuantumCircuitHyperGraph:
         self.adjacency = defaultdict(set)
         self.node_attrs = {}
         self.hyperedge_attrs = {}
-        self.circuit = RemoveBarriers()(circuit)
-        self.num_qubits = circuit.num_qubits
+        self.circuit = circuit
+        self.num_qubits = circuit.qubits()
         self.num_qubits_init = self.num_qubits
-        self.depth = circuit.depth()
-        self.basis_gates = list(circuit.count_ops().keys())
+        self._basis_gates = basis_gates_from_circuit(circuit)
+        self.basis_gates = list(self._basis_gates)
+        # depth is set after layer extraction; default to 0 in case map_circuit=False
+        self.depth = 0
         if map_circuit:
             self.init_from_circuit(group_gates, anti_diag, qpu_sizes=qpu_sizes)
 
@@ -40,17 +44,12 @@ class QuantumCircuitHyperGraph:
         self.map_circuit_to_hypergraph()
 
     def extract_layers(self, group_gates=True, anti_diag=False, qpu_sizes=None):
-        layers = circuit_to_gate_layers(self.circuit, qpu_sizes=qpu_sizes)
-        layers = layer_list_to_dict(layers)
-        basis_gates = self.circuit.count_ops()
+        layers = bosonic_to_layer_dict(self.circuit, qpu_sizes=qpu_sizes)
         if group_gates:
-            if 'cx' in basis_gates or 'cu' in basis_gates:
+            if 'cx' in self._basis_gates or 'cu' in self._basis_gates:
                 layers = group_distributable_packets_asym(layers, group_anti_diags=anti_diag)
             else:
                 layers = group_distributable_packets_sym(layers, group_anti_diags=anti_diag)
-
-
-                    
         return layers
 
     def add_node(self, qubit, time):
@@ -239,6 +238,8 @@ class QuantumCircuitHyperGraph:
         """
         # 1) Create a blank instance (no qubits/depth needed for now)
         new_graph = QuantumCircuitHyperGraph(circuit=self.circuit, map_circuit=False)
+        new_graph.num_qubits = self.num_qubits
+        new_graph.depth = self.depth
 
         # 2) Copy nodes
         new_graph.nodes = set(self.nodes)

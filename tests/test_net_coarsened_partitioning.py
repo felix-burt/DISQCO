@@ -11,6 +11,7 @@ Network coarsened partitioning combines:
 
 import pytest
 import numpy as np
+from bosonic_converters import CircuitConverters
 from qiskit import QuantumCircuit, transpile
 
 from disqco import QuantumNetwork
@@ -47,20 +48,20 @@ def grid_network():
 
 @pytest.fixture
 def test_circuit_small():
-    """Create a small test circuit"""
+    """Create a small test bosonic Circuit."""
     num_qubits = 32
     circuit = cp_fraction(num_qubits, depth=32, fraction=0.5, seed=42)
     circuit = transpile(circuit, basis_gates=['u', 'cp'])
-    return circuit
+    return CircuitConverters.from_qiskit(circuit)
 
 
 @pytest.fixture
 def test_circuit_large():
-    """Create a larger test circuit"""
+    """Create a larger test bosonic Circuit."""
     num_qubits = 64
     circuit = cp_fraction(num_qubits, depth=64, fraction=0.5, seed=123)
     circuit = transpile(circuit, basis_gates=['u', 'cp'])
-    return circuit
+    return CircuitConverters.from_qiskit(circuit)
 
 
 def test_net_coarsened_partitioning_direct_call(test_circuit_small, linear_network):
@@ -68,7 +69,7 @@ def test_net_coarsened_partitioning_direct_call(test_circuit_small, linear_netwo
     from disqco import QuantumCircuitHyperGraph
     
     hypergraph = QuantumCircuitHyperGraph(test_circuit_small)
-    num_qubits = test_circuit_small.num_qubits
+    num_qubits = test_circuit_small.qubits()
     
     results = run_full_net_coarsened_FM(
         hypergraph=hypergraph,

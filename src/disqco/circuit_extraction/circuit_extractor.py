@@ -3,6 +3,13 @@ import numpy as np
 import networkx as nx
 from qiskit import QuantumRegister, ClassicalRegister, QuantumCircuit, transpile
 from qiskit.circuit import Qubit, Instruction
+from bosonic_model import Circuit as BosonicCircuit, DistributedCircuit, Register as BosonicRegister
+from bosonic_model.instructions import (
+    ConditionalInstruction,
+    GateInstruction,
+    Instruction as BosonicInstruction,
+)
+from bosonic_converters import CircuitConverters
 from disqco import QuantumCircuitHyperGraph
 from disqco import QuantumNetwork
 from disqco.circuit_extraction.DQC_qubit_manager import DataQubitManager, CommunicationQubitManager, ClassicalBitManager
@@ -40,107 +47,62 @@ class TeleportationManager:
         self.creg_manager = creg_manager
         self.hypergraph = hypergraph
 
-    def build_state_transfer_circuit(self) -> Instruction:
-        """
-        Builds the state transfer circuit. This swaps the state of a qubit onto an unused qubit slot.
-        """
-        circ = QuantumCircuit(2, 1)
-        circ.cx(0,1)
-        circ.h(0)
-        circ.measure(0, 0)
-        circ.reset(0)
-        circ.z(1).c_if(0, 1)
-        return circ.to_instruction()
+    def _emit_state_transfer(self, q1: Qubit, q2: Qubit, cbit) -> None:
+        """Emit the state-transfer primitive (q1 -> q2) inline onto self.qc."""
+        self.qc.cx(q1, q2)
+        self.qc.h(q1)
+        self.qc.measure(q1, cbit)
+        self.qc.reset(q1)
+        with self.qc.if_test((cbit, 1)):
+            self.qc.z(q2)
 
     def build_epr_circuit(self) -> Instruction:
         """
-        Builds the EPR circuit. This is used to entangle two qubits - is kept as a primitive operation
-        since it is expected to be handled by the network.
+        Builds the EPR circuit (a |Phi+> Bell pair). The internal definition is H + CX so the
+        gate can be decomposed if needed, but the gate name matches the bosonic Simulator's
+        recognised remote_link_phi_plus primitive so the network entangler is treated as opaque
+        downstream.
         """
         circ = QuantumCircuit(2)
         circ.h(0)
         circ.cx(0, 1)
         gate = circ.to_gate()
-        gate.name = "EPR"
+        gate.name = "remote_link_phi_plus"
         return gate
     
-    def build_starting_process_circuit(self) -> Instruction:
-        """
-        Builds the teleportation starting process circuit (cat-entangler/non-local fan out). This is used 
-        to entangle the root qubit with a communication qubit in another QPU.
-        """
-        epr_circ = self.build_epr_circuit()
-        circ = QuantumCircuit(3, 1)
-        circ.append(epr_circ, [1, 2])
-        circ.cx(0, 1)
-        circ.measure(1, 0)
-        circ.reset(1)
-        circ.x(2).c_if(0, 1)
+    def _emit_starting_process(self, root_q: Qubit, root_comm: Qubit, rec_comm: Qubit, cbit) -> None:
+        """Emit the cat-entangler starting process inline onto self.qc.
 
-        instr = circ.to_instruction()
-        instr.name = "Starting Process"
-        return instr
+        Generates an EPR pair on (root_comm, rec_comm), entangles root_q with the link,
+        measures the root-side comm and applies a classically-controlled X correction
+        on the receiver-side comm qubit.
+        """
+        epr_gate = self.build_epr_circuit()
+        self.qc.append(epr_gate, [root_comm, rec_comm])
+        self.qc.cx(root_q, root_comm)
+        self.qc.measure(root_comm, cbit)
+        self.qc.reset(root_comm)
+        with self.qc.if_test((cbit, 1)):
+            self.qc.x(rec_comm)
     
-    def build_ending_process_circuit(self) -> Instruction:
-        """
-        Builds the teleportation ending process circuit (cat-entangler/non-local fan in). This is used 
-        to disentangle the root qubit from a communication qubit in another QPU, direction determines
-        the final location of the root qubit.
-        """
-        circ = QuantumCircuit(2, 1)
-        circ.h(1)
-        circ.measure(1, 0)
-        circ.reset(1)
-        circ.z(0).c_if(0, 1)
+    def _emit_ending_process(self, target_q: Qubit, link_comm: Qubit, cbit) -> None:
+        """Emit the cat-entangler ending process inline onto self.qc.
 
-        instr = circ.to_instruction()
-        instr.name = "Ending Process"
-        return instr
-    
-    def build_teleporation_circuit(self) -> Instruction:
+        Closes the entanglement link by Hadamard+measure on link_comm and applying a
+        classically-controlled Z correction on target_q.
         """
-        Builds the state teleportation circuit. This is used to teleport the state of a qubit from one
-        partition (QPU) to another.
-        """
-        circ = QuantumCircuit(3, 2)
-        starting = self.build_starting_process_circuit()
-        circ.append(starting, [0, 1, 2], [0])
-        ending = self.build_ending_process_circuit()
-        circ.append(ending, [2, 0], [1])
-
-        instr = circ.to_instruction(label="State Teleportation")
-        return instr
-    
-    def build_gate_teleportation_circuit(self, gate) -> Instruction:
-        """
-        Builds the gate teleportation circuit. This is used to teleport cover a single non-local gate,
-        ending the link immediately afterwards.
-        """
-        gate_params = gate['params']
-        name = gate['name']
-        circ = QuantumCircuit(4, 1)
-        root_entanglement_circuit = self.build_starting_process_circuit()
-        circ.append(root_entanglement_circuit, [0, 1, 2], [0])
-        if name == 'cp':
-            circ.cp(gate_params[0], 2, 3)
-        elif name == 'cx':
-            circ.cx(2, 3)
-        elif name == 'cz':
-            circ.cz(2, 3)
-
-        entanglement_end_circuit = self.build_ending_process_circuit()
-        circ.append(entanglement_end_circuit, [0, 2], [0])
-
-        instr = circ.to_instruction(label="Gate Teleportation")
-        return instr
+        self.qc.h(link_comm)
+        self.qc.measure(link_comm, cbit)
+        self.qc.reset(link_comm)
+        with self.qc.if_test((cbit, 1)):
+            self.qc.z(target_q)
     
     def transfer_state(self, q1: Qubit, q2: Qubit) -> None:
         """
         Transfers the state of a qubit from one qubit slot to an unused slot.
         """
         cbit = self.creg_manager.allocate_cbit()
-        instr = self.build_state_transfer_circuit()
-        self.qc.append(instr, [q1, q2], [cbit])
+        self._emit_state_transfer(q1, q2, cbit)
         self.creg_manager.release_cbit(cbit)
     
     def entangle_root(self, root_idx: int, p_root: int, p_rec: int) -> None:
@@ -151,8 +113,7 @@ class TeleportationManager:
         root_comm = self.comm_manager.find_comm_idx(p_root)
         rec_comm = self.comm_manager.find_comm_idx(p_rec)
         cbit = self.creg_manager.allocate_cbit()
-        instr = self.build_starting_process_circuit()
-        self.qc.append(instr, [root_q, root_comm, rec_comm], [cbit])
+        self._emit_starting_process(root_q, root_comm, rec_comm, cbit)
         self.qubit_manager.groups[root_idx]['linked_qubits'][p_rec] = rec_comm
         self.creg_manager.release_cbit(cbit)
         self.comm_manager.release_comm_qubit(p_root, root_comm)
@@ -171,8 +132,7 @@ class TeleportationManager:
             target_comm = self.qubit_manager.groups[q_root]['linked_qubits'][p_target]
 
         cbit = self.creg_manager.allocate_cbit()
-        instr = self.build_ending_process_circuit()
-        self.qc.append(instr, [target_comm, rec_comm], [cbit])
+        self._emit_ending_process(target_comm, rec_comm, cbit)
         if rec_comm._register.name[0] == 'C':
             self.comm_manager.release_comm_qubit(p_rec, rec_comm)
         else:
@@ -334,10 +294,9 @@ class TeleportationManager:
             comm_dest = comm_qubits[p_dest]
             # Apply ending process circuit at destination (measure destination comm qubit, teleport state)
             cbit = self.creg_manager.allocate_cbit()
-            ending_instr = self.build_ending_process_circuit()
             # After swap, the data qubit is at the destination
             data_q1 = self.qubit_manager.log_to_phys_idx[qubit_idx]
-            self.qc.append(ending_instr, [comm_dest, data_q1], [cbit])
+            self._emit_ending_process(comm_dest, data_q1, cbit)
             self.qubit_manager.release_data_qubit(p_source, qubit=data_q1)
             self.creg_manager.release_cbit(cbit)
             success = self.swap_qubits_to_physical(qubit_idx, p_dest, comm_dest)
@@ -381,8 +340,7 @@ class TeleportationManager:
         # Apply ending process at the target (measure target qubit)
 
         cbit = self.creg_manager.allocate_cbit()
-        ending_instr = self.build_ending_process_circuit()
-        self.qc.append(ending_instr, [data_q_root, comm_q_rec], [cbit])
+        self._emit_ending_process(data_q_root, comm_q_rec, cbit)
         self.comm_manager.release_comm_qubit(p_rec, comm_q_rec)
         self.creg_manager.release_cbit(cbit)
     
@@ -463,7 +421,8 @@ class TeleportationManager:
 
         for comm_child, cbits, last_cbit in correction_info:
             for cb in cbits:
-                self.qc.x(comm_child).c_if(cb, 1)
+                with self.qc.if_test((cb, 1)):
+                    self.qc.x(comm_child)
             # Release classical bits after use
             self.creg_manager.release_cbit(last_cbit)
         all_nodes = set(tree.nodes())
@@ -492,8 +451,7 @@ class TeleportationManager:
 
             # Apply ending process circuit from local_epr to live_epr
             cbit = self.creg_manager.allocate_cbit()
-            ending_instr = self.build_ending_process_circuit()
-            self.qc.append(ending_instr, [live_epr, local_epr], [cbit])
+            self._emit_ending_process(live_epr, local_epr, cbit)
             self.comm_manager.release_comm_qubit(aux, local_epr)
             self.creg_manager.release_cbit(cbit)
             del node_in_comm[aux]  
@@ -601,7 +559,11 @@ class PartitionedCircuitExtractor:
         """
         Creates the classical registers for the result and control bits.
         """
-        creg = ClassicalRegister(self.num_qubits, name="cl")
+        # Single shared "cl_global" creg (control bits) shared across all per-node Circuits
+        # in the bosonic DistributedCircuit output. Sized generously enough to avoid
+        # dynamic creg growth in most cases; if exhausted, ClassicalBitManager grows it
+        # under the cl_global_extra_* naming convention.
+        creg = ClassicalRegister(max(self.num_qubits, 16), name="cl_global")
         result_reg = ClassicalRegister(self.num_qubits, name="result")
         return creg, result_reg
 
@@ -942,7 +904,7 @@ class PartitionedCircuitExtractor:
         if root_idx in self.qubit_manager.groups and final_t == t:
             self.teleportation_manager.close_group(root_idx)
 
-    def extract_partitioned_circuit(self) -> QuantumCircuit:
+    def extract_partitioned_circuit(self) -> DistributedCircuit:
         for i, layer in sorted(self.layer_dict.items()):
             new_assignment_layer = self.partition_assignment[i]
             for q in range(self.num_qubits):
@@ -988,11 +950,118 @@ class PartitionedCircuitExtractor:
             self.qc.measure(self.qubit_manager.log_to_phys_idx[i], self.result_reg[i])
         
         self.qc = reorder_registers_by_index(self.qc)
-        teleportation_gates = ['x', 'z']
-        basis_gate_set = set(teleportation_gates).union(set(self.basis_gates)).union(set(['EPR']))
-        self.qc = transpile(self.qc, basis_gates= list(basis_gate_set))
-        return self.qc
+        # Note: a final transpile pass used to normalise to a basis gate set including 'EPR'.
+        # Qiskit 2.x rejects non-standard names in `basis_gates`, and now that the teleportation
+        # primitives are inlined as concrete gates (no wrapper instructions to decompose), the
+        # transpile pass is no longer needed - the circuit is already in basis form. EPR remains
+        # as an opaque named gate which the bosonic Simulator materialises via UnitaryGate.
+        return self._to_distributed_circuit(self.qc)
     
+    @staticmethod
+    def _node_from_reg_name(name: str) -> int | None:
+        """Parse a register name like 'Q3_q' or 'C2_5' and return the QPU node index."""
+        if not name or name[0] not in {"Q", "C"}:
+            return None
+        digits: list[str] = []
+        for ch in name[1:]:
+            if ch.isdigit():
+                digits.append(ch)
+            else:
+                break
+        if not digits:
+            return None
+        return int("".join(digits))
+
+    def _to_distributed_circuit(self, qiskit_circuit: QuantumCircuit) -> DistributedCircuit:
+        """Convert the post-transpile Qiskit QuantumCircuit into a bosonic DistributedCircuit.
+
+        Each instruction is routed to the per-node Circuit(s) whose QPU owns its qubits.
+        Instructions touching qubits on multiple QPUs (i.e. EPR or other cross-QPU primitives)
+        are wrapped as remote_* GateInstructions and shared by reference between the involved
+        nodes' Circuits, matching the bosonic DistributedCircuit non-local convention.
+        Classical registers (cl_global, result, any growth) are shared across all per-node
+        Circuits so c_if conditions remain valid in any partition.
+        """
+        bosonic = CircuitConverters.from_qiskit(qiskit_circuit)
+
+        nodes = sorted({i for i in range(self.num_partitions)})
+
+        qubit_to_node: dict[int, int] = {}
+        qubits_per_node: dict[int, list[int]] = {n: [] for n in nodes}
+        per_node_qregs: dict[int, dict[str, BosonicRegister]] = {n: {} for n in nodes}
+        for reg in bosonic.qregs.values():
+            node = self._node_from_reg_name(reg.name)
+            if node is None:
+                # Fallback: any unknown register goes to node 0
+                node = 0
+            if node not in qubits_per_node:
+                qubits_per_node[node] = []
+                per_node_qregs[node] = {}
+            per_node_qregs[node][reg.name] = reg
+            for offset in range(reg.size):
+                global_idx = reg.base + offset
+                qubit_to_node[global_idx] = node
+                qubits_per_node[node].append(global_idx)
+
+        # Cregs are shared across all per-node Circuits
+        shared_cregs: dict[str, BosonicRegister] = dict(bosonic.cregs)
+
+        circuits: dict[int, BosonicCircuit] = {
+            node: BosonicCircuit(
+                qregs=per_node_qregs[node],
+                cregs=shared_cregs,
+                instructions=[],
+            )
+            for node in qubits_per_node
+        }
+        instruction_index: dict[int, int] = {}
+
+        def involved_nodes(inst: BosonicInstruction) -> set[int]:
+            inner = inst.op if isinstance(inst, ConditionalInstruction) else inst
+            qubits = list(getattr(inner, "qubits", []) or [])
+            return {qubit_to_node[q] for q in qubits if q in qubit_to_node}
+
+        def make_remote(inst: BosonicInstruction) -> GateInstruction:
+            inner = inst.op if isinstance(inst, ConditionalInstruction) else inst
+            base_name = str(getattr(inner, "name", getattr(inner, "kind", "gate"))).lower()
+            remote_name = base_name if base_name.startswith("remote_") else f"remote_{base_name}"
+            params = [float(p) for p in (getattr(inner, "params", []) or [])]
+            qubits = list(getattr(inner, "qubits", []) or [])
+            return GateInstruction(name=remote_name, qubits=qubits, params=params, opaque=True)
+
+        for order, inst in enumerate(bosonic.instructions):
+            touched = involved_nodes(inst)
+            if not touched:
+                # Pure classical / barrier / no-qubit op - replicate to all nodes
+                for node in circuits:
+                    circuits[node].instructions.append(inst)
+                instruction_index[id(inst)] = order
+                continue
+            if len(touched) == 1:
+                node = next(iter(touched))
+                circuits[node].instructions.append(inst)
+                instruction_index[id(inst)] = order
+                continue
+            # Multi-node: wrap as remote and share by reference
+            remote = make_remote(inst)
+            for node in sorted(touched):
+                if node in circuits:
+                    circuits[node].instructions.append(remote)
+            instruction_index[id(remote)] = order
+
+        # Drop empty placeholder nodes that have no qubits assigned (defensive: should not happen
+        # with sane qpu_info but handles edge cases gracefully).
+        qubits_per_node = {n: q for n, q in qubits_per_node.items() if q}
+        circuits = {n: c for n, c in circuits.items() if n in qubits_per_node}
+
+        distributed = DistributedCircuit(
+            qubits_per_node=qubits_per_node,
+            circuits=circuits,
+        )
+        distributed._instruction_index = instruction_index
+        return distributed
+
+
 def reorder_registers_by_index(circuit):
     # Separate quantum registers so comm registers are grouped with their corresponding data registers.
     q_groups = {}

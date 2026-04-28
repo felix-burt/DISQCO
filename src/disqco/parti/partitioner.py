@@ -1,4 +1,4 @@
-from qiskit import QuantumCircuit
+from bosonic_model import Circuit
 from disqco import QuantumNetwork
 import numpy as np
 
@@ -9,7 +9,7 @@ class QuantumCircuitPartitioner:
     Base class for quantum circuit partitioners.
     """
     def __init__(self, 
-                 circuit : QuantumCircuit | None = None, 
+                 circuit : Circuit | None = None, 
                  network: QuantumNetwork | None = None, 
                  initial_assignment: np.ndarray | None = None
                  ) -> None:
@@ -25,7 +25,7 @@ class QuantumCircuitPartitioner:
         self.initial_assignment = initial_assignment
     
     @classmethod
-    def create(cls, partitioner_type: str, circuit: QuantumCircuit, 
+    def create(cls, partitioner_type: str, circuit: Circuit, 
                network: QuantumNetwork, **kwargs):
         """
         Factory method to create a partitioner instance based on a string type.

@@ -7,6 +7,7 @@ as well as direct calls to the underlying drawing functions.
 
 import pytest
 import numpy as np
+from bosonic_converters import CircuitConverters
 from qiskit import QuantumCircuit, transpile
 import matplotlib
 matplotlib.use('Agg')  # Use non-interactive backend for testing
@@ -19,10 +20,10 @@ from disqco import set_initial_partition_assignment
 
 @pytest.fixture
 def test_circuit():
-    """Create a small test circuit for drawing"""
+    """Create a small test circuit for drawing as a bosonic Circuit."""
     circuit = cp_fraction(num_qubits=8, depth=8, fraction=0.5, seed=42)
     circuit = transpile(circuit, basis_gates=['u', 'cp'])
-    return circuit
+    return CircuitConverters.from_qiskit(circuit)
 
 
 @pytest.fixture

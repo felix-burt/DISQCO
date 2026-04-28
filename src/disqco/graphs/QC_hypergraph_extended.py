@@ -8,7 +8,7 @@ import math as mt
 import numpy as np
 from collections import defaultdict
 import copy
-from qiskit import QuantumCircuit
+from bosonic_model import Circuit
 
 EdgeKey = Hashable
 PairKey = frozenset[Hashable]
@@ -193,7 +193,7 @@ class HyperGraph:
             self.remove_hyperedge(key)
         self._del_inc(v, key)
 
-    def from_circuit(self, circuit: QuantumCircuit) -> None:
+    def from_circuit(self, circuit: Circuit) -> None:
         """
         Convert from a QuantumCircuit to this hypergraph.
         """
