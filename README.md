@@ -35,6 +35,43 @@ Circuit extraction is compatible with general networks, and produces an output w
 
 Coming soon
 
-### Installation
+## Installation
 
-While this repository is very much a work in progress, the current version can be installed by cloning the repository and runnning "pip install ." from the DISQCO directory using the terminal. The current dependencies are: ["numpy==2.2.3", "qiskit==1.2.4", "qiskit-aer==0.15.1", "qiskit-qasm3-import==0.5.1", "networkx", "matplotlib", "pylatexenc", "jupyter-tikz", "ipykernel"] and will be installed along with disqco.
+While this repository is very much a work in progress, the current version can be installed by cloning the repository.
+
+```
+git clone https://github.com/felix-burt/DISQCO.git
+cd DISQCO
+```
+
+> [!NOTE]
+> DISQCO depends on `qiskit-aer`, which does not provide wheels for Python versions beyond 3.12. Make sure that the version of Python you use is <3.13. (`uv sync` will handle this automatically)
+
+### Using `pip`
+
+DISQCO can be installed using the standard Python package manager, which installs the packages listed in [`setup.py`](./setup.py).
+
+```
+pip install .
+```
+
+### Using `uv`
+
+Alternatively, DISQCO can be installed using [`uv`](https://docs.astral.sh/uv/), which reads the project information in [`pyproject.toml`](./pyproject.toml) to not only install dependencies but also automatically create a virtual environment.
+
+```
+# install dependencies and initialize venv
+uv sync 
+
+# add DISQCO to venv and make it executable
+uv pip install -e .
+
+# run package tests
+uv run pytest
+```
+
+If you are using DISQCO within another project, you can add it as a dependency directly from this repo:
+
+```
+uv add "disqco @ git+https://github.com/felix-burt/DISQCO.git"
+```

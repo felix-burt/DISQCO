@@ -74,3 +74,9 @@ benchmarking/*.dat
 
 benchmarking/old/
 benchmarking/old/
+
+# uv-related
+.python-version
+
+# MacOS junk
+**/*.DS_Store
