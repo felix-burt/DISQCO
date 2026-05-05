@@ -22,8 +22,17 @@ dependencies = [
     "jupyter-tikz",
     "ipykernel",
     "pytest",
+    "qasmpi",
     "tqdm",
 ]
+
+[tool.uv.sources]
+qasmpi = { index = "testpypi" }
+
+[[tool.uv.index]]
+name = "testpypi"
+url = "https://test.pypi.org/simple/"
+explicit = true
 
 [build-system]
 requires = ["setuptools>=61.0"]
