@@ -14,10 +14,14 @@ class FiducciaMattheyses(QuantumCircuitPartitioner):
     This class implements the Fiduccia-Mattheyses algorithm for partitioning
     quantum circuits into smaller sub-circuits.
     """
-    def __init__(self, 
-                 circuit : QuantumCircuit, 
-                 network : QuantumNetwork, 
-                 initial_assignment : np.ndarray = None, 
+
+    # Sentinel: None = not yet attempted, False = unavailable
+    _cpp_hg = None
+
+    def __init__(self,
+                 circuit : QuantumCircuit,
+                 network : QuantumNetwork,
+                 initial_assignment : np.ndarray = None,
                  **kwargs) -> None:
         """
         Initialize the FiducciaMattheyses class.
@@ -64,12 +68,43 @@ class FiducciaMattheyses(QuantumCircuitPartitioner):
         self.sparse = kwargs.get('sparse', False)
         self.num_partitions = len(self.qpu_sizes)
 
-
         if self.initial_assignment is None:
             self.initial_assignment = set_initial_partition_assignment(graph=self.hypergraph, network=network)
 
+        # Build C++ hypergraph lazily on first use
+        self._cpp_hg = None
+
+    def get_cpp_hg(self):
+        """Return the cached C++ FMHyperGraph, building it on first call.
+
+        Returns False if the C++ extension is unavailable so callers can
+        branch to the pure-Python path without retrying each call.
+        """
+        if self._cpp_hg is None:
+            from disqco.parti.FM._fm_cpp_builder import build_cpp_hgraph
+            result = build_cpp_hgraph(self.hypergraph, self.num_partitions)
+            self._cpp_hg = result if result is not None else False
+        return self._cpp_hg
+
     def FM_pass(self, hypergraph, assignment, **kwargs):
-        
+        # C++ fast path: homo network, all nodes active (standard non-multilevel case)
+        if (not self.network.hetero
+                and 'active_hypergraph_nodes' not in kwargs):
+            cpp_hg = self.get_cpp_hg()
+            if cpp_hg is not False:
+                try:
+                    from disqco import _fm_cpp
+                    limit = int(kwargs.get('limit', len(hypergraph.nodes) * 0.125))
+                    qpu_sizes = np.array(
+                        list(self.qpu_sizes.values()), dtype=np.int32
+                    )
+                    result = _fm_cpp.fm_pass(
+                        cpp_hg, assignment, qpu_sizes, self.max_gain, limit
+                    )
+                    return result['assignment_list'], result['gain_list']
+                except Exception:
+                    pass  # fall through to Python path on any error
+
         random.seed()
         active_hypergraph_nodes = kwargs.get('active_hypergraph_nodes', hypergraph.nodes)
         limit = kwargs.get('limit', len(hypergraph.nodes) * 0.125)

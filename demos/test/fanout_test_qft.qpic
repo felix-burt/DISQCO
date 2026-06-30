@@ -1,0 +1,62 @@
+q0p0 W q_{0}^{(0)}
+q1p0 W q_{1}^{(0)}
+c0_0 W q_{5}^{(0)} {} q_{3}^{(0)}
+c0_1 W q_{4}^{(0)} {} q_{2}^{(0)}
+gap_p0 W type=o
+q2p1 W q_{2}^{(1)}
+q3p1 W q_{3}^{(1)}
+c1_0 W q_{5}^{(1)}
+c1_1 W q_{4}^{(1)}
+gap_p1 W type=o
+q4p2 W q_{4}^{(2)}
+q5p2 W q_{5}^{(2)}
+q0p0 c0_1 @ 0 35 color=black style=dashed,rounded_corners=5pt,fill=red
+q2p1 c1_1 @ 0 35 color=black style=dashed,rounded_corners=5pt,fill=teal
+q4p2 q5p2 @ 0 35 color=black style=dashed,rounded_corners=5pt,fill=red
+
+q5p2 H
+q5p2 G $rz(1.52)$
+% FanOut q5 p2 -> targets [0, 1] intermediates []
+q5p2 c1_0 c0_0 starting
++q4p2 q5p2 ; +q3p1 c1_0 ; +q1p0 c0_0
+q4p2 G $rz(-0.785)$ ; q3p1 G $rz(-0.393)$ ; q1p0 G $rz(-0.0982)$
++q4p2 q5p2 ; +q3p1 c1_0 ; +q1p0 c0_0
+q4p2 G $rz(0.785)$ ; +q2p1 c1_0 ; q3p1 G $rz(0.393)$ ; +q0p0 c0_0 ; q1p0 G $rz(0.0982)$
+q4p2 H ; q2p1 G $rz(-0.196)$ ; q0p0 G $rz(-0.0491)$
+q4p2 G $rz(1.47)$ ; +q2p1 c1_0 ; +q0p0 c0_0
+% FanOut q4 p2 -> targets [0, 1] intermediates []
+% FanIn q5 p1->p2
+q4p2 c1_1 c0_1 starting ; q5p2 c1_0 ending ; q2p1 G $rz(0.196)$ ; q0p0 G $rz(0.0491)$
+% FanIn q5 p0->p2
++q3p1 c1_1 ; +q1p0 c0_1 ; q5p2 c0_0 ending
+q3p1 G $rz(-0.785)$ ; q1p0 G $rz(-0.196)$
++q3p1 c1_1 ; +q1p0 c0_1
++q2p1 c1_1 ; q3p1 G $rz(0.785)$ ; +q0p0 c0_1 ; q1p0 G $rz(0.196)$
+q2p1 G $rz(-0.393)$ ; q3p1 H ; q0p0 G $rz(-0.0982)$
++q2p1 c1_1 ; q3p1 G $rz(1.37)$ ; +q0p0 c0_1
+% FanIn q4 p1->p2
+% FanOut q3 p1 -> targets [0] intermediates []
+q4p2 c1_1 ending ; q2p1 G $rz(0.393)$ ; q3p1 c0_0 starting ; q0p0 G $rz(0.0982)$
+% FanIn q4 p0->p2
++q2p1 q3p1 ; +q1p0 c0_0 ; q4p2 c0_1 ending
+q2p1 G $rz(-0.785)$ ; q1p0 G $rz(-0.393)$
++q2p1 q3p1 ; +q1p0 c0_0
+q2p1 G $rz(0.785)$ ; +q0p0 c0_0 ; q1p0 G $rz(0.393)$
+q2p1 H ; q0p0 G $rz(-0.196)$
+q2p1 G $rz(1.18)$ ; +q0p0 c0_0
+% FanOut q2 p1 -> targets [0] intermediates []
+% FanIn q3 p0->p1
+q2p1 c0_1 starting ; q3p1 c0_0 ending ; q0p0 G $rz(0.196)$
++q1p0 c0_1
+q1p0 G $rz(-0.785)$
++q1p0 c0_1
++q0p0 c0_1 ; q1p0 G $rz(0.785)$
+q0p0 G $rz(-0.393)$ ; q1p0 H
++q0p0 c0_1 ; q1p0 G $rz(0.785)$
+% FanIn q2 p0->p1
+q2p1 c0_1 ending ; q0p0 G $rz(0.393)$
++q0p0 q1p0
+q0p0 G $rz(-0.785)$
++q0p0 q1p0
+q0p0 G $rz(0.785)$
+q0p0 H

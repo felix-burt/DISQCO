@@ -1,0 +1,101 @@
+q1p0 W q_{1}^{(0)}
+q2p0 W q_{2}^{(0)}
+c0_0 W q_{0}^{(0)}
+ep0_0 W
+gap_p0 W type=o
+q0p1 W q_{0}^{(1)}
+q5p1 W q_{5}^{(1)}
+c1_0 W q_{4}^{(1)} {} q_{1}^{(1)} {} q_{2}^{(1)}
+c1_1 W q_{4}^{(1)}
+ep1_0 W
+gap_p1 W type=o
+q3p2 W q_{3}^{(2)}
+q4p2 W q_{4}^{(2)}
+c2_0 W q_{5}^{(2)} {} q_{1}^{(2)}
+ep2_0 W
+gap_p2 W type=o
+q1p0 ep0_0 @ 0 44 color=black style=dashed,rounded_corners=5pt,fill=red
+q0p1 ep1_0 @ 0 44 color=black style=dashed,rounded_corners=5pt,fill=teal
+q3p2 ep2_0 @ 0 44 color=black style=dashed,rounded_corners=5pt,fill=red
+
+% FanOut (lowered) q0 p1 -> targets [0] intermediates []
+% EPR pairs
+% FanOut (lowered) q4 p2 -> targets [1] intermediates []
+% EPR pairs
+q0p1 G $U$ ; q1p0 G $U$ ; q2p0 G $U$ ; q4p2 G $U$ ; q5p1 G $U$ ; ep1_0 c0_0 epr ; ep2_0 c1_0 epr
+% CX-measure chain
+% CX-measure chain
++ep1_0 q0p1 ; +ep2_0 q4p2
+ep1_0 M ; ep2_0 M
+% X corrections
+% X corrections
++c0_0 ep1_0:owire ; +c1_0 ep2_0:owire
+% FanOut (lowered) q5 p1 -> targets [2] intermediates []
+% EPR pairs
+% FanOut (lowered) q4 p2 -> targets [1] intermediates []
+% EPR pairs
++q1p0 c0_0 ; ep1_0 c2_0 epr ; ep2_0 c1_1 epr
+% CX-measure chain
++ep1_0 q5p1 ; q1p0 G $U$
+ep1_0 M ; +q1p0 c0_0
+% X corrections
+% FanIn (lowered) q0 p0->p1
++c2_0 ep1_0:owire ; c0_0 H ; q1p0 G $U$
++q3p2 c2_0 ; c0_0 M ; +q1p0 q2p0
+q3p2 G $U$ ; q0p1 G $Z$ c0_0:owire ; q1p0 G $U$
+% FanOut (lowered) q0 p1 -> targets [0] intermediates []
+% EPR pairs
++q3p2 c2_0 ; q0p1 G $U$ ; +q1p0 q2p0 ; ep1_0 c0_0 epr
+% FanIn (lowered) q5 p2->p1
+c2_0 H ; q3p2 G $U$ ; q1p0 G $U$ ; +q0p1 c1_0
+c2_0 M ; +q3p2 q4p2 ; +q2p0 q1p0 ; q0p1 G $U$
+q5p1 G $Z$ c2_0:owire ; q3p2 G $U$ ; q2p0 G $U$ ; +q0p1 c1_0
+% FanIn (lowered) q4 p1->p2
+q5p1 G $U$ ; +q3p2 q4p2 ; c1_0 H ; +q2p0 q1p0 ; q0p1 G $U$
+% CX-measure chain
+q4p2 G $U$ ; q3p2 G $U$ ; c1_0 M ; q2p0 G $U$ ; q1p0 G $U$ ; +ep1_0 q0p1
+q4p2 G $Z$ c1_0:owire ; ep1_0 M
+% X corrections
+% FanOut (lowered) q1 p0 -> targets [1, 2] intermediates []
+% EPR pairs
+q4p2 G $U$ ; +c0_0 ep1_0:owire ; ep0_0 c1_0 epr
+% CX-measure chain
++q2p0 c0_0 ; ep1_0 c2_0 epr ; +ep0_0 q1p0
+ep0_0 M ; +ep1_0 c1_0 ; q2p0 G $U$ ; q1p0 G $U$
+ep1_0 M ; +q2p0 c0_0
+% X corrections
+% FanIn (lowered) q0 p0->p1
++ep1_0 ep0_0 ; c0_0 H ; q2p0 G $U$
++c1_0 ep0_0:owire ; +c2_0 ep1_0:owire ; c0_0 M
++q3p2 c2_0 ; q0p1 G $Z$ c0_0:owire
+q3p2 G $U$ ; q0p1 G $U$
++q3p2 c2_0 ; +q0p1 c1_0
+q3p2 G $U$ ; +q4p2 c2_0 ; q0p1 G $U$
+q4p2 G $U$ ; +q0p1 c1_0
+% FanIn (lowered) q1 p1->p0
++q4p2 c2_0 ; c1_0 H ; q0p1 G $U$
+% FanIn (lowered) q1 p2->p0
+c2_0 H ; q4p2 G $U$ ; c1_0 M ; +q0p1 q5p1
+% CX-measure chain
+c2_0 M ; q0p1 G $U$ ; +ep2_0 q4p2
+q1p0 G $Z$ c2_0:owire ; +q0p1 q5p1 ; ep2_0 M
+% X corrections
+q1p0 G $U$ ; q0p1 G $U$ ; +c1_1 ep2_0:owire
+q1p0 G $Z$ c1_0:owire ; +q0p1 c1_1
+% FanOut (lowered) q2 p0 -> targets [1] intermediates []
+% EPR pairs
+q1p0 G $U$ ; ep0_0 c1_0 epr ; q0p1 G $U$
+% CX-measure chain
++ep0_0 q2p0 ; +q0p1 c1_1
+% FanIn (lowered) q4 p1->p2
+ep0_0 M ; c1_1 H ; q0p1 G $U$
+% X corrections
++c1_0 ep0_0:owire ; c1_1 M
++q5p1 c1_0 ; q4p2 G $Z$ c1_1:owire
+q5p1 G $U$
++q5p1 c1_0
+% FanIn (lowered) q2 p1->p0
+c1_0 H ; q5p1 G $U$
+c1_0 M
+q2p0 G $Z$ c1_0:owire
+q2p0 G $U$

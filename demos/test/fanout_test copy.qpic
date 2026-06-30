@@ -1,0 +1,25 @@
+q0p0 W q_{0}^{(0)}
+gap_p0 W type=o
+q1p1 W q_{1}^{(1)}
+q0p1 W q_{0}^{(1)}
+gap_p1 W type=o
+q2p2 W q_{2}^{(2)}
+q0p2 W q_{0}^{(2)}
+gap_p2 W type=o
+q3p3 W q_{3}^{(3)}
+q0p3 W q_{0}^{(3)}
+
+q0p0 H
+q1p1 H
+q2p2 H
+q3p3 H
+% FanOut q0 p0 -> targets [1, 2, 3] intermediates []
+q0p0 q0p1 q0p2 q0p3 starting
+q0p1 q1p1
+q0p2 q2p2
+q0p3 q3p3
+% FanIn q0 p1->p3
+q0p3 q0p2 q0p1 q0p0 ending
+% FanIn q0 p2->p3
+% FanIn q0 p3->p3
+% FanIn q0 p0->p3

@@ -1,0 +1,63 @@
+q1p0 W q_{1}^{(0)}
+q2p0 W q_{2}^{(0)}
+c0_0 W q_{0}^{(0)}
+gap_p0 W type=o
+q0p1 W q_{0}^{(1)}
+q5p1 W q_{5}^{(1)}
+c1_0 W q_{4}^{(1)} {} q_{1}^{(1)} {} q_{2}^{(1)}
+c1_1 W q_{4}^{(1)}
+gap_p1 W type=o
+q3p2 W q_{3}^{(2)}
+q4p2 W q_{4}^{(2)}
+c2_0 W q_{5}^{(2)} {} q_{1}^{(2)}
+gap_p2 W type=o
+q1p0 c0_0 @ 0 30 color=black style=dashed,rounded_corners=5pt,fill=red
+q0p1 c1_1 @ 0 30 color=black style=dashed,rounded_corners=5pt,fill=teal
+q3p2 c2_0 @ 0 30 color=black style=dashed,rounded_corners=5pt,fill=red
+
+q0p1 G $U$ ; q1p0 G $U$ ; q2p0 G $U$ ; q4p2 G $U$ ; q5p1 G $U$
+% FanOut q0 p1 -> targets [0] intermediates []
+% FanOut q5 p1 -> targets [2] intermediates []
+% FanOut q4 p2 -> targets [1] intermediates []
+q0p1 c0_0 starting ; q5p1 c2_0 starting ; q4p2 c1_0 starting
++q1p0 c0_0 ; +q3p2 c2_0
+q1p0 G $U$ ; q3p2 G $U$
++q1p0 c0_0 ; +q3p2 c2_0
+% FanIn q0 p0->p1
+% FanIn q5 p2->p1
+q0p1 c0_0 ending ; q5p1 c2_0 ending ; q1p0 G $U$ ; q3p2 G $U$
+q0p1 G $U$ ; q5p1 G $U$ ; +q1p0 q2p0 ; +q3p2 q4p2
+q1p0 G $U$ ; q3p2 G $U$ ; +q0p1 c1_0
++q1p0 q2p0 ; +q3p2 q4p2 ; q0p1 G $U$
+q4p2 G $U$ ; q1p0 G $U$ ; q3p2 G $U$ ; +q0p1 c1_0
+% FanIn q4 p1->p2
++q2p0 q1p0 ; q4p2 c1_0 ending ; q0p1 G $U$
+% FanOut q0 p1 -> targets [0] intermediates []
+q2p0 G $U$ ; q4p2 G $U$ ; q0p1 c0_0 starting
++q2p0 q1p0
+q2p0 G $U$ ; q1p0 G $U$
+% FanOut q1 p0 -> targets [1, 2] intermediates []
++q2p0 c0_0 ; q1p0 c1_0 c2_0 starting
++q3p2 c2_0 ; q2p0 G $U$ ; q1p0 G $U$
+q3p2 G $U$ ; +q2p0 c0_0
+% FanIn q0 p0->p1
+q0p1 c0_0 ending ; +q3p2 c2_0 ; q2p0 G $U$
+q3p2 G $U$ ; q0p1 G $U$ ; +q4p2 c2_0
+q4p2 G $U$ ; +q0p1 c1_0
++q4p2 c2_0 ; q0p1 G $U$
+% FanIn q1 p2->p0
+q1p0 c2_0 ending ; q4p2 G $U$ ; +q0p1 c1_0
+% FanOut q4 p2 -> targets [1] intermediates []
+q1p0 G $U$ ; q0p1 G $U$ ; q4p2 c1_1 starting
+% FanIn q1 p1->p0
+q1p0 c1_0 ending ; +q0p1 q5p1
+% FanOut q2 p0 -> targets [1] intermediates []
+q1p0 G $U$ ; q0p1 G $U$ ; q2p0 c1_0 starting
++q0p1 q5p1
+q0p1 G $U$ ; +q5p1 c1_0
+q5p1 G $U$ ; +q0p1 c1_1
++q5p1 c1_0 ; q0p1 G $U$
+% FanIn q2 p1->p0
+q2p0 c1_0 ending ; +q0p1 c1_1 ; q5p1 G $U$
+% FanIn q4 p1->p2
+q4p2 c1_1 ending ; q2p0 G $U$ ; q0p1 G $U$

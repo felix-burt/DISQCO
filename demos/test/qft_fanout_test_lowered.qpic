@@ -1,0 +1,159 @@
+q0p0 W q_{0}^{(0)}
+q1p0 W q_{1}^{(0)}
+q2p0 W q_{2}^{(0)}
+q3p0 W q_{3}^{(0)}
+q4p0 W q_{4}^{(0)}
+q5p0 W q_{5}^{(0)}
+c0_0 W
+c0_1 W
+c0_2 W
+gap_p0 W type=o
+q2p1 W q_{2}^{(1)}
+q3p1 W q_{3}^{(1)}
+q4p1 W q_{4}^{(1)}
+q5p1 W q_{5}^{(1)}
+c1_0 W
+c1_1 W
+ep1_0 W
+gap_p1 W type=o
+q4p2 W q_{4}^{(2)}
+q5p2 W q_{5}^{(2)}
+ep2_0 W
+
+q5p2 G $U$
+% FanOut (lowered) q5 p2 -> targets [0, 1] intermediates []
+% EPR pairs
+ep2_0 q5p1 epr
+ep1_0 q5p0 epr
+% CX-measure chain
++ep2_0 q5p2
+ep2_0 M
++ep1_0 q5p1
+ep1_0 M
+% X corrections
++ep1_0 ep2_0
++q5p1 ep2_0:owire
++q5p0 ep1_0:owire
++q4p2 q5p2
+q4p2 G $U$
++q4p2 q5p2
+q5p2 G $U$
+q4p2 G $U$
++q3p1 q5p1
+q3p1 G $U$
++q3p1 q5p1
+q5p2 G $U$
+q3p1 G $U$
++q2p1 q5p1
+% FanOut (lowered) q4 p2 -> targets [0, 1] intermediates []
+% EPR pairs
+ep2_0 q4p1 epr
+ep1_0 q4p0 epr
+% CX-measure chain
++ep2_0 q4p2
+ep2_0 M
++ep1_0 q4p1
+ep1_0 M
+% X corrections
++ep1_0 ep2_0
++q4p1 ep2_0:owire
++q4p0 ep1_0:owire
++q3p1 q4p1
+q2p1 G $U$
+q3p1 G $U$
++q2p1 q5p1
+% FanIn (lowered) q5 p1->p2
+q5p1 H
+q5p1 M
+q5p2 G $Z$ q5p1:owire
++q3p1 q4p1
+q5p2 G $U$
+q4p2 G $U$
+q2p1 G $U$
+q3p1 G $U$
++q1p0 q5p0
++q2p1 q4p1
+q1p0 G $U$
+q2p1 G $U$
++q1p0 q5p0
++q2p1 q4p1
+% FanIn (lowered) q4 p1->p2
+q4p1 H
+q4p1 M
+q4p2 G $Z$ q4p1:owire
+q5p2 G $U$
+q4p2 G $U$
+q1p0 G $U$
+q2p1 G $U$
++q0p0 q5p0
++q1p0 q4p0
+% FanOut (lowered) q3 p1 -> targets [0] intermediates []
+% EPR pairs
+ep1_0 q3p0 epr
+% CX-measure chain
++ep1_0 q3p1
+ep1_0 M
+% X corrections
++q3p0 ep1_0:owire
++q2p1 q3p1
+q0p0 G $U$
+q1p0 G $U$
+q2p1 G $U$
++q0p0 q5p0
+% FanIn (lowered) q5 p0->p2
+q5p0 H
+q5p0 M
+q5p2 G $Z$ q5p0:owire
++q1p0 q4p0
++q2p1 q3p1
+q4p2 G $U$
+q3p1 G $U$
+q0p0 G $U$
+q1p0 G $U$
+q2p1 G $U$
++q0p0 q4p0
++q1p0 q3p0
+q0p0 G $U$
+q1p0 G $U$
++q0p0 q4p0
+% FanIn (lowered) q4 p0->p2
+q4p0 H
+q4p0 M
+q4p2 G $Z$ q4p0:owire
++q1p0 q3p0
+q3p1 G $U$
+q0p0 G $U$
+q1p0 G $U$
++q0p0 q3p0
+% FanOut (lowered) q2 p1 -> targets [0] intermediates []
+% EPR pairs
+ep1_0 q2p0 epr
+% CX-measure chain
++ep1_0 q2p1
+ep1_0 M
+% X corrections
++q2p0 ep1_0:owire
++q1p0 q2p0
+q0p0 G $U$
+q1p0 G $U$
++q0p0 q3p0
+% FanIn (lowered) q3 p0->p1
+q3p0 H
+q3p0 M
+q3p1 G $Z$ q3p0:owire
++q1p0 q2p0
+q2p1 G $U$
+q0p0 G $U$
+q1p0 G $U$
++q0p0 q2p0
+q0p0 G $U$
++q0p0 q2p0
+% FanIn (lowered) q2 p0->p1
+q2p0 H
+q2p0 M
+q2p1 G $Z$ q2p0:owire
+q0p0 G $U$
++q0p0 q1p0
+q0p0 G $U$
++q0p0 q1p0
+q0p0 G $U$
