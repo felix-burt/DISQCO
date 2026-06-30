@@ -131,6 +131,45 @@ def test_multilevel_partition_returns_cost_list(test_circuit, test_network):
     print(f"\nCost progression: {results['cost_list']}")
 
 
+def test_level_limit_is_honored(test_circuit, test_network):
+    """Regression test: level_limit must cap the number of levels processed.
+
+    Before the fix, level_limit was never copied into coarsener_kwargs so the
+    lookup `coarsener_kwargs.get('level_limit', 100)` always returned 100,
+    making the argument a no-op.  After the fix, passing level_limit=2 must
+    result in exactly 2 entries in assignment_list / cost_list.
+    """
+    partitioner = FiducciaMattheyses(test_circuit, test_network)
+    coarsener = HypergraphCoarsener().coarsen_recursive_batches_mapped
+
+    results = partitioner.multilevel_partition(
+        coarsener=coarsener,
+        passes_per_level=3,
+        level_limit=2,
+    )
+
+    assert len(results['assignment_list']) == 2, (
+        f"Expected 2 levels (level_limit=2) but got {len(results['assignment_list'])}"
+    )
+    assert len(results['cost_list']) == 2, (
+        f"Expected 2 cost entries (level_limit=2) but got {len(results['cost_list'])}"
+    )
+
+    # Confirm an unrestricted run produces more than 2 levels, proving the
+    # coarsener actually generates >2 levels for this circuit.
+    partitioner2 = FiducciaMattheyses(test_circuit, test_network)
+    results_full = partitioner2.multilevel_partition(
+        coarsener=coarsener,
+        passes_per_level=3,
+    )
+    assert len(results_full['assignment_list']) > 2, (
+        "Unrestricted run produced <=2 levels; level_limit=2 test is not meaningful"
+    )
+
+    print(f"\nlevel_limit=2 → {len(results['assignment_list'])} level(s) processed")
+    print(f"Unrestricted   → {len(results_full['assignment_list'])} level(s) processed")
+
+
 def test_single_level_partition_for_comparison(test_circuit, test_network):
     """Test single-level (no coarsening) partition for comparison"""
     partitioner = FiducciaMattheyses(test_circuit, test_network)

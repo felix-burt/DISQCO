@@ -101,8 +101,9 @@ class QuantumCircuitPartitioner:
         # Extract coarsener-related kwargs
         coarsener_kwargs = {}
         for key in list(kwargs.keys()):
-            if key in ['num_levels',  'num_blocks', 'block_size', 'recursion_factor']:
+            if key in ['num_levels', 'num_blocks', 'block_size', 'recursion_factor']:
                 coarsener_kwargs[key] = kwargs.pop(key)
+        level_limit = kwargs.pop('level_limit', 100)
 
         graph = kwargs.get('graph', self.hypergraph)
         graph_list, mapping_list = coarsener(hypergraph=graph, **coarsener_kwargs)
@@ -113,7 +114,6 @@ class QuantumCircuitPartitioner:
             assignment = self.initial_assignment.copy()
         else:
             assignment = None
-        level_limit = coarsener_kwargs.get('level_limit', 100)
         list_of_assignments = []
         list_of_costs = []
         best_cost = float('inf')
