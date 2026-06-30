@@ -29,8 +29,22 @@ def build_max_cut_paulis(graph: rx.PyGraph) -> list[tuple[str, float]]:
 
     return pauli_list
 
-def QAOA_random(num_qubits,prob,reps) -> QuantumCircuit:
-    "Function to create a random QAOA circuit for solving max-cut on input graph."
+def QAOA_random(num_qubits: int, prob: float, reps: int) -> QuantumCircuit:
+    """
+    Build a random QAOA circuit for the MaxCut problem.
+
+    Constructs a random Erdős–Rényi graph on *num_qubits* nodes, encodes the
+    corresponding MaxCut Hamiltonian as a ``SparsePauliOp``, and returns a
+    ``QAOAAnsatz`` circuit with randomly sampled variational parameters.
+
+    Args:
+        num_qubits: Number of qubits (graph nodes).
+        prob: Edge probability for the random graph.
+        reps: Number of QAOA repetitions (``p`` parameter).
+
+    Returns:
+        A parameter-bound Qiskit ``QuantumCircuit``.
+    """
     graph = random_graph(num_qubits,prob)
     max_cut_paulis = build_max_cut_paulis(graph)
     cost_hamiltonian = SparsePauliOp.from_list(max_cut_paulis)

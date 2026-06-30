@@ -7,13 +7,16 @@ as well as direct calls to the underlying drawing functions.
 
 import pytest
 import numpy as np
+import re
 from qiskit import QuantumCircuit, transpile
 import matplotlib
 matplotlib.use('Agg')  # Use non-interactive backend for testing
 import matplotlib.pyplot as plt
 
 from disqco import QuantumNetwork, QuantumCircuitHyperGraph
+from disqco.circuit_extraction import HypergraphToDistributed
 from disqco.circuits.cp_fraction import cp_fraction
+from disqco.drawing import DistributedCircuitQPIC
 from disqco import set_initial_partition_assignment
 
 
@@ -337,6 +340,39 @@ def test_mpl_output_with_save_option(test_hypergraph, test_network, test_assignm
         plt.close(fig)
     
     print(f"\n✓ Matplotlib output saved to {output_file}")
+
+
+def test_distributed_qpic_declares_all_data_wires():
+    """Regression check: q/c wire declarations are exact (no missing, no phantom)."""
+    num_qubits = 6
+    circuit = cp_fraction(num_qubits=num_qubits, depth=2 * num_qubits, fraction=0.5, seed=52345)
+    circuit = transpile(circuit, basis_gates=['u', 'cx'])
+
+    qnet = QuantumNetwork([3, 3, 3])
+    graph = QuantumCircuitHyperGraph(circuit=circuit, group_gates=True, anti_diag=True)
+    assignment = set_initial_partition_assignment(graph=graph, network=qnet)
+
+    dc = HypergraphToDistributed(graph, qnet, assignment).build()
+    qpic = DistributedCircuitQPIC(dc).to_qpic_string()
+
+    decl_block = qpic.split("\n\n", maxsplit=1)[0]
+    declared_wires = set(re.findall(r"\bq\d+p\d+\b", decl_block))
+    referenced_wires = set(re.findall(r"\bq\d+p\d+\b", qpic))
+    declared_comm = set(re.findall(r"\bc\d+_\d+\b", decl_block))
+    referenced_comm = set(re.findall(r"\bc\d+_\d+\b", qpic))
+
+    assert referenced_wires.issubset(declared_wires), (
+        f"Undeclared q-wires referenced: {sorted(referenced_wires - declared_wires)}"
+    )
+    assert declared_wires.issubset(referenced_wires), (
+        f"Phantom q-wires declared but unused: {sorted(declared_wires - referenced_wires)}"
+    )
+    assert referenced_comm.issubset(declared_comm), (
+        f"Undeclared comm wires referenced: {sorted(referenced_comm - declared_comm)}"
+    )
+    assert declared_comm.issubset(referenced_comm), (
+        f"Phantom comm wires declared but unused: {sorted(declared_comm - referenced_comm)}"
+    )
 
 
 def test_drawing_with_different_network_topologies(test_hypergraph, test_assignment):

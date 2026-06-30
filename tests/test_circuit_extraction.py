@@ -8,11 +8,77 @@ circuits from hypergraphs with both initial (unoptimized) and optimized assignme
 import pytest
 import numpy as np
 from qiskit import QuantumCircuit, transpile
+from qiskit import QuantumRegister
+from qiskit.quantum_info import DensityMatrix, Statevector, partial_trace, state_fidelity
+from qiskit_aer import AerSimulator
 
 from disqco import QuantumNetwork, QuantumCircuitHyperGraph, PartitionedCircuitExtractor
 from disqco.circuits.cp_fraction import cp_fraction
 from disqco.parti import FiducciaMattheyses
 from disqco import set_initial_partition_assignment
+
+
+def _build_channel_validation_circuit() -> QuantumCircuit:
+    """Small deterministic circuit that induces non-local interactions under partitioning."""
+    qc = QuantumCircuit(3)
+    qc.h(0)
+    qc.h(1)
+    qc.cp(np.pi / 3, 1, 2)
+    qc.cp(np.pi / 5, 0, 2)
+    qc.u(0.2, 0.3, -0.4, 1)
+    qc.u(-0.1, 0.6, 0.7, 2)
+    return transpile(qc, basis_gates=['u', 'cp'])
+
+
+def _choi_state_fidelity(base_circuit: QuantumCircuit, extractor: PartitionedCircuitExtractor,
+                         partitioned_circuit: QuantumCircuit) -> float:
+    """Compute process fidelity via normalized Choi states.
+
+    We prepare |Phi+> between a reference register and the logical input qubits,
+    evolve the system through the distributed circuit, then compare the reduced
+    output/reference state against the ideal circuit's Choi state.
+    """
+    simulator = AerSimulator(method='density_matrix')
+    num_logical = base_circuit.num_qubits
+
+    # Keep mid-circuit measurements/feed-forward but remove terminal readout only.
+    stripped = partitioned_circuit.remove_final_measurements(inplace=False)
+    stripped = transpile(stripped, basis_gates=['u', 'cx'], optimization_level=0)
+
+    input_map = extractor.qubit_manager.inital_qubit_placement
+    output_map = extractor.qubit_manager.log_to_phys_idx
+
+    input_indices = [partitioned_circuit.find_bit(input_map[i]).index for i in range(num_logical)]
+    output_indices = [partitioned_circuit.find_bit(output_map[i]).index for i in range(num_logical)]
+
+    ref = QuantumRegister(num_logical, name='ref')
+    full = QuantumCircuit(ref, *stripped.qregs, *stripped.cregs)
+
+    # Build maximally entangled state between reference and system input qubits.
+    for i in range(num_logical):
+        full.h(ref[i])
+        full.cx(ref[i], full.qubits[num_logical + input_indices[i]])
+
+    full.compose(stripped, qubits=full.qubits[num_logical:], clbits=full.clbits, inplace=True)
+    full.save_density_matrix()
+
+    result = simulator.run(full).result()
+    rho_full = DensityMatrix(result.data(0)['density_matrix'])
+
+    keep_bits = [full.qubits[i] for i in range(num_logical)] + [
+        full.qubits[num_logical + idx] for idx in output_indices
+    ]
+    trace_out = [idx for idx, bit in enumerate(full.qubits) if bit not in keep_bits]
+    rho_reduced = partial_trace(rho_full, trace_out)
+
+    ideal = QuantumCircuit(2 * num_logical)
+    for i in range(num_logical):
+        ideal.h(i)
+        ideal.cx(i, num_logical + i)
+    ideal.compose(base_circuit, qubits=list(range(num_logical, 2 * num_logical)), inplace=True)
+    rho_ideal = DensityMatrix(Statevector.from_instruction(ideal))
+
+    return float(state_fidelity(rho_reduced, rho_ideal))
 
 
 @pytest.fixture
@@ -355,3 +421,29 @@ def test_extractor_with_single_partition():
     assert epr_count == 0
     
     print(f"\n✓ Single partition extraction: {epr_count} EPR pairs (expected 0)")
+
+
+@pytest.mark.parametrize('assignment_kind', ['initial', 'optimized'])
+def test_distributed_extraction_channel_fidelity(assignment_kind):
+    """Validate distributed extraction with Choi-state fidelity (channel/process check)."""
+    base_circuit = _build_channel_validation_circuit()
+    network = QuantumNetwork.create([2, 2], 'all_to_all')
+    hypergraph = QuantumCircuitHyperGraph(base_circuit)
+
+    if assignment_kind == 'initial':
+        assignment = set_initial_partition_assignment(hypergraph, network)
+    else:
+        partitioner = FiducciaMattheyses(base_circuit, network=network)
+        assignment = partitioner.partition(num_passes=5)['best_assignment']
+
+    extractor = PartitionedCircuitExtractor(
+        graph=hypergraph,
+        network=network,
+        partition_assignment=assignment,
+    )
+    partitioned = extractor.extract_partitioned_circuit()
+
+    fidelity = _choi_state_fidelity(base_circuit, extractor, partitioned)
+    print(f"\n✓ Channel/process fidelity ({assignment_kind}): {fidelity:.10f}")
+
+    assert fidelity > 1 - 1e-8

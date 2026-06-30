@@ -322,13 +322,38 @@ def map_counts_and_configs_hetero(hypergraph : QuantumCircuitHyperGraph,
             edge_cost = costs[(root_config, rec_config)]
         hypergraph.set_hyperedge_attribute(edge, 'cost', edge_cost)
 
-def calculate_full_cost(hypergraph : QuantumCircuitHyperGraph,
-                        assignment: np.ndarray,
-                        num_partitions : int,
-                        costs: dict = {},
-                        **kwargs) -> int:
+def calculate_full_cost(
+    hypergraph: QuantumCircuitHyperGraph,
+    assignment: np.ndarray,
+    num_partitions: int,
+    costs: dict = {},
+    **kwargs,
+) -> int:
     """
-    Wrapper function for computing full cost under either homogeneous (fully connected) or heterogeneous (not fully connected) networks.
+    Compute the total communication cost of a partitioned hypergraph.
+
+    Dispatches to either the homogeneous (fully-connected network) or
+    heterogeneous (arbitrary topology) cost function depending on the
+    ``hetero`` keyword argument.
+
+    Args:
+        hypergraph: The circuit hypergraph to evaluate.
+        assignment: 2-D integer array of shape ``(depth, num_qubits)``
+            mapping each ``(timestep, qubit)`` to a QPU id.
+        num_partitions: Total number of QPUs / partitions.
+        costs: Optional mutable cache dict mapping config tuples to
+            pre-computed costs. Entries are added in-place during the call.
+        **kwargs:
+            hetero (bool): Set True for heterogeneous (non-fully-connected)
+                networks. Default False.
+            network (QuantumNetwork): Required when ``hetero=True``.
+            node_map (dict | None): Optional logical-to-physical QPU mapping,
+                used when ``hetero=True``.
+            dummy_nodes (set): Dummy nodes present in the hypergraph
+                (used when ``hetero=True``).
+
+    Returns:
+        Total integer communication cost across all hyperedges.
     """
     hetero = kwargs.get('hetero', False)
     if hetero:

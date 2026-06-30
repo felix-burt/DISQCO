@@ -11,12 +11,29 @@ class QuantumCircuitHyperGraph:
     """
     Class for temporal hypergraph representation of quantum circuit.
     """
-    def __init__(self, 
-                circuit : QuantumCircuit, 
-                group_gates : bool = True, 
-                anti_diag : bool = True,
-                map_circuit : bool = True,
-                qpu_sizes = None):
+    def __init__(
+        self,
+        circuit: QuantumCircuit,
+        group_gates: bool = True,
+        anti_diag: bool = True,
+        map_circuit: bool = True,
+        qpu_sizes: list[int] | dict[int, int] | None = None,
+    ) -> None:
+        """
+        Build a temporal hypergraph from a Qiskit quantum circuit.
+
+        Args:
+            circuit: The Qiskit circuit to convert.
+            group_gates: When True, greedy gate-grouping is applied to merge
+                commuting distributable gates into hyperedges.
+            anti_diag: When True, anti-diagonal grouping is enabled (only
+                relevant when ``group_gates`` is True).
+            map_circuit: When True the circuit is immediately parsed into the
+                hypergraph. Set to False to create an empty instance (e.g. for
+                ``copy()``).
+            qpu_sizes: Optional QPU size information forwarded to the layer
+                extraction step.
+        """
         # Keep a set of all nodes (qubit, time)
         self.nodes = set()
         self.hyperedges = {}
@@ -33,13 +50,35 @@ class QuantumCircuitHyperGraph:
             self.init_from_circuit(group_gates, anti_diag, qpu_sizes=qpu_sizes)
 
 
-    def init_from_circuit(self, group_gates=True, anti_diag=False, qpu_sizes=None):
+    def init_from_circuit(
+        self,
+        group_gates: bool = True,
+        anti_diag: bool = False,
+        qpu_sizes: list[int] | dict[int, int] | None = None,
+    ) -> None:
+        """Parse the stored circuit into the hypergraph data structures."""
         self.layers = self.extract_layers(group_gates=group_gates, anti_diag=anti_diag, qpu_sizes=qpu_sizes)
         self.depth = len(self.layers)
         self.add_time_neighbor_edges(self.depth, range(self.num_qubits))
         self.map_circuit_to_hypergraph()
 
-    def extract_layers(self, group_gates=True, anti_diag=False, qpu_sizes=None):
+    def extract_layers(
+        self,
+        group_gates: bool = True,
+        anti_diag: bool = False,
+        qpu_sizes: list[int] | dict[int, int] | None = None,
+    ) -> dict:
+        """
+        Convert the circuit into a dictionary of gate layers.
+
+        Args:
+            group_gates: Apply greedy grouping of distributable gates.
+            anti_diag: Enable anti-diagonal grouping.
+            qpu_sizes: Optional QPU size hints for layer extraction.
+
+        Returns:
+            Dictionary mapping layer index to list of gate dicts.
+        """
         layers = circuit_to_gate_layers(self.circuit, qpu_sizes=qpu_sizes)
         layers = layer_list_to_dict(layers)
         basis_gates = self.circuit.count_ops()
@@ -53,7 +92,7 @@ class QuantumCircuitHyperGraph:
                     
         return layers
 
-    def add_node(self, qubit, time):
+    def add_node(self, qubit: int, time: int) -> tuple[int, int]:
         """
         Add a node (qubit, time). If it already exists, do nothing.
         """
@@ -64,7 +103,7 @@ class QuantumCircuitHyperGraph:
             self.node_attrs[node] = {}
         return node
     
-    def remove_node(self, node):
+    def remove_node(self, node: tuple) -> None:
         """
         Remove a node from the graph.
         """
@@ -83,7 +122,7 @@ class QuantumCircuitHyperGraph:
         # Also remove from adjacency
         if node in self.adjacency:
             del self.adjacency[node]
-    def remove_hyperedge(self, edge_id):
+    def remove_hyperedge(self, edge_id: tuple) -> None:
         """
         Remove a hyperedge from the graph.
         """
@@ -100,7 +139,7 @@ class QuantumCircuitHyperGraph:
         del self.hyperedges[edge_id]
         del self.hyperedge_attrs[edge_id]
     
-    def remove_node_from_hyperedge(self, node, edge_id):
+    def remove_node_from_hyperedge(self, node: tuple, edge_id: tuple) -> None:
         """
         Remove a node from a hyperedge.
         """
@@ -120,7 +159,7 @@ class QuantumCircuitHyperGraph:
         self.node2hyperedges[node].remove(edge_id)
         self.adjacency[node].discard(edge_id)
 
-    def add_time_neighbor_edges(self, depth, qubits):
+    def add_time_neighbor_edges(self, depth: int, qubits: range) -> None:
         """
         For each qubit in qubits, connect (qubit, t) to (qubit, t+1)
         for t in [0, max_time-1].
@@ -135,7 +174,7 @@ class QuantumCircuitHyperGraph:
 
                 self.add_edge((node_a,node_b), node_a, node_b)
     
-    def add_hyperedge(self, root, root_set, receiver_set):
+    def add_hyperedge(self, root: tuple, root_set: set, receiver_set: set) -> None:
         """
         Create a new hyperedge with the given edge_id connecting the given node_list.
         node_list can be any iterable of (qubit, time) tuples.
@@ -164,7 +203,7 @@ class QuantumCircuitHyperGraph:
         if edge_tuple not in self.hyperedge_attrs:
             self.hyperedge_attrs[edge_tuple] = {}
     
-    def add_edge(self, edge_id, node_a, node_b):
+    def add_edge(self, edge_id: tuple, node_a: tuple, node_b: tuple) -> None:
         """
         For a standard 2-node connection (a "regular" gate), treat it as a hyperedge of size 2.
         """
@@ -174,7 +213,7 @@ class QuantumCircuitHyperGraph:
         receiver_set.add(node_b)
         self.add_hyperedge(edge_id, root_set, receiver_set)
     
-    def neighbors(self, node):
+    def neighbors(self, node: tuple) -> set:
         """
         Return all neighbors of `node`, i.e. all nodes that share
         at least one hyperedge with `node`.
@@ -190,7 +229,8 @@ class QuantumCircuitHyperGraph:
         nbrs.discard(node)
         return nbrs
     
-    def set_node_attribute(self, node, key, value):
+    def set_node_attribute(self, node: tuple, key: str, value) -> None:
+        """Set an attribute on a node."""
         if node not in self.nodes:
             raise KeyError(f"Node {node} does not exist")
         # Ensure there's a dict to store attributes
@@ -198,24 +238,27 @@ class QuantumCircuitHyperGraph:
             self.node_attrs[node] = {}
         self.node_attrs[node][key] = value
 
-    def get_node_attribute(self, node, key, default=None):
+    def get_node_attribute(self, node: tuple, key: str, default=None):
+        """Get an attribute from a node, returning *default* if the key is absent."""
         if node not in self.nodes:
             raise KeyError(f"Node {node} does not exist")
         return self.node_attrs[node].get(key, default)
 
-    def set_hyperedge_attribute(self, edge_id, key, value):
+    def set_hyperedge_attribute(self, edge_id: tuple, key: str, value) -> None:
+        """Set an attribute on a hyperedge."""
         if edge_id not in self.hyperedges:
             raise KeyError(f"Hyperedge {edge_id} does not exist")
         if edge_id not in self.hyperedge_attrs:
             self.hyperedge_attrs[edge_id] = {}
         self.hyperedge_attrs[edge_id][key] = value
 
-    def get_hyperedge_attribute(self, edge_id, key, default=None):
+    def get_hyperedge_attribute(self, edge_id: tuple, key: str, default=None):
+        """Get an attribute from a hyperedge, returning *default* if the key is absent."""
         if edge_id not in self.hyperedges:
             raise KeyError(f"Hyperedge {edge_id} does not exist")
         return self.hyperedge_attrs[edge_id].get(key, default)
 
-    def assign_positions(self, num_qubits_phys):
+    def assign_positions(self, num_qubits_phys: int) -> None:
         """
         Assign a 'pos' attribute to all nodes based on their (qubit, time).
         
@@ -231,10 +274,10 @@ class QuantumCircuitHyperGraph:
             # Store in node_attrs or via the set_node_attribute function:
             self.set_node_attribute((q, t), "pos", (x, y))
  
-    def copy(self):
+    def copy(self) -> "QuantumCircuitHyperGraph":
         """
-        Create a new QuantumCircuitHyperGraph that is an identical 
-        (shallow) copy of this one, so that modifications to the copy 
+        Create a new QuantumCircuitHyperGraph that is an identical
+        (shallow) copy of this one, so that modifications to the copy
         do not affect the original.
         """
         # 1) Create a blank instance (no qubits/depth needed for now)
@@ -276,7 +319,13 @@ class QuantumCircuitHyperGraph:
 
         return new_graph
      
-    def map_circuit_to_hypergraph(self,):
+    def map_circuit_to_hypergraph(self) -> None:
+        """
+        Iterate over extracted gate layers and populate the hypergraph with
+        nodes and hyperedges for every gate (single-qubit, two-qubit, and group).
+        Temporal-neighbor edges connecting successive timesteps on the same qubit are
+        severed across measurement boundaries.
+        """
         layers_dict = self.layers
         # Track measurement and reset locations per qubit to adjust temporal edges later
         meas_times = defaultdict(set)
@@ -404,7 +453,8 @@ class QuantumCircuitHyperGraph:
                     if edge_id in self.hyperedges:
                         self.remove_hyperedge(edge_id)
     
-    def is_subgraph(self):
+    def is_subgraph(self) -> bool:
+        """Return True if the hypergraph contains any dummy nodes (i.e. is a sub-graph)."""
         for node in self.nodes:
             if node[0] == 'dummy':
                 return True

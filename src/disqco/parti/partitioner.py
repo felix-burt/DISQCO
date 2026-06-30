@@ -25,8 +25,8 @@ class QuantumCircuitPartitioner:
         self.initial_assignment = initial_assignment
     
     @classmethod
-    def create(cls, partitioner_type: str, circuit: QuantumCircuit, 
-               network: QuantumNetwork, **kwargs):
+    def create(cls, partitioner_type: str, circuit: QuantumCircuit,
+               network: QuantumNetwork, **kwargs) -> "QuantumCircuitPartitioner":
         """
         Factory method to create a partitioner instance based on a string type.
         
@@ -88,7 +88,7 @@ class QuantumCircuitPartitioner:
 
         return results
     
-    def multilevel_partition(self, coarsener, **kwargs) -> dict:
+    def multilevel_partition(self, coarsener: callable, **kwargs) -> dict:
         """
         Perform multilevel partitioning of the quantum circuit.
 
@@ -188,7 +188,34 @@ class QuantumCircuitPartitioner:
         
         return results
 
-    def refine_assignment(self, level, num_levels, assignment, mapping_list, sparse=False, full_subgraph=None, next_graph=None, qpu_sizes=None):
+    def refine_assignment(
+        self,
+        level: int,
+        num_levels: int,
+        assignment: np.ndarray,
+        mapping_list: list[dict],
+        sparse: bool = False,
+        full_subgraph=None,
+        next_graph=None,
+        qpu_sizes: dict | None = None,
+    ) -> np.ndarray:
+        """
+        Uncoarsen the assignment from coarsened level *level* back toward the
+        full hypergraph by propagating partition labels through the mapping.
+
+        Args:
+            level: Current coarsening level index (0 = coarsest).
+            num_levels: Total number of coarsening levels.
+            assignment: Current partition assignment array.
+            mapping_list: List of node-contraction mappings, one per level.
+            sparse: When True, use the sparse refinement path.
+            full_subgraph: Full hypergraph (used by sparse path).
+            next_graph: Next (finer) hypergraph (used by sparse path).
+            qpu_sizes: QPU size dict (used by sparse path for capacity checks).
+
+        Returns:
+            Refined assignment array for the next (finer) level.
+        """
         new_assignment = assignment
 
         if sparse:
@@ -201,7 +228,32 @@ class QuantumCircuitPartitioner:
 
         return new_assignment
 
-    def refine_assignment_sparse(self, level, num_levels, assignment, mapping_list, subgraph, next_graph, qpu_sizes):
+    def refine_assignment_sparse(
+        self,
+        level: int,
+        num_levels: int,
+        assignment: np.ndarray,
+        mapping_list: list[dict],
+        subgraph,
+        next_graph,
+        qpu_sizes: dict,
+    ) -> np.ndarray:
+        """
+        Sparse variant of :meth:`refine_assignment` that respects QPU capacity
+        when propagating labels to nodes that were absent from the coarsened graph.
+
+        Args:
+            level: Current coarsening level index.
+            num_levels: Total number of coarsening levels.
+            assignment: Current partition assignment array.
+            mapping_list: List of node-contraction mappings.
+            subgraph: Current hypergraph at this level.
+            next_graph: Next (finer) hypergraph.
+            qpu_sizes: Dict mapping QPU id to qubit capacity.
+
+        Returns:
+            Refined assignment array for the next level.
+        """
         new_assignment = assignment
         unassigned_nodes = {}
         # Print all inputs

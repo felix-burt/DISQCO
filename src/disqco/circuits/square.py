@@ -3,7 +3,21 @@ import random
 from qiskit import QuantumCircuit
 from qiskit.quantum_info import random_unitary
 
-def build_square_circuit(n, seed=None) -> QuantumCircuit:
+def build_square_circuit(n: int, seed: int | None = None) -> QuantumCircuit:
+    """
+    Build a random square (depth-*n*) circuit of Haar-random 2-qubit unitaries.
+
+    At each of the *n* layers, qubits are randomly paired and each pair
+    receives a Haar-random SU(4) gate. An odd qubit (if ``n`` is odd) is left
+    unpaired in each layer. All qubits are measured at the end.
+
+    Args:
+        n: Number of qubits and number of layers.
+        seed: Optional random seed for reproducibility.
+
+    Returns:
+        A Qiskit ``QuantumCircuit`` with ``n`` qubits and ``n`` classical bits.
+    """
     # Optional: Set a seed for reproducibility
     if seed is not None:
         np.random.seed(seed)

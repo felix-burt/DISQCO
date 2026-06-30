@@ -30,6 +30,25 @@ def generate_random_binomial_graph(
     )
 
 def build_IQP(n: int, seed: Optional[int] = None) -> QuantumCircuit:
+    """
+    Build a random Instantaneous Quantum Polynomial (IQP) circuit on *n* qubits.
+
+    The circuit follows the structure: H layer → CZ on a random sparse graph
+    → per-qubit RZ(α) rotations → H layer → measurements.  The underlying
+    interaction graph is drawn from G(n, 0.5) conditioned on connectivity and
+    maximum degree < 4.
+
+    Args:
+        n: Number of qubits (and classical bits).
+        seed: Optional random seed for the graph and rotation angles.
+
+    Returns:
+        A Qiskit ``QuantumCircuit`` with ``n`` qubits and ``n`` classical bits.
+
+    Raises:
+        RuntimeError: If a valid interaction graph cannot be sampled within the
+            allowed number of attempts.
+    """
     # Step 1: Initialize an n-qubit circuit
     qc = QuantumCircuit(n, n)
     

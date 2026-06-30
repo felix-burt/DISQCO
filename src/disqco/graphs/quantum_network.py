@@ -11,7 +11,23 @@ import math as mt
 # and to find the minimum spanning tree for a given set of nodes, which
 # is used for finding entanglement distribution paths.
 class QuantumNetwork():
-    def __init__(self, qpu_sizes, qpu_connectivity = None, comm_sizes = None):
+    def __init__(
+        self,
+        qpu_sizes: list[int] | dict[int, int],
+        qpu_connectivity: list[tuple[int, int]] | None = None,
+        comm_sizes: list[int] | dict[int, int] | None = None,
+    ) -> None:
+        """
+        Initialise a QuantumNetwork.
+
+        Args:
+            qpu_sizes: QPU data-qubit capacities. Either a list (index → size) or a
+                dict mapping QPU id → size.
+            qpu_connectivity: Explicit list of connected QPU-id pairs ``(i, j)``.
+                When *None* an all-to-all topology is assumed.
+            comm_sizes: Communication-qubit budget per QPU. Same format as
+                ``qpu_sizes``. Defaults to 1 comm qubit per QPU.
+        """
 
         if isinstance(qpu_sizes, list):
             self.qpu_sizes = {}
@@ -114,7 +130,8 @@ class QuantumNetwork():
         
         return cls(qpu_sizes, qpu_connectivity=connectivity, comm_sizes=comm_sizes)
 
-    def create_qpu_graph(self):
+    def create_qpu_graph(self) -> nx.Graph:
+        """Build and return a NetworkX graph representing QPU connectivity."""
         qpu_graph = nx.Graph()
         for qpu, qpu_size in self.qpu_sizes.items():
             qpu_graph.add_node(qpu, size=qpu_size)
@@ -122,7 +139,8 @@ class QuantumNetwork():
             qpu_graph.add_edge(i, j)
         return qpu_graph
     
-    def draw(self,):
+    def draw(self) -> None:
+        """Visualise the QPU network using matplotlib."""
         num_nodes = len(self.qpu_graph.nodes)
         # Scale node size based on number of nodes
         base_size = max(100, 2000 / num_nodes)
@@ -141,7 +159,22 @@ class QuantumNetwork():
                 edgecolors='k', linewidths=1, font_weight='bold', font_size=font_size)
         plt.show()
 
-    def multi_source_bfs(self, roots, receivers):
+    def multi_source_bfs(
+        self,
+        roots: list[int],
+        receivers: list[int],
+    ) -> set[tuple[int, int]]:
+        """
+        Multi-source BFS from *roots* collecting edges on the shortest paths to
+        every node in *receivers*.
+
+        Args:
+            roots: QPU ids used as BFS sources.
+            receivers: QPU ids that must be reached.
+
+        Returns:
+            Set of undirected edges (sorted tuples) covering paths to all receivers.
+        """
         graph = self.qpu_graph
 
         visited = set()
@@ -175,7 +208,23 @@ class QuantumNetwork():
         
         return chosen_edges
 
-    def steiner_forest(self, root_config, rec_config, node_map = None):
+    def steiner_forest(
+        self,
+        root_config: tuple[int, ...],
+        rec_config: tuple[int, ...],
+        node_map: dict[int, int] | None = None,
+    ) -> tuple[set[tuple[int, int]], int]:
+        """
+        Compute the Steiner forest connecting root QPUs to receiver QPUs.
+
+        Args:
+            root_config: Binary tuple; position ``i`` is 1 if QPU ``i`` is a root.
+            rec_config: Binary tuple; position ``i`` is 1 if QPU ``i`` is a receiver.
+            node_map: Optional mapping from logical partition index to physical QPU id.
+
+        Returns:
+            Tuple of (edge set, cost) where cost equals the number of network edges used.
+        """
         if node_map is not None:
             inverse_node_map = {v: k for k, v in node_map.items()}
             root_nodes = [inverse_node_map[i] for i in range(len(root_config)) if root_config[i] == 1]
@@ -270,7 +319,8 @@ class QuantumNetwork():
         return steiner_tree(G=self.qpu_graph, terminal_nodes=terminal_nodes)
 
 
-    def copy(self):
+    def copy(self) -> "QuantumNetwork":
+        """Return a shallow copy of this network."""
         return QuantumNetwork(self.qpu_sizes, self.qpu_connectivity)
 
     def get_costs(self,) -> dict[tuple]:
@@ -331,7 +381,7 @@ class QuantumNetwork():
         cost = len(edges)
         return edges, cost
     
-def random_coupling(N, p):
+def random_coupling(N: int, p: float) -> list[list[int]]:
     """
     Generates a connected graph with N nodes and edge probability p.
 
@@ -348,7 +398,7 @@ def random_coupling(N, p):
             coupling = [[i,j] for i in range(N) for j in range(N) if i != j and graph.has_edge(i,j)]
             return coupling
 
-def grid_coupling(N):
+def grid_coupling(N: int) -> list[list[int]]:
     """
     Create an adjacency list for a grid-like connection of N nodes.
 
@@ -401,7 +451,7 @@ def grid_coupling(N):
 
     return edges
 
-def linear_coupling(N):
+def linear_coupling(N: int) -> list[list[int]]:
     """
     Create a linear coupling for N nodes.
 
@@ -413,14 +463,14 @@ def linear_coupling(N):
         edges.append([i, i + 1])
     return edges
 
-def network_of_grids(num_grids, nodes_per_grid, l):
+def network_of_grids(num_grids: int, nodes_per_grid: int, l: int) -> list[list[int]]:
     """
     Construct a network of grid graphs connected by linear paths.
 
     Args:
-        num_grids (int): Number of grid components.
-        nodes_per_grid (int): Number of nodes in each grid.
-        l (int): Number of hops (edges) in the path connecting consecutive grids.
+        num_grids: Number of grid components.
+        nodes_per_grid: Number of nodes in each grid.
+        l: Number of hops (edges) in the path connecting consecutive grids.
 
     Returns:
         List of edges across the entire network.
@@ -455,7 +505,7 @@ def network_of_grids(num_grids, nodes_per_grid, l):
 
     return all_edges
 
-def all_to_all(N):
+def all_to_all(N: int) -> list[list[int]]:
     """
     Create a fully connected network of N nodes.
 
@@ -468,10 +518,17 @@ def all_to_all(N):
             edges.append([i, j])
     return edges
 
-def tree_network(N, k=2):
+def tree_network(N: int, k: int = 2) -> list[list[int]]:
     """
     Create a tree-like network of N nodes. Calculate height of tree as logk(N).
     Each node has k children and the tree is balanced.
+
+    Args:
+        N: Number of nodes.
+        k: Branching factor (children per node).
+
+    Returns:
+        A list of edges in the format [[node1, node2], ...].
     """
     edges = []
     for i in range(1, N):

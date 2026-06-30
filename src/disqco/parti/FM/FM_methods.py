@@ -6,13 +6,41 @@ from disqco.graphs.quantum_network import QuantumNetwork
 from disqco.graphs.QC_hypergraph import QuantumCircuitHyperGraph
 import time
 
-def set_initial_partition_assignment(graph : QuantumCircuitHyperGraph,
-                                    network : QuantumNetwork, 
-                                    invert=False, 
-                                    randomise_static=False, 
-                                    randomise_full=False, 
-                                    node_map=None,
-                                    round_robin=False) -> np.ndarray:
+def set_initial_partition_assignment(
+    graph: QuantumCircuitHyperGraph,
+    network: QuantumNetwork,
+    invert: bool = False,
+    randomise_static: bool = False,
+    randomise_full: bool = False,
+    node_map: dict[int, int] | None = None,
+    round_robin: bool = False,
+) -> np.ndarray:
+    """
+    Build an initial 2-D partition assignment array of shape ``(depth, num_qubits)``.
+
+    Qubits are assigned to QPUs in logical order (first QPU fills first, etc.),
+    with optional variants for inverted order, random shuffling, and round-robin
+    assignment.
+
+    Args:
+        graph: The hypergraph whose ``num_qubits`` and ``depth`` determine the
+            array shape.
+        network: The quantum network whose ``qpu_sizes`` determines how many
+            qubits each QPU can hold.
+        invert: When True, assign qubits to QPUs in reverse order.
+        randomise_static: When True, randomly shuffle the static (per-qubit)
+            assignment before replicating it across time steps.
+        randomise_full: When True, independently shuffle the assignment at every
+            time step.
+        node_map: Optional mapping from QPU index to physical network node id.
+            When provided the mapping is inverted to produce logical QPU indices.
+        round_robin: When True, use round-robin assignment (qubit ``q`` → QPU
+            ``q % num_partitions``) applied independently at every time step.
+
+    Returns:
+        Integer NumPy array of shape ``(depth, num_qubits)`` where entry
+        ``[t][q]`` gives the QPU id assigned to qubit ``q`` at timestep ``t``.
+    """
     num_qubits = graph.num_qubits
     depth = graph.depth
     static_partition = []
