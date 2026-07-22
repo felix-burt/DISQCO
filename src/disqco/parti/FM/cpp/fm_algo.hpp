@@ -77,24 +77,43 @@ int32_t compute_gain(const FMState& state, const FMHyperGraph& hg,
 }
 
 // ── 3. Compute all gains and fill bucket structure ────────────────────────
-void find_all_gains_and_fill_buckets(FMState& state, const FMHyperGraph& hg) {
+// When active_nodes is provided, only those nodes are processed — avoids an
+// O(N) scan at coarsened levels where N >> n_active.
+void find_all_gains_and_fill_buckets(FMState& state, const FMHyperGraph& hg,
+                                      const int32_t* active_nodes = nullptr,
+                                      int32_t n_active = 0) {
     int32_t K = hg.K;
-    // Proper clear: reset pos for every item in each bucket, then clear items
     for (auto& b : state.buckets.buckets) {
         for (int32_t a : b.items) b.pos[a] = -1;
         b.items.clear();
     }
     state.buckets.best_idx = -1;
 
-    for (int32_t n = 0; n < hg.N; ++n) {
-        if (state.locked[n]) continue;
-        int32_t src = state.get_assignment(n);
-        for (int32_t dest = 0; dest < K; ++dest) {
-            if (dest == src) continue;
-            int32_t act = hg.action_id(n, dest);
-            int32_t g   = compute_gain(state, hg, n, src, dest);
-            state.gains[act] = g;
-            state.buckets.insert(act, g);
+    if (active_nodes != nullptr && n_active > 0) {
+        // Fast path: iterate only the active subset.
+        for (int32_t i = 0; i < n_active; ++i) {
+            int32_t n   = active_nodes[i];
+            int32_t src = state.get_assignment(n);
+            for (int32_t dest = 0; dest < K; ++dest) {
+                if (dest == src) continue;
+                int32_t act = hg.action_id(n, dest);
+                int32_t g   = compute_gain(state, hg, n, src, dest);
+                state.gains[act] = g;
+                state.buckets.insert(act, g);
+            }
+        }
+    } else {
+        // Full-graph path (finest level or standard FM).
+        for (int32_t n = 0; n < hg.N; ++n) {
+            if (state.locked[n]) continue;
+            int32_t src = state.get_assignment(n);
+            for (int32_t dest = 0; dest < K; ++dest) {
+                if (dest == src) continue;
+                int32_t act = hg.action_id(n, dest);
+                int32_t g   = compute_gain(state, hg, n, src, dest);
+                state.gains[act] = g;
+                state.buckets.insert(act, g);
+            }
         }
     }
 }
@@ -296,15 +315,19 @@ FMPassResult run_fm_pass(const FMHyperGraph& hg,
                           const int32_t* qpu_sizes,
                           int32_t max_gain,
                           int32_t limit,
-                          uint32_t seed) {
+                          uint32_t seed,
+                          const int32_t* active_nodes = nullptr,
+                          int32_t n_active = 0) {
     int32_t N = hg.N;
 
     // Working copy of assignment (modified in-place during pass)
     std::vector<int32_t> work(initial_asgn, initial_asgn + N);
 
-    FMState state(hg, work.data(), max_gain, qpu_sizes);
+    // Constructor handles spaces init and locking in one pass over active_nodes.
+    FMState state(hg, work.data(), max_gain, qpu_sizes, active_nodes, n_active);
+
     do_map_counts(state, hg);
-    find_all_gains_and_fill_buckets(state, hg);
+    find_all_gains_and_fill_buckets(state, hg, active_nodes, n_active);
 
     std::mt19937 rng(seed);
     std::vector<int32_t> moves;      // action_id per move
@@ -353,6 +376,124 @@ FMPassResult run_fm_pass(const FMHyperGraph& hg,
     }
 
     return FMPassResult{best_asgn, last_asgn, best_gain, cum_gains.back()};
+}
+
+// ── 7. Multi-pass FM at one coarsening level ─────────────────────────────
+// Keeps FMState alive across all passes so BucketArray / gains arrays are
+// only allocated once.  Between passes only locked + spaces are reset
+// (O(n_active)), not the full O(max_gain × N×K) bucket init.
+//
+// Stochastic schedule (mirrors run_FM in fiduccia.py):
+//   even passes → use last assignment (exploration)
+//   odd  passes → use best assignment (exploitation)
+//
+// Returns: best_assignment (flat [N]) and cost_deltas[n_passes] where
+// cost_delta[i] is the cumulative gain added by pass i (≤ 0 = improvement).
+struct FMLevelResult {
+    std::vector<int32_t> best_asgn;          // [N] — best seen across all passes
+    std::vector<int32_t> cost_deltas;        // [n_passes] cumulative gain per pass
+};
+
+FMLevelResult run_fm_level(const FMHyperGraph& hg,
+                             const int32_t* initial_asgn,  // [N]
+                             const int32_t* qpu_sizes,
+                             int32_t max_gain,
+                             int32_t limit,
+                             uint32_t base_seed,
+                             const int32_t* active_nodes,
+                             int32_t n_active,
+                             int32_t n_passes,
+                             bool stochastic) {
+    int32_t N = hg.N, K = hg.K, Q = hg.Q;
+
+    // Working assignment — FMState.assignment points into this vector.
+    std::vector<int32_t> work(initial_asgn, initial_asgn + N);
+    // FMState constructed ONCE for all passes at this level.
+    FMState state(hg, work.data(), max_gain, qpu_sizes, active_nodes, n_active);
+
+    std::vector<int32_t> delta_arr(hg.num_actions(), 0);
+    std::vector<int32_t> dirty_actions;
+
+    // Track the "current" assignment (starting point for each pass) and the global best.
+    std::vector<int32_t> current(initial_asgn, initial_asgn + N);
+    std::vector<int32_t> best_asgn = current;
+    int32_t cumulative_cost = 0;   // tracks cost delta from initial
+    int32_t best_cost = 0;         // lowest cumulative_cost seen
+
+    std::vector<int32_t> cost_deltas;
+    cost_deltas.reserve(n_passes);
+
+    for (int32_t pass = 0; pass < n_passes; ++pass) {
+        if (pass == 0) {
+            // First pass: state was already initialised in the constructor.
+            // Just update the work buffer to match current (same as initial).
+        } else {
+            // Subsequent passes: cheap reset without re-allocating anything.
+            state.reset_for_next_pass(current.data(), qpu_sizes, active_nodes, n_active);
+        }
+
+        do_map_counts(state, hg);
+        find_all_gains_and_fill_buckets(state, hg, active_nodes, n_active);
+
+        uint32_t seed = base_seed ^ (uint32_t)(pass * 1000003u);
+        std::mt19937 rng(seed);
+
+        std::vector<int32_t> moves;
+        std::vector<int32_t> cum_gains;
+        cum_gains.push_back(0);
+        int32_t cumulative = 0;
+
+        for (int32_t iter = 0; iter < limit; ++iter) {
+            auto [action, gain] = find_action(state, hg, rng);
+            if (action < 0) break;
+            apply_move_and_update(state, hg, action, delta_arr, dirty_actions);
+            cumulative += gain;
+            moves.push_back(action);
+            cum_gains.push_back(cumulative);
+        }
+
+        // Best prefix within this pass
+        int32_t best_idx = 0, best_gain = 0;
+        for (int32_t i = 1; i < (int32_t)cum_gains.size(); ++i) {
+            if (cum_gains[i] < best_gain) { best_gain = cum_gains[i]; best_idx = i; }
+        }
+        int32_t last_gain = cum_gains.back();
+
+        // Reconstruct best and last assignments.
+        std::vector<int32_t> pass_best(current.begin(), current.end());
+        for (int32_t i = 0; i < best_idx; ++i) {
+            int32_t act = moves[i];
+            int32_t node = act / K, d = act % K;
+            pass_best[(node / Q) * Q + (node % Q)] = d;
+        }
+        // work already reflects last assignment (updated in-place by apply_move_and_update)
+        std::vector<int32_t> pass_last(work.begin(), work.end());
+
+        // Stochastic picking: even→exploration (last), odd→exploitation (best).
+        int32_t pass_gain;
+        if (stochastic) {
+            if (pass % 2 == 0) {
+                current = pass_last;
+                pass_gain = last_gain;
+            } else {
+                current = pass_best;
+                pass_gain = best_gain;
+            }
+        } else {
+            current = pass_best;
+            pass_gain = best_gain;
+        }
+
+        cumulative_cost += pass_gain;
+        cost_deltas.push_back(cumulative_cost);
+
+        if (cumulative_cost < best_cost) {
+            best_cost = cumulative_cost;
+            best_asgn = current;
+        }
+    }
+
+    return FMLevelResult{best_asgn, cost_deltas};
 }
 
 } // anonymous namespace

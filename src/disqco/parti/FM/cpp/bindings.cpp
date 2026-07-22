@@ -3,6 +3,8 @@
 #include <pybind11/stl.h>
 #include <random>
 #include <cstring>
+#include <numeric>
+#include <unordered_set>
 
 #include "hgraph.hpp"
 #include "indexed_set.hpp"
@@ -135,7 +137,8 @@ py::dict fm_pass(
     arr_i32 assignment_arr,
     arr_i32 qpu_sizes_arr,
     int32_t max_gain,
-    int32_t limit)
+    int32_t limit,
+    py::object active_nodes_obj = py::none())
 {
     // Read-only input buffers
     auto asgn_buf = assignment_arr.request();
@@ -145,10 +148,22 @@ py::dict fm_pass(
     auto qsz_buf = qpu_sizes_arr.request();
     const int32_t* qsz_ptr = static_cast<const int32_t*>(qsz_buf.ptr);
 
+    // Optional active-node mask: if provided, only those nodes participate.
+    arr_i32 active_nodes_arr;
+    const int32_t* active_nodes_ptr = nullptr;
+    int32_t n_active = 0;
+    if (!active_nodes_obj.is_none()) {
+        active_nodes_arr = active_nodes_obj.cast<arr_i32>();
+        auto buf = active_nodes_arr.request();
+        active_nodes_ptr = static_cast<const int32_t*>(buf.ptr);
+        n_active = static_cast<int32_t>(buf.size);
+    }
+
     // Use a thread-local or time-based seed for reproducible stochasticity
     uint32_t seed = static_cast<uint32_t>(std::random_device{}());
 
-    FMPassResult res = run_fm_pass(hg, asgn_ptr, qsz_ptr, max_gain, limit, seed);
+    FMPassResult res = run_fm_pass(hg, asgn_ptr, qsz_ptr, max_gain, limit, seed,
+                                   active_nodes_ptr, n_active);
 
     // Build numpy arrays for best and last assignments (shape [D, Q])
     auto make_arr = [&](const std::vector<int32_t>& v) {
@@ -176,6 +191,130 @@ py::dict fm_pass(
     result["assignment_list"] = asgn_list;
     result["gain_list"]       = gain_list;
     return result;
+}
+
+// ---------------------------------------------------------------------------
+// coarsen_one_level: merge a batch of timestep pairs in the CSR hypergraph.
+//
+// pairs_src / pairs_dst: parallel int32 arrays of length n_pairs.
+// Each pair (pairs_src[i], pairs_dst[i]) merges all pins at timestep
+// pairs_src[i] into timestep pairs_dst[i].
+//
+// Returns (new_FMHyperGraph, active_node_ids) where active_node_ids is a
+// flat int32 numpy array of node IDs whose timestep was NOT a source
+// (i.e. nodes that are actually present in the coarsened level).
+// ---------------------------------------------------------------------------
+py::tuple coarsen_one_level(
+    const FMHyperGraph& hg,
+    arr_i32 pairs_src_arr,
+    arr_i32 pairs_dst_arr)
+{
+    int32_t Q = hg.Q, D = hg.D, K = hg.K, E = hg.E;
+
+    auto src_buf = pairs_src_arr.request();
+    auto dst_buf = pairs_dst_arr.request();
+    int32_t n_pairs = static_cast<int32_t>(src_buf.size);
+    const int32_t* src_ptr = static_cast<const int32_t*>(src_buf.ptr);
+    const int32_t* dst_ptr = static_cast<const int32_t*>(dst_buf.ptr);
+
+    // t_remap[t]: timestep t maps to this representative after merging.
+    std::vector<int32_t> t_remap(D);
+    std::iota(t_remap.begin(), t_remap.end(), 0);
+    std::vector<bool> is_src(D, false);
+    for (int32_t i = 0; i < n_pairs; ++i) {
+        t_remap[src_ptr[i]] = dst_ptr[i];
+        is_src[src_ptr[i]] = true;
+    }
+
+    // Active node IDs: nodes whose timestep is NOT a source.
+    std::vector<int32_t> active_ids;
+    active_ids.reserve((D - n_pairs) * Q);
+    for (int32_t t = 0; t < D; ++t) {
+        if (!is_src[t]) {
+            for (int32_t q = 0; q < Q; ++q)
+                active_ids.push_back(t * Q + q);
+        }
+    }
+
+    // Build remapped pin sets per edge.  Keep the same E edge slots so that
+    // edge indices are stable; trivial edges get empty spans.
+    std::vector<int32_t> new_root_pins, new_root_offsets;
+    std::vector<int32_t> new_rec_pins,  new_rec_offsets;
+    new_root_offsets.reserve(E + 1);
+    new_rec_offsets.reserve(E + 1);
+    new_root_offsets.push_back(0);
+    new_rec_offsets.push_back(0);
+
+    // node_edge_lists[n] = list of edge indices incident to node n.
+    std::vector<std::vector<int32_t>> node_edge_lists(hg.N);
+
+    std::unordered_set<int32_t> root_set, rec_set;
+    for (int32_t e = 0; e < E; ++e) {
+        root_set.clear();
+        rec_set.clear();
+
+        {
+            auto [rb, re] = hg.root_span(e);
+            for (const int32_t* p = rb; p != re; ++p)
+                root_set.insert(t_remap[*p / Q] * Q + (*p % Q));
+        }
+        {
+            auto [reb, ree] = hg.rec_span(e);
+            for (const int32_t* p = reb; p != ree; ++p)
+                rec_set.insert(t_remap[*p / Q] * Q + (*p % Q));
+        }
+
+        // Trivial edge: root and receiver sets are identical after remapping.
+        if (root_set == rec_set) {
+            new_root_offsets.push_back(static_cast<int32_t>(new_root_pins.size()));
+            new_rec_offsets.push_back(static_cast<int32_t>(new_rec_pins.size()));
+            continue;
+        }
+
+        // Add root pins; register edge in node_edge_lists.
+        for (int32_t n : root_set) {
+            new_root_pins.push_back(n);
+            node_edge_lists[n].push_back(e);
+        }
+        // Add rec pins; add to node_edge_lists only if not already via root.
+        for (int32_t n : rec_set) {
+            new_rec_pins.push_back(n);
+            if (root_set.find(n) == root_set.end())
+                node_edge_lists[n].push_back(e);
+        }
+
+        new_root_offsets.push_back(static_cast<int32_t>(new_root_pins.size()));
+        new_rec_offsets.push_back(static_cast<int32_t>(new_rec_pins.size()));
+    }
+
+    // Build node_edges CSR.
+    std::vector<int32_t> node_edges, node_offsets;
+    node_offsets.reserve(hg.N + 1);
+    node_offsets.push_back(0);
+    for (int32_t n = 0; n < hg.N; ++n) {
+        for (int32_t ei : node_edge_lists[n])
+            node_edges.push_back(ei);
+        node_offsets.push_back(static_cast<int32_t>(node_edges.size()));
+    }
+
+    // Assemble new FMHyperGraph.
+    FMHyperGraph new_hg;
+    new_hg.Q = Q; new_hg.D = D; new_hg.K = K;
+    new_hg.N = hg.N; new_hg.E = E;
+    new_hg.root_pins    = std::move(new_root_pins);
+    new_hg.root_offsets = std::move(new_root_offsets);
+    new_hg.rec_pins     = std::move(new_rec_pins);
+    new_hg.rec_offsets  = std::move(new_rec_offsets);
+    new_hg.node_edges   = std::move(node_edges);
+    new_hg.node_offsets = std::move(node_offsets);
+
+    // Return active_ids as a numpy array.
+    auto active_arr = py::array_t<int32_t>(static_cast<py::ssize_t>(active_ids.size()));
+    if (!active_ids.empty())
+        std::memcpy(active_arr.mutable_data(), active_ids.data(),
+                    active_ids.size() * sizeof(int32_t));
+
+    return py::make_tuple(std::move(new_hg), active_arr);
 }
 
 // ---------------------------------------------------------------------------
@@ -227,9 +366,64 @@ PYBIND11_MODULE(_fm_cpp, m) {
           py::arg("hg"), py::arg("assignment"),
           "Compute total communication cost for the current assignment.");
 
+    m.def("coarsen_one_level", &coarsen_one_level,
+          py::arg("hg"), py::arg("pairs_src"), py::arg("pairs_dst"),
+          "Merge a batch of timestep pairs in the CSR hypergraph.\n"
+          "Returns (new_FMHyperGraph, active_node_ids_int32).");
+
     m.def("fm_pass", &fm_pass,
           py::arg("hg"), py::arg("assignment"),
           py::arg("qpu_sizes"), py::arg("max_gain"), py::arg("limit"),
+          py::arg("active_nodes") = py::none(),
           "Run one FM pass. Returns dict with 'assignment_list' ([initial, best, last])\n"
-          "and 'gain_list' ([0, best_gain, last_gain]).");
+          "and 'gain_list' ([0, best_gain, last_gain]).\n"
+          "active_nodes: optional int32 array of node IDs that may be moved;\n"
+          "all others are locked (used for coarsened hypergraph levels).");
+
+    m.def("fm_level",
+          [](FMHyperGraph& hg,
+             arr_i32 assignment_arr,
+             arr_i32 qpu_sizes_arr,
+             int32_t max_gain,
+             int32_t limit,
+             py::object active_nodes_obj,
+             int32_t n_passes,
+             bool stochastic) -> py::dict
+          {
+              auto asgn_buf = assignment_arr.request();
+              const int32_t* asgn_ptr = static_cast<const int32_t*>(asgn_buf.ptr);
+              auto qsz_buf  = qpu_sizes_arr.request();
+              const int32_t* qsz_ptr  = static_cast<const int32_t*>(qsz_buf.ptr);
+
+              arr_i32 active_nodes_arr;
+              const int32_t* active_ptr = nullptr;
+              int32_t n_active = 0;
+              if (!active_nodes_obj.is_none()) {
+                  active_nodes_arr = active_nodes_obj.cast<arr_i32>();
+                  auto buf = active_nodes_arr.request();
+                  active_ptr = static_cast<const int32_t*>(buf.ptr);
+                  n_active   = static_cast<int32_t>(buf.size);
+              }
+
+              uint32_t seed = static_cast<uint32_t>(std::random_device{}());
+              FMLevelResult res = run_fm_level(hg, asgn_ptr, qsz_ptr, max_gain, limit,
+                                               seed, active_ptr, n_active,
+                                               n_passes, stochastic);
+
+              int32_t D = hg.D, Q = hg.Q, N = hg.N;
+              auto best_arr = py::array_t<int32_t>({D, Q});
+              std::memcpy(best_arr.mutable_data(), res.best_asgn.data(), N * sizeof(int32_t));
+
+              py::dict result;
+              result["best_assignment"] = best_arr;
+              result["cost_deltas"]     = py::cast(res.cost_deltas);
+              return result;
+          },
+          py::arg("hg"), py::arg("assignment"),
+          py::arg("qpu_sizes"), py::arg("max_gain"), py::arg("limit"),
+          py::arg("active_nodes") = py::none(),
+          py::arg("n_passes") = 10,
+          py::arg("stochastic") = true,
+          "Run n_passes FM passes at one coarsening level, reusing FMState across passes.\n"
+          "Returns dict with 'best_assignment' ([D,Q]) and 'cost_deltas' (list of ints).");
 }

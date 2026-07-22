@@ -87,24 +87,6 @@ class FiducciaMattheyses(QuantumCircuitPartitioner):
         return self._cpp_hg
 
     def FM_pass(self, hypergraph, assignment, **kwargs):
-        # C++ fast path: homo network, all nodes active (standard non-multilevel case)
-        if (not self.network.hetero
-                and 'active_hypergraph_nodes' not in kwargs):
-            cpp_hg = self.get_cpp_hg()
-            if cpp_hg is not False:
-                try:
-                    from disqco import _fm_cpp
-                    limit = int(kwargs.get('limit', len(hypergraph.nodes) * 0.125))
-                    qpu_sizes = np.array(
-                        list(self.qpu_sizes.values()), dtype=np.int32
-                    )
-                    result = _fm_cpp.fm_pass(
-                        cpp_hg, assignment, qpu_sizes, self.max_gain, limit
-                    )
-                    return result['assignment_list'], result['gain_list']
-                except Exception:
-                    pass  # fall through to Python path on any error
-
         random.seed()
         active_hypergraph_nodes = kwargs.get('active_hypergraph_nodes', hypergraph.nodes)
         limit = kwargs.get('limit', len(hypergraph.nodes) * 0.125)
@@ -181,7 +163,7 @@ class FiducciaMattheyses(QuantumCircuitPartitioner):
 
         hypergraph = kwargs.pop('graph')
         assignment = kwargs.pop('assignment')
-        
+
 
         mapping = kwargs.pop('mapping', {t : set([t]) for t in range(hypergraph.depth)})
         self.max_gain = kwargs.pop('max_gain', self.find_max_gain(mapping))
@@ -189,15 +171,15 @@ class FiducciaMattheyses(QuantumCircuitPartitioner):
         dummy_nodes = self.dummy_nodes
         log = kwargs.get('log', False)
 
-        initial_cost = calculate_full_cost(hypergraph, 
-                                           assignment, 
-                                           self.num_partitions, 
+        initial_cost = calculate_full_cost(hypergraph,
+                                           assignment,
+                                           self.num_partitions,
                                            self.costs,
                                            network=self.network,
                                            node_map=self.node_map,
                                            dummy_nodes=dummy_nodes,
                                            hetero=self.network.hetero)
-        
+
         if log:
             print("Initial cost:", initial_cost)
         cost = initial_cost
@@ -207,8 +189,52 @@ class FiducciaMattheyses(QuantumCircuitPartitioner):
         cost_list.append(cost)
         best_assignments.append(assignment)
 
+        # Build C++ hgraph once for all passes at this level (homo, no node subset).
+        # Reuse the cached copy for self.hypergraph; build fresh for coarsened levels.
+        _cpp_hg = False
+        if not self.network.hetero and 'active_hypergraph_nodes' not in kwargs:
+            if hypergraph is self.hypergraph:
+                _cpp_hg = self.get_cpp_hg()
+            else:
+                from disqco.parti.FM._fm_cpp_builder import build_cpp_hgraph
+                try:
+                    _cpp_hg = build_cpp_hgraph(hypergraph, self.num_partitions)
+                    if _cpp_hg is None:
+                        _cpp_hg = False
+                except Exception:
+                    _cpp_hg = False
+
+        _qpu_sizes = np.array(list(self.qpu_sizes.values()), dtype=np.int32)
+        _limit = int(kwargs.get('limit', len(hypergraph.nodes) * 0.125))
+
+        # Active-node IDs for this hypergraph level (locks inactive nodes in C++).
+        # For the full graph every node is active so we pass None (no masking).
+        Q = hypergraph.num_qubits
+        if hypergraph is self.hypergraph:
+            _active_node_ids = None
+        else:
+            _active_node_ids = np.array(
+                [node[1] * Q + node[0]
+                 for node in hypergraph.nodes
+                 if isinstance(node[0], int)],
+                dtype=np.int32
+            )
+
         for n in range(passes):
-            assignment_list, gain_list = self.FM_pass(hypergraph, assignment, **kwargs)
+            if _cpp_hg is not False:
+                try:
+                    from disqco import _fm_cpp
+                    result = _fm_cpp.fm_pass(
+                        _cpp_hg, assignment, _qpu_sizes, self.max_gain, _limit,
+                        _active_node_ids
+                    )
+                    assignment_list = result['assignment_list']
+                    gain_list       = result['gain_list']
+                except Exception:
+                    _cpp_hg = False  # disable for remaining passes
+                    assignment_list, gain_list = self.FM_pass(hypergraph, assignment, **kwargs)
+            else:
+                assignment_list, gain_list = self.FM_pass(hypergraph, assignment, **kwargs)
 
             # Decide how to pick new assignment depending on stochastic or not
             if stochastic:
@@ -227,7 +253,6 @@ class FiducciaMattheyses(QuantumCircuitPartitioner):
                 assignment = assignment_list[idx_best]
                 cost += min(gain_list)
 
-            # print(f"Running cost after pass {n}:", cost)
             cost_list.append(cost)
             best_assignments.append(assignment)
 
@@ -259,6 +284,17 @@ class FiducciaMattheyses(QuantumCircuitPartitioner):
 
         kwargs['graph'] = self.hypergraph
         sparse = kwargs.get('sparse', False)
+
+        # C++ fast path: homo network, default coarsener, no sparse mode.
+        if (not self.network.hetero and coarsener is None
+                and not sparse and 'coarsener' not in kwargs):
+            cpp_hg = self.get_cpp_hg()
+            if cpp_hg is not False:
+                try:
+                    return self._cpp_multilevel_partition(cpp_hg, **kwargs)
+                except Exception:
+                    pass  # fall through to Python path
+
         if coarsener is None:
             coarsener = kwargs.pop('coarsener', None)
 
@@ -270,6 +306,85 @@ class FiducciaMattheyses(QuantumCircuitPartitioner):
                 coarsener = coarsener_class.coarsen_recursive_batches_mapped
 
         return super().multilevel_partition(coarsener=coarsener, **kwargs)
+
+    def _cpp_multilevel_partition(self, initial_cpp_hg, **kwargs):
+        from disqco import _fm_cpp
+
+        passes_per_level = kwargs.get('passes_per_level', 10)
+        stochastic       = kwargs.get('stochastic', True)
+
+        D = self.hypergraph.depth
+        Q = self.hypergraph.num_qubits
+        qpu_sizes = np.array(list(self.qpu_sizes.values()), dtype=np.int32)
+
+        # ── Build C++ coarsening chain ─────────────────────────────────────
+        cpp_hg_list    = [initial_cpp_hg]   # finest first
+        active_ids_list = [                  # all nodes active at finest level
+            np.array([t * Q + q for t in range(D) for q in range(Q)], dtype=np.int32)
+        ]
+        # Cumulative mapping: mapping[super_t] = set of original timesteps.
+        mapping_list = [{t: {t} for t in range(D)}]
+        current_layers = list(range(D))
+
+        while len(current_layers) > 1:
+            rev = list(reversed(current_layers))
+            pairs = [(rev[i], rev[i + 1]) for i in range(0, len(rev) - 1, 2)]
+            pairs_src = np.array([p[0] for p in pairs], dtype=np.int32)
+            pairs_dst = np.array([p[1] for p in pairs], dtype=np.int32)
+
+            new_hg, active_ids = _fm_cpp.coarsen_one_level(
+                cpp_hg_list[-1], pairs_src, pairs_dst
+            )
+            cpp_hg_list.append(new_hg)
+            active_ids_list.append(active_ids)
+
+            src_set = set(pairs_src.tolist())
+            mapping = {**mapping_list[-1]}
+            for src, dst in pairs:
+                mapping[dst] = mapping[dst] | mapping.pop(src)
+            mapping_list.append(mapping)
+
+            current_layers = [l for l in current_layers if l not in src_set]
+
+        # Reverse so index 0 = coarsest, -1 = finest
+        cpp_hg_list    = cpp_hg_list[::-1]
+        active_ids_list = active_ids_list[::-1]
+        mapping_list   = mapping_list[::-1]
+        n_levels       = len(cpp_hg_list)
+
+        # ── FM passes at each level ────────────────────────────────────────
+        assignment = self.initial_assignment.copy()
+        cost_list  = []
+
+        for i, (cpp_hg, active_ids, mapping) in enumerate(
+                zip(cpp_hg_list, active_ids_list, mapping_list)):
+
+            self.max_gain = self.find_max_gain(mapping)
+            limit = int(len(active_ids) * 0.125)
+
+            # Run all passes at this level with FMState kept alive across passes.
+            result     = _fm_cpp.fm_level(
+                cpp_hg, assignment, qpu_sizes, self.max_gain, limit,
+                active_ids, passes_per_level, stochastic
+            )
+            assignment = result['best_assignment']
+            level_best_cost = _fm_cpp.calculate_full_cost(cpp_hg, assignment)
+            cost_list.append(level_best_cost)
+
+            # Refine assignment to next (finer) level
+            if i < n_levels - 1:
+                assignment = self.refine_assignment(
+                    i, n_levels, assignment, mapping_list
+                )
+
+        # Report cost on the original (finest) C++ hgraph.
+        best_cost = _fm_cpp.calculate_full_cost(initial_cpp_hg, assignment)
+        return {
+            'best_cost':       best_cost,
+            'best_assignment': assignment,
+            'cost_list':       cost_list,
+            'assignment_list': [assignment],
+        }
 
     def find_max_gain(self, mapping=None):
         
