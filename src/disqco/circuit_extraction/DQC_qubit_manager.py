@@ -208,3 +208,35 @@ class DataQubitManager:
         #     del self.in_use_data[p][qubit] # Remove the logical qubit from the in_use_data dictionary
         if qubit not in self.free_data[p]:
             self.free_data[p].append(qubit) # Add the slot to the free_data list
+
+    def swap_physical_slots(self, p: int, qubit_a: Qubit, qubit_b: Qubit):
+        """
+        Swap the contents of two physical slots in partition p.
+        """
+        a_in_use = qubit_a in self.in_use_data[p]
+        b_in_use = qubit_b in self.in_use_data[p]
+
+        # No qubits in use
+        if not a_in_use and not b_in_use:
+            return
+
+        # Both qubits in use
+        elif a_in_use and b_in_use:
+            logical_a = self.in_use_data[p][qubit_a]
+            logical_b = self.in_use_data[p][qubit_b]
+
+            self.log_to_phys_idx[logical_a] = qubit_b
+            self.log_to_phys_idx[logical_b] = qubit_a
+            self.in_use_data[p][qubit_a] = logical_b
+            self.in_use_data[p][qubit_b] = logical_a
+            return
+
+        # One qubit in use, one free
+        if b_in_use:
+            qubit_a, qubit_b = qubit_b, qubit_a  # Swap to ensure qubit_a is in use and qubit_b is free
+
+        logical_q = self.in_use_data[p].pop(qubit_a)
+        self.in_use_data[p][qubit_b] = logical_q
+        self.log_to_phys_idx[logical_q] = qubit_b
+        self.free_data[p].remove(qubit_b)
+        self.free_data[p].append(qubit_a)
