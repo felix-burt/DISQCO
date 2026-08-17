@@ -58,9 +58,8 @@ extractor = PartitionedCircuitExtractor(
 )
 partitioned_circuit = extractor.extract_partitioned_circuit()
 
-ops = partitioned_circuit.count_ops()
-print("Number of e-bits requested:", ops.get("EPR", 0))
-print("Local routing SWAPs inserted:", ops.get("swap", 0))
+print("Number of e-bits requested:", partitioned_circuit.count_ops().get("EPR", 0))
+print("Local routing SWAPs inserted:", extractor.local_swap_count)
 
 partitioned_circuit_path = demo_dir / "partitioned_circuit.png"
 partitioned_circuit.draw(

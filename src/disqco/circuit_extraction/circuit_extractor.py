@@ -542,6 +542,7 @@ class PartitionedCircuitExtractor:
         self.graph = graph
         self.network = network
         self.basis_gates = graph.basis_gates
+        self.local_swap_count = 0
 
 
         # Create the quantum registers for the data qubits and communication qubits.
@@ -688,6 +689,7 @@ class PartitionedCircuitExtractor:
                     for swap0, swap1 in path:
                         self.qc.swap(qubit0._register[swap0], qubit0._register[swap1])
                         self.qubit_manager.swap_physical_slots(p0, qubit0._register[swap0], qubit0._register[swap1])
+                        self.local_swap_count += 1
                     qubit0 = qubit0._register[path[-1][1]]
 
         # Apply the gate to the QuantumCircuit

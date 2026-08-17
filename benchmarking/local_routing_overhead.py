@@ -7,15 +7,6 @@ extracts the distributed circuit, and reports:
   - ebits:     entanglement cost of the partition (results['best_cost'])
   - swaps:     local routing SWAPs inserted during extraction
   - swaps/ebit ratio: the go/no-go number for further routing work
-
-SWAPs are counted by wrapping DataQubitManager.swap_physical_slots (its only
-caller is the local router; the final transpile decomposes swap gates, so
-counting them in the output circuit would always give zero).
-
-FM is made reproducible with the no-arg-random.seed monkeypatch: FM_pass
-reseeds from OS entropy on every pass unless no-arg seed() is a no-op.
-
-Usage:  .venv\\Scripts\\python.exe benchmarking\\local_routing_overhead.py
 """
 
 import random
@@ -31,7 +22,6 @@ from disqco import (
     set_initial_partition_assignment,
 )
 from disqco.circuits.cp_fraction import cp_fraction
-from disqco.circuit_extraction.DQC_qubit_manager import DataQubitManager
 from disqco.parti import FiducciaMattheyses
 
 SEED = 42
@@ -67,27 +57,6 @@ def make_reproducible(seed):
     np.random.seed(seed)
 
 
-class SwapCounter:
-    """Counts calls to DataQubitManager.swap_physical_slots (one per routing hop)."""
-
-    def __init__(self):
-        self.count = 0
-        self._original = DataQubitManager.swap_physical_slots
-
-    def __enter__(self):
-        counter = self
-
-        def counted(manager, p, qubit_a, qubit_b):
-            counter.count += 1
-            return counter._original(manager, p, qubit_a, qubit_b)
-
-        DataQubitManager.swap_physical_slots = counted
-        return self
-
-    def __exit__(self, *exc):
-        DataQubitManager.swap_physical_slots = self._original
-
-
 def run_config(num_qubits, depth, fraction, topo_name, topo_factory):
     qpu_size = num_qubits // NUM_QPUS + 1
     qpu_sizes = [qpu_size] * NUM_QPUS
@@ -111,10 +80,9 @@ def run_config(num_qubits, depth, fraction, topo_name, topo_factory):
 
     extractor = PartitionedCircuitExtractor(
         hypergraph, network, partition_assignment=results["best_assignment"])
-    with SwapCounter() as counter:
-        extractor.extract_partitioned_circuit()
+    extractor.extract_partitioned_circuit()
 
-    return results["best_cost"], counter.count
+    return results["best_cost"], extractor.local_swap_count
 
 
 def main():
