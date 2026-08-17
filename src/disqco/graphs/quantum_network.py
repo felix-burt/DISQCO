@@ -11,7 +11,7 @@ import math as mt
 # and to find the minimum spanning tree for a given set of nodes, which
 # is used for finding entanglement distribution paths.
 class QuantumNetwork():
-    def __init__(self, qpu_sizes, qpu_connectivity = None, comm_sizes = None):
+    def __init__(self, qpu_sizes, qpu_connectivity = None, comm_sizes = None, qpu_topologies = None):
 
         if isinstance(qpu_sizes, list):
             self.qpu_sizes = {}
@@ -40,8 +40,27 @@ class QuantumNetwork():
             else:
                 self.comm_sizes = comm_sizes
 
+        self.qpu_topologies = qpu_topologies if qpu_topologies is not None else {}
+
+        self._validate_topologies()
+
+    def _validate_topologies(self):
+        if not isinstance(self.qpu_topologies, dict):
+            raise TypeError("qpu_topologies must be a dictionary mapping QPU indices to networkx Graphs.")
+
+        for qpu, qubit_graph in self.qpu_topologies.items():
+            if qpu not in self.qpu_sizes:
+                raise ValueError(f"QPU index {qpu} in qpu_topologies is not present in qpu_sizes.")
+            if not isinstance(qubit_graph, nx.Graph):
+                raise TypeError(f"Topology for QPU {qpu} must be a networkx Graph.")
+            if set(qubit_graph.nodes) != set(range(self.qpu_sizes[qpu])):
+                raise ValueError(f"Topology for QPU {qpu} does not match its size.")
+            if not nx.is_connected(qubit_graph):
+                raise ValueError(f"Topology for QPU {qpu} is not connected.")
+
+
     @classmethod
-    def create(cls, qpu_sizes, coupling_type='all_to_all', comm_sizes=None, **kwargs):
+    def create(cls, qpu_sizes, coupling_type='all_to_all', comm_sizes=None, qpu_topologies=None, **kwargs):
         """
         Factory method to create a QuantumNetwork with a specific coupling type.
         
@@ -55,6 +74,7 @@ class QuantumNetwork():
                 - 'tree': Tree topology with branching factor k
                 - 'network_of_grids': Network of grid components connected by linear paths
             comm_sizes: Optional communication sizes for QPUs
+            qpu_topologies: Optional dict mapping QPU indices to their internal qubit topologies (as networkx Graphs)
             **kwargs: Additional arguments for specific coupling types:
                 - p: Edge probability for random coupling (default 0.5)
                 - k: Branching factor for tree topology (default 2)
@@ -111,8 +131,8 @@ class QuantumNetwork():
                 f"Unknown coupling type: '{coupling_type}'. "
                 f"Valid options are: 'all_to_all', 'linear', 'grid', 'random', 'tree', 'network_of_grids'"
             )
-        
-        return cls(qpu_sizes, qpu_connectivity=connectivity, comm_sizes=comm_sizes)
+
+        return cls(qpu_sizes, qpu_connectivity=connectivity, comm_sizes=comm_sizes, qpu_topologies=qpu_topologies)
 
     def create_qpu_graph(self):
         qpu_graph = nx.Graph()
@@ -271,7 +291,7 @@ class QuantumNetwork():
 
 
     def copy(self):
-        return QuantumNetwork(self.qpu_sizes, self.qpu_connectivity)
+        return QuantumNetwork(self.qpu_sizes, self.qpu_connectivity, self.comm_sizes, self.qpu_topologies)
 
     def get_costs(self,) -> dict[tuple]:
         """
