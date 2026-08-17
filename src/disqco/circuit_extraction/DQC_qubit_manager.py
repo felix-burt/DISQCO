@@ -229,6 +229,8 @@ class DataQubitManager:
             self.log_to_phys_idx[logical_b] = qubit_a
             self.in_use_data[p][qubit_a] = logical_b
             self.in_use_data[p][qubit_b] = logical_a
+
+            self._update_group_links(qubit_a, qubit_b)
             return
 
         # One qubit in use, one free
@@ -238,5 +240,21 @@ class DataQubitManager:
         logical_q = self.in_use_data[p].pop(qubit_a)
         self.in_use_data[p][qubit_b] = logical_q
         self.log_to_phys_idx[logical_q] = qubit_b
+        self._update_group_links(qubit_a, qubit_b)
         self.free_data[p].remove(qubit_b)
         self.free_data[p].append(qubit_a)
+
+    def _update_group_links(self, qubit_a: Qubit, qubit_b: Qubit) -> None:
+        """
+        The contents of slots qubit_a and qubit_b have been exchanged; any
+        gate-group reference pointing at either slot must follow its state.
+        """
+        for group_info in self.groups.values():
+            linked = group_info.get('linked_qubits')
+            if not linked:
+                continue
+            for part, linked_qubit in linked.items():
+                if linked_qubit == qubit_a:
+                    linked[part] = qubit_b
+                elif linked_qubit == qubit_b:
+                    linked[part] = qubit_a
