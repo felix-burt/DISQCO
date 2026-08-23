@@ -10,11 +10,13 @@ class CommunicationQubitManager:
     Manages communication qubits on a per-partition basis. Allocates communication qubits for tasks 
     requiring entanglement and releases them when done.
     """
-    def __init__(self, comm_qregs: dict, qc: QuantumCircuit):
+    def __init__(self, comm_qregs: dict, qc: QuantumCircuit, network=None):
         self.qc = qc  # Store copy of the QuantumCircuit
         self.comm_qregs = comm_qregs  # Store the QuantumRegisters for communication qubits
         self.free_comm = {}  # Store free communication qubits for each partition
         self.in_use_comm = {}  # Store in-use communication qubits for each partition
+        self.network = network
+
         # self.linked_qubits = {}  # Store comm qubits linked to root qubits for gate teleportation
 
         self.initilize_communication_qubits()
@@ -30,14 +32,32 @@ class CommunicationQubitManager:
                 for qubit in reg:
                     self.free_comm[p].append(qubit)
 
-    def find_comm_idx(self, p: int) -> Qubit:
+    def comm_index(self, p: int, qubit: Qubit):
+        """
+        Returns index of a comm qubit within QPU p's comm qubits or None if it was created.
+        """
+        if qubit._register is self.comm_qregs[p][0]:
+            return qubit._index
+        return None
+
+    def find_comm_idx(self, p: int, neighbor: int | None = None) -> Qubit:
         """
         Allocate a free communication qubit in partition p.
         """
         free_comm_p = self.free_comm[p]
-        if free_comm_p:
+        if self.network is not None and neighbor is not None and p in self.network.comm_links:
+            eligible = set(self.network.comm_qubits_for_link(p, neighbor))
+            candidates = [q for q in free_comm_p if self.comm_index(p, q) in eligible]
+            if not candidates:
+                raise RuntimeError(f"QPU {p} has no free comm qubit serving link to {neighbor}")
+            comm_qubit = candidates[0]
+            free_comm_p.remove(candidates[0])
+
+        elif free_comm_p:
             comm_qubit = free_comm_p.pop(0)
         else:
+            if self.network is not None and self.network.comm_constrained(p):
+                raise RuntimeError(f"QPU {p} has no free communication qubits")
             # Create a new communication qubit by adding a new register
             num_regs_p = len(self.comm_qregs[p])
             new_reg = QuantumRegister(1, name=f"C{p}_{num_regs_p}")

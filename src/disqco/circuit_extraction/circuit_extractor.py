@@ -148,8 +148,8 @@ class TeleportationManager:
         Entangles the root qubit with a communication qubit in another QPU using the starting process circuit.
         """
         root_q = self.qubit_manager.log_to_phys_idx[root_idx]
-        root_comm = self.comm_manager.find_comm_idx(p_root)
-        rec_comm = self.comm_manager.find_comm_idx(p_rec)
+        root_comm = self.comm_manager.find_comm_idx(p_root, neighbor=p_rec)
+        rec_comm = self.comm_manager.find_comm_idx(p_rec, neighbor=p_root)
         cbit = self.creg_manager.allocate_cbit()
         instr = self.build_starting_process_circuit()
         self.qc.append(instr, [root_q, root_comm, rec_comm], [cbit])
@@ -427,8 +427,8 @@ class TeleportationManager:
         # Generate EPR pairs for all edges
         edges_to_comms = {}
         for p0, p1 in tree.edges():
-            comm0 = self.comm_manager.find_comm_idx(p0)
-            comm1 = self.comm_manager.find_comm_idx(p1)
+            comm0 = self.comm_manager.find_comm_idx(p0, neighbor = p1)
+            comm1 = self.comm_manager.find_comm_idx(p1, neighbor = p0)
             epr = self.build_epr_circuit()
             self.qc.append(epr, [comm0, comm1])
             edges_to_comms[(p0, p1)] = (comm0, comm1)
@@ -561,7 +561,7 @@ class PartitionedCircuitExtractor:
         self.qubit_manager = DataQubitManager(self.partition_qregs, self.num_qubits,
                                               self.partition_assignment, self.qc)
         
-        self.comm_manager = CommunicationQubitManager(self.comm_qregs, self.qc)
+        self.comm_manager = CommunicationQubitManager(self.comm_qregs, self.qc, self.network)
         self.creg_manager = ClassicalBitManager(self.qc, self.creg)
 
         # Create the teleportation manager.

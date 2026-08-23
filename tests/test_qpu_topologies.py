@@ -44,9 +44,13 @@ def test_non_graph_value():
         QuantumNetwork.create([4, 4], qpu_topologies={0: "linear"})
 
 def test_rejects_wrong_node_set():
-    """Tests that providing a graph with the wrong node set raises a ValueError."""
+    """A graph whose node count is neither n (data only) nor n + c
+    (data + comm) raises a ValueError. With n=4, c=1 both 4 and 5 nodes
+    are legal, so 6 is the smallest illegal size."""
     with pytest.raises(ValueError):
-        QuantumNetwork.create([4, 4], qpu_topologies={0: nx.path_graph(5)})
+        QuantumNetwork.create([4, 4], qpu_topologies={0: nx.path_graph(6)})
+    with pytest.raises(ValueError):
+        QuantumNetwork.create([4, 4], qpu_topologies={0: nx.path_graph(3)})
 
 def test_rejects_disconnected_graph():
     """Tests that providing a disconnected graph raises a ValueError."""
@@ -61,3 +65,95 @@ def test_copy_preserves_topologies():
     network = QuantumNetwork.create([4, 4], qpu_topologies={0: graph})
     network_copy = network.copy()
     assert network_copy.qpu_topologies[0] is graph
+
+
+# ---------------------------------------------------------------------------
+# Comm qubits as topology nodes
+# ---------------------------------------------------------------------------
+
+def test_comm_inclusive_topology_accepted():
+    """n data + c comm nodes is a legal topology and marks the QPU comm-constrained."""
+    network = QuantumNetwork([4, 4], comm_sizes=[1, 1],
+                             qpu_topologies={0: nx.path_graph(5)})
+    assert network.comm_constrained(0) is True
+    assert network.comm_constrained(1) is False  # no topology at all
+
+
+def test_data_only_topology_not_comm_constrained():
+    """A data-only topology leaves comm qubits all-to-all."""
+    network = QuantumNetwork([4, 4], qpu_topologies={0: nx.path_graph(4)})
+    assert network.comm_constrained(0) is False
+
+
+def test_comm_node_labels():
+    """Comm qubit k of QPU p is node qpu_sizes[p] + k."""
+    network = QuantumNetwork([4, 6], comm_sizes=[2, 2])
+    assert network.comm_node(0, 0) == 4
+    assert network.comm_node(0, 1) == 5
+    assert network.comm_node(1, 0) == 6
+
+
+# ---------------------------------------------------------------------------
+# comm_links: binding comm qubits to inter-QPU links
+# ---------------------------------------------------------------------------
+
+def test_comm_links_default_is_empty():
+    network = QuantumNetwork([4, 4])
+    assert network.comm_links == {}
+
+
+def test_comm_links_valid_edge_accepted():
+    """Binding to an existing network link is stored and queryable."""
+    network = QuantumNetwork([4, 4], comm_sizes=[2, 2], comm_links={0: {0: 1}})
+    assert network.comm_links == {0: {0: 1}}
+    assert network.comm_qubits_for_link(0, 1) == [0]
+
+
+def test_comm_qubits_for_link_unbound_returns_all():
+    """With no bindings for a neighbour, every comm qubit is eligible."""
+    network = QuantumNetwork([4, 4], comm_sizes=[2, 2])
+    assert network.comm_qubits_for_link(0, 1) == [0, 1]
+
+
+def test_comm_qubits_for_link_partial_binding():
+    """Bindings to other neighbours do not restrict an unbound link."""
+    network = QuantumNetwork.create([4, 4, 4], 'linear', comm_sizes=[2, 2, 2],
+                                    comm_links={1: {0: 0}})
+    assert network.comm_qubits_for_link(1, 0) == [0]      # bound
+    assert network.comm_qubits_for_link(1, 2) == [0, 1]   # unbound -> all
+
+
+def test_comm_links_rejects_non_edge():
+    """Binding a comm qubit to a QPU with no direct link raises."""
+    with pytest.raises(ValueError, match="no network link"):
+        QuantumNetwork.create([4, 4, 4], 'linear', comm_links={0: {0: 2}})
+
+
+def test_comm_links_rejects_bad_comm_index():
+    with pytest.raises(ValueError, match="out of range"):
+        QuantumNetwork([4, 4], comm_sizes=[1, 1], comm_links={0: {3: 1}})
+
+
+def test_comm_links_rejects_unknown_qpu():
+    with pytest.raises(ValueError):
+        QuantumNetwork([4, 4], comm_links={7: {0: 1}})
+
+
+def test_comm_links_rejects_unknown_neighbor():
+    with pytest.raises(ValueError):
+        QuantumNetwork([4, 4], comm_links={0: {0: 7}})
+
+
+def test_comm_links_rejects_non_dict():
+    with pytest.raises(TypeError):
+        QuantumNetwork([4, 4], comm_links=[(0, 0, 1)])
+
+
+def test_copy_preserves_comm_links():
+    network = QuantumNetwork([4, 4], comm_links={0: {0: 1}})
+    assert network.copy().comm_links == {0: {0: 1}}
+
+
+def test_factory_passes_comm_links():
+    network = QuantumNetwork.create([4, 4], 'all_to_all', comm_links={0: {0: 1}})
+    assert network.comm_links == {0: {0: 1}}
