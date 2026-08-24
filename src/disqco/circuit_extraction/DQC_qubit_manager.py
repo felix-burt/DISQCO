@@ -1,6 +1,15 @@
 from qiskit import QuantumRegister, ClassicalRegister, QuantumCircuit
 from qiskit.circuit import Qubit, Clbit
 import copy
+import networkx as nx
+
+def find_swap_path(topology, src_idx, dst_idx) -> list[tuple[int, int]]:
+    """
+    Finds a path of swaps between two qubits in the topology.
+    """
+    path = nx.shortest_path(topology, source=src_idx, target=dst_idx)
+    swap_path = [(path[i], path[i + 1]) for i in range(len(path) - 2)]
+    return swap_path
 
 # -------------------------------------------------------------------
 # CommunicationQubitManager
@@ -10,11 +19,13 @@ class CommunicationQubitManager:
     Manages communication qubits on a per-partition basis. Allocates communication qubits for tasks 
     requiring entanglement and releases them when done.
     """
-    def __init__(self, comm_qregs: dict, qc: QuantumCircuit):
+    def __init__(self, comm_qregs: dict, qc: QuantumCircuit, network=None):
         self.qc = qc  # Store copy of the QuantumCircuit
         self.comm_qregs = comm_qregs  # Store the QuantumRegisters for communication qubits
         self.free_comm = {}  # Store free communication qubits for each partition
         self.in_use_comm = {}  # Store in-use communication qubits for each partition
+        self.network = network
+
         # self.linked_qubits = {}  # Store comm qubits linked to root qubits for gate teleportation
 
         self.initilize_communication_qubits()
@@ -30,14 +41,32 @@ class CommunicationQubitManager:
                 for qubit in reg:
                     self.free_comm[p].append(qubit)
 
-    def find_comm_idx(self, p: int) -> Qubit:
+    def comm_index(self, p: int, qubit: Qubit):
+        """
+        Returns index of a comm qubit within QPU p's comm qubits or None if it was created.
+        """
+        if qubit._register is self.comm_qregs[p][0]:
+            return qubit._index
+        return None
+
+    def find_comm_idx(self, p: int, neighbor: int | None = None) -> Qubit:
         """
         Allocate a free communication qubit in partition p.
         """
         free_comm_p = self.free_comm[p]
-        if free_comm_p:
+        if self.network is not None and neighbor is not None and p in self.network.comm_links:
+            eligible = set(self.network.comm_qubits_for_link(p, neighbor))
+            candidates = [q for q in free_comm_p if self.comm_index(p, q) in eligible]
+            if not candidates:
+                raise RuntimeError(f"QPU {p} has no free comm qubit serving link to {neighbor}")
+            comm_qubit = candidates[0]
+            free_comm_p.remove(candidates[0])
+
+        elif free_comm_p:
             comm_qubit = free_comm_p.pop(0)
         else:
+            if self.network is not None and self.network.comm_constrained(p):
+                raise RuntimeError(f"QPU {p} has no free communication qubits")
             # Create a new communication qubit by adding a new register
             num_regs_p = len(self.comm_qregs[p])
             new_reg = QuantumRegister(1, name=f"C{p}_{num_regs_p}")
@@ -123,9 +152,11 @@ class DataQubitManager:
         partition_qregs: list[QuantumRegister],
         num_qubits_log: int,
         partition_assignment: list[list],
-        qc: QuantumCircuit
+        qc: QuantumCircuit,
+        network = None
     ):
         self.qc = qc
+        self.network = network
         self.partition_qregs = partition_qregs
         self.num_qubits_log = num_qubits_log
         self.in_use_data = {}
@@ -140,11 +171,86 @@ class DataQubitManager:
         self.groups = {}
         self.active_receivers = {}
         self.relocated_receivers = {}
+        self.local_swap_count = 0
 
         self.initialise_data_qubits()
         self.initial_placement(partition_assignment)
-
         self.inital_qubit_placement = copy.deepcopy(self.log_to_phys_idx)
+        self.reg_name_to_partition = {reg.name: p for p, reg in enumerate(self.partition_qregs)}
+
+    def locate_data_qubit(self, qubit: Qubit) -> tuple[int, int] | None:
+        """
+        Returns the partition and index of a data qubit if it belongs to a data register, or None otherwise.
+        """
+        p = self.reg_name_to_partition.get(qubit._register.name)
+        if p is None:
+            return None
+        return p, qubit._index
+
+    def locate_comm_qubit(self, qubit: Qubit) -> tuple[int, int] | None:
+            """
+            Returns the partition and index of a comm qubit if it belongs to a comm register, or None otherwise.
+            """
+            name = qubit._register.name
+            if not name.startswith("C"):
+                return None
+            p = int(name[1:].split("_")[0])
+            if name != f"C{p}_0":
+                return None # created register
+            return p, qubit._index
+
+    def route_to_adjacency(self, p: int, qubit: Qubit, target_idx: int) -> Qubit:
+        if self.network is None:
+            return qubit
+        topology = self.network.qpu_topologies.get(p)
+        if topology is None:
+            return qubit
+        if topology.has_edge(qubit._index, target_idx):
+            return qubit
+    
+        reg = self.partition_qregs[p]
+        path = find_swap_path(topology, qubit._index, target_idx)
+        for a, b in path:
+            self.qc.swap(reg[a], reg[b])
+            self.swap_physical_slots(p, reg[a], reg[b])
+            self.local_swap_count += 1
+        return reg[path[-1][1]]
+
+    def route_to_port(self, p, data_qubit, comm_k):
+        if self.network is None or not self.network.comm_constrained(p):
+            return data_qubit
+        if self.locate_data_qubit(data_qubit) is None:
+            return data_qubit
+        return self.route_to_adjacency(p, data_qubit, self.network.comm_node(p, comm_k))
+
+    def route_hole_to_port(self, p: int, hole: Qubit, comm_k: int) -> Qubit:
+        """Walk an allocated-but-unassigned (empty) slot adjacent to comm port
+        comm_k, swapping through occupied slots and relabelling through free
+        ones. Returns the hole's final slot (still allocated, still empty)."""
+        if self.network is None or not self.network.comm_constrained(p):
+            return hole
+        topology = self.network.qpu_topologies.get(p)
+        target_idx = self.network.comm_node(p, comm_k)
+        if topology is None or topology.has_edge(hole._index, target_idx):
+            return hole
+        reg = self.partition_qregs[p]
+        path = find_swap_path(topology, hole._index, target_idx)
+        for a, b in path:
+            slot_a, slot_b = reg[a], reg[b]
+            if slot_b in self.in_use_data[p]:
+                # real state moves b -> a; the hole moves to b
+                self.qc.swap(slot_a, slot_b)
+                log = self.in_use_data[p].pop(slot_b)
+                self.in_use_data[p][slot_a] = log
+                self.log_to_phys_idx[log] = slot_a
+                self._update_group_links(slot_a, slot_b)
+                self.local_swap_count += 1
+            else:
+                # both empty: no gate needed, just relabel which slot is "ours"
+                self.free_data[p].remove(slot_b)
+                self.free_data[p].append(slot_a)
+        return reg[path[-1][1]]
+
 
     def initialise_data_qubits(self) -> None:
         """
@@ -208,3 +314,53 @@ class DataQubitManager:
         #     del self.in_use_data[p][qubit] # Remove the logical qubit from the in_use_data dictionary
         if qubit not in self.free_data[p]:
             self.free_data[p].append(qubit) # Add the slot to the free_data list
+
+    def swap_physical_slots(self, p: int, qubit_a: Qubit, qubit_b: Qubit):
+        """
+        Swap the contents of two physical slots in partition p.
+        """
+        a_in_use = qubit_a in self.in_use_data[p]
+        b_in_use = qubit_b in self.in_use_data[p]
+
+        # No qubits in use
+        if not a_in_use and not b_in_use:
+            return
+
+        # Both qubits in use
+        elif a_in_use and b_in_use:
+            logical_a = self.in_use_data[p][qubit_a]
+            logical_b = self.in_use_data[p][qubit_b]
+
+            self.log_to_phys_idx[logical_a] = qubit_b
+            self.log_to_phys_idx[logical_b] = qubit_a
+            self.in_use_data[p][qubit_a] = logical_b
+            self.in_use_data[p][qubit_b] = logical_a
+
+            self._update_group_links(qubit_a, qubit_b)
+            return
+
+        # One qubit in use, one free
+        if b_in_use:
+            qubit_a, qubit_b = qubit_b, qubit_a  # Swap to ensure qubit_a is in use and qubit_b is free
+
+        logical_q = self.in_use_data[p].pop(qubit_a)
+        self.in_use_data[p][qubit_b] = logical_q
+        self.log_to_phys_idx[logical_q] = qubit_b
+        self._update_group_links(qubit_a, qubit_b)
+        self.free_data[p].remove(qubit_b)
+        self.free_data[p].append(qubit_a)
+
+    def _update_group_links(self, qubit_a: Qubit, qubit_b: Qubit) -> None:
+        """
+        The contents of slots qubit_a and qubit_b have been exchanged; any
+        gate-group reference pointing at either slot must follow its state.
+        """
+        for group_info in self.groups.values():
+            linked = group_info.get('linked_qubits')
+            if not linked:
+                continue
+            for part, linked_qubit in linked.items():
+                if linked_qubit == qubit_a:
+                    linked[part] = qubit_b
+                elif linked_qubit == qubit_b:
+                    linked[part] = qubit_a
