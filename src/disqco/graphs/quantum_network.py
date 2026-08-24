@@ -4,6 +4,7 @@ from collections import deque
 from networkx.algorithms.approximation import steiner_tree
 from networkx import erdos_renyi_graph
 import math as mt
+import itertools
 
 # Quantumn Network Class
 # This class is used to create a quantum network with multiple QPUs
@@ -65,6 +66,11 @@ class QuantumNetwork():
             full_nodes = set(range(n + c))
             if set(qubit_graph.nodes) not in (data_nodes, full_nodes):
                 raise ValueError(f"Topology for QPU {qpu} contains nodes outside the valid range [0, {n + c - 1}].")
+            if c >= 2 and set(qubit_graph.nodes) == full_nodes:
+                comm_nodes = range(n, n + c)
+                for i, j in itertools.combinations(comm_nodes, 2):
+                    if not qubit_graph.has_edge(i, j):
+                        raise ValueError(f"QPU {qpu}: comm qubits {i} and {j} are not adjacent")
 
     def _validate_comm_links(self):
         if not isinstance(self.comm_links, dict):

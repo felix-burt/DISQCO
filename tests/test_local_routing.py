@@ -52,30 +52,87 @@ def optimized_assignment(test_circuit, test_network):
     results = partitioner.partition(num_passes=5)
     return results['best_assignment']
 
+def _classify_operand(reg_name, local_idx, network):
+    """Map (register name, index in register) to (qpu, topology node) or None.
+
+    Data qubit Q{p}_q[i] -> node i. Comm qubit C{p}_0[k] -> node
+    network.comm_node(p, k), only meaningful on comm-constrained QPUs.
+    Spawned comm registers (C{p}_1, ...) and anything else -> None.
+    """
+    kind = reg_name[0]
+    if kind not in ("Q", "C"):
+        return None
+    try:
+        p = int(reg_name[1:].split("_")[0])
+    except ValueError:
+        return None
+    if kind == "Q":
+        return p, local_idx
+    if reg_name == f"C{p}_0" and network.comm_constrained(p):
+        return p, network.comm_node(p, local_idx)
+    return None
+
+
 def assert_local_gates_respect_topology(circuit: QuantumCircuit, network: QuantumNetwork) -> int:
     """
-    Assert every 2-qubit gate acting within a topology-constrained QPU's data
-    register acts on topology-adjacent qubits. Returns the number of gates checked.
+    Assert every 2-qubit gate acting within one topology-constrained QPU acts
+    on topology-adjacent nodes. Covers data-data pairs and, on comm-constrained
+    QPUs, data-comm and comm-comm pairs (comm qubit k = node qpu_sizes[p] + k).
+    Returns the number of gates checked.
     """
-    data_reg_to_qpu = {f"Q{p}_q": p for p in range(network.num_qpus)}
     checked = 0
     for instruction in circuit.data:
         if len(instruction.qubits) != 2:
             continue
         locs = [circuit.find_bit(q).registers[0] for q in instruction.qubits]
-        (reg0, idx0), (reg1, idx1) = locs
-        if reg0.name != reg1.name or reg0.name not in data_reg_to_qpu:
-            continue  # different registers, or not a data register
-        p = data_reg_to_qpu[reg0.name]
-        topo = network.qpu_topologies.get(p)
-        if topo is None:
-            continue  # all-to-all QPU, nothing to check
-        assert topo.has_edge(idx0, idx1), (
-            f"Gate '{instruction.operation.name}' acts on non-adjacent qubits "
-            f"{idx0}, {idx1} in QPU {p}"
+        ops = [_classify_operand(reg.name, idx, network) for reg, idx in locs]
+        if ops[0] is None or ops[1] is None:
+            continue
+        (p0, node0), (p1, node1) = ops
+        if p0 != p1:
+            continue  # inter-QPU op (e.g. EPR generation), not a local gate
+        topo = network.qpu_topologies.get(p0)
+        if topo is None or node0 not in topo.nodes or node1 not in topo.nodes:
+            continue  # all-to-all QPU, or data-only topology and a comm operand
+        assert topo.has_edge(node0, node1), (
+            f"Gate '{instruction.operation.name}' acts on non-adjacent nodes "
+            f"{node0}, {node1} in QPU {p0}"
         )
         checked += 1
     return checked
+
+
+def line_with_comm_ports(n_data, n_comm):
+    """Data slots 0..n_data-1 in a line; comm nodes n_data..n_data+n_comm-1
+    form a clique (mutual-adjacency rule) attached to the last data slot."""
+    topo = nx.path_graph(n_data)
+    comm_nodes = list(range(n_data, n_data + n_comm))
+    for c in comm_nodes:
+        topo.add_edge(n_data - 1, c)
+    for i, a in enumerate(comm_nodes):
+        for b in comm_nodes[i + 1:]:
+            topo.add_edge(a, b)
+    return topo
+
+
+def test_port_constrained_extraction_respects_topology():
+    """RED until Task 5: data qubits must be routed adjacent to their comm
+    port before teleportation primitives touch them."""
+    circuit = cp_fraction(num_qubits=8, depth=16, fraction=0.5, seed=42)
+    circuit = transpile(circuit, basis_gates=['u', 'cp'])
+    hypergraph = QuantumCircuitHyperGraph(circuit, group_gates=True)
+    network = QuantumNetwork(
+        [5, 5], comm_sizes=[4, 4],
+        qpu_topologies={0: line_with_comm_ports(5, 4)},
+    )
+    assignment = set_initial_partition_assignment(hypergraph, network,
+                                                  round_robin=True)
+    extractor = PartitionedCircuitExtractor(
+        graph=hypergraph, network=network, partition_assignment=assignment)
+    qc = extractor.extract_partitioned_circuit()
+
+    checked = assert_local_gates_respect_topology(qc, network)
+    assert checked > 0, "Audit checked no gates - test is vacuous"
 
 
 def test_routed_circuit_respects_topology(test_hypergraph, test_network, initial_assignment):

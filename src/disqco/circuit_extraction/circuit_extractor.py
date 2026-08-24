@@ -7,6 +7,7 @@ from disqco import QuantumCircuitHyperGraph
 from disqco import QuantumNetwork
 from disqco.circuit_extraction.DQC_qubit_manager import DataQubitManager, CommunicationQubitManager, ClassicalBitManager
 import math as mt
+from disqco.circuit_extraction.DQC_qubit_manager import find_swap_path
 
 # -------------------------------------------------------------------
 # TeleportationManager
@@ -149,6 +150,8 @@ class TeleportationManager:
         """
         root_q = self.qubit_manager.log_to_phys_idx[root_idx]
         root_comm = self.comm_manager.find_comm_idx(p_root, neighbor=p_rec)
+        k = self.comm_manager.comm_index(p_root, root_comm)
+        root_q = self.qubit_manager.route_to_port(p_root, root_q, k)
         rec_comm = self.comm_manager.find_comm_idx(p_rec, neighbor=p_root)
         cbit = self.creg_manager.allocate_cbit()
         instr = self.build_starting_process_circuit()
@@ -289,6 +292,9 @@ class TeleportationManager:
     def swap_qubits_to_physical(self, qubit_idx : int, partition : int, data_loc : Qubit) -> bool:
         try:
             data_q = self.qubit_manager.allocate_data_qubit(partition)
+            k = self.comm_manager.comm_index(partition, data_loc)
+            if k is not None:
+                data_q = self.qubit_manager.route_to_port(partition, data_q, k)
             self.transfer_state(data_loc, data_q)
             self.qubit_manager.assign_to_physical(partition, data_q, qubit_idx)
             self.comm_manager.release_comm_qubit(partition, data_loc)
@@ -370,6 +376,11 @@ class TeleportationManager:
         data_q_root = self.qubit_manager.log_to_phys_idx[root_q]
         data_q_rec = self.qubit_manager.log_to_phys_idx[rec_q]
 
+        # if comm register is constrained then route the data_q_rec to the port adjacent to p_rec
+        k = self.comm_manager.comm_index(p_rec, comm_q_rec)
+        if k is not None:
+            data_q_rec = self.qubit_manager.route_to_port(p_rec, data_q_rec, k)
+
         name = gate['name']
         params = gate['params']
         if name == 'cp':
@@ -449,6 +460,11 @@ class TeleportationManager:
             in_qubit = node_in_comm[current]
             for child in children:
                 comm_current, comm_child = edges_to_comms[(current, child)]
+                k = self.comm_manager.comm_index(current, comm_current)
+                # if comm register is constrained then route the in_qubit to the comm qubit and update the node_in_comm to point to the newly routed qubit instead of old location
+                if k is not None:
+                    in_qubit = self.qubit_manager.route_to_port(current, in_qubit, k)
+                    node_in_comm[current] = in_qubit
                 self.qc.cx(in_qubit, comm_current)
                 cbit = self.creg_manager.allocate_cbit()
                 self.qc.measure(comm_current, cbit)
@@ -500,14 +516,6 @@ class TeleportationManager:
 
         return node_in_comm
 
-def find_swap_path(topology, src_idx, dst_idx) -> list[tuple[int, int]]:
-    """
-    Finds a path of swaps between two qubits in the topology.
-    """
-    path = nx.shortest_path(topology, source=src_idx, target=dst_idx)
-    swap_path = [(path[i], path[i + 1]) for i in range(len(path) - 2)]
-    return swap_path
-
 class PartitionedCircuitExtractor:
     """
     This class is responsible for extracting the partitioned circuit from the quantum circuit hypergraph.
@@ -542,8 +550,6 @@ class PartitionedCircuitExtractor:
         self.graph = graph
         self.network = network
         self.basis_gates = graph.basis_gates
-        self.local_swap_count = 0
-
 
         # Create the quantum registers for the data qubits and communication qubits.
         # Each QPU has a quantum register for the data qubits and a separate register for communication qubits.
@@ -555,11 +561,9 @@ class PartitionedCircuitExtractor:
         self.creg, self.result_reg = self.create_classical_registers()
         self.qc = self.build_initial_circuit()
 
-        self.reg_name_to_partition = {reg.name: p for p, reg in enumerate(self.partition_qregs)}
-
         # Create the qubit and classical bit managers.
         self.qubit_manager = DataQubitManager(self.partition_qregs, self.num_qubits,
-                                              self.partition_assignment, self.qc)
+                                              self.partition_assignment, self.qc, self.network)
         
         self.comm_manager = CommunicationQubitManager(self.comm_qregs, self.qc, self.network)
         self.creg_manager = ClassicalBitManager(self.qc, self.creg)
@@ -674,40 +678,41 @@ class PartitionedCircuitExtractor:
             qubit1 = self.qubit_manager.log_to_phys_idx[qubit1]
 
         # Local Routing
-        loc0 = self.locate_data_qubit(qubit0)
-        loc1 = self.locate_data_qubit(qubit1)
+        data0 = self.qubit_manager.locate_data_qubit(qubit0)
+        data1 = self.qubit_manager.locate_data_qubit(qubit1)
+        comm0 = self.qubit_manager.locate_comm_qubit(qubit0)
+        comm1 = self.qubit_manager.locate_comm_qubit(qubit1)
 
-        if loc0 is not None and loc1 is not None:
-            p0, idx0 = loc0
-            p1, idx1 = loc1
+        # Both data qubits
+        if data0 is not None and data1 is not None:
+            p0, idx0 = data0
+            p1, idx1 = data1
             if p0 == p1:
                 if idx0 == idx1:
                     raise RuntimeError("Cannot apply a two-qubit gate to the same qubit.")
-                qpu_topology = self.network.qpu_topologies.get(p0)
-                if qpu_topology is not None and not qpu_topology.has_edge(idx0, idx1):
-                    path = find_swap_path(qpu_topology, idx0, idx1)
-                    for swap0, swap1 in path:
-                        self.qc.swap(qubit0._register[swap0], qubit0._register[swap1])
-                        self.qubit_manager.swap_physical_slots(p0, qubit0._register[swap0], qubit0._register[swap1])
-                        self.local_swap_count += 1
-                    qubit0 = qubit0._register[path[-1][1]]
+                qubit0 = self.qubit_manager.route_to_adjacency(p0, qubit0, idx1)
 
-        # Apply the gate to the QuantumCircuit
+        # Qubit 0 is a data qubit, and Qubit 1 is a comm qubit
+        elif data0 is not None and comm1 is not None:
+            p0, idx0 = data0
+            p1, idx1 = comm1
+            if p0 == p1:
+                qubit0 = self.qubit_manager.route_to_port(p0, qubit0, idx1)
+
+        # Qubit 0 is a comm qubit, and Qubit 1 is a data qubit
+        elif data1 is not None and comm0 is not None:
+            p0, idx0 = comm0
+            p1, idx1 = data1
+            if p0 == p1:
+                qubit1 = self.qubit_manager.route_to_port(p1, qubit1, idx0)
+
+        # Apply the final gate to the QuantumCircuit
         if name == 'cx':
             self.qc.cx(qubit0, qubit1)
         elif name == 'cz':
             self.qc.cz(qubit0, qubit1)
         elif name == 'cp':
             self.qc.cp(params[0], qubit0, qubit1)
-
-    def locate_data_qubit(self, qubit: Qubit) -> tuple[int, int]:
-        """
-        Returns the partition and index of a data qubit if it belongs to a data register, or None otherwise.
-        """
-        p = self.reg_name_to_partition.get(qubit._register.name)
-        if p is None:
-            return None
-        return p, qubit._index
 
     def check_qpus_local(self, qubit0, qubit1) -> bool:
         """
@@ -719,14 +724,17 @@ class PartitionedCircuitExtractor:
             qubit1 : Qubit = self.qubit_manager.log_to_phys_idx[qubit1]
 
         # Find which register the qubits belong to.
-
         reg1 : QuantumRegister = qubit0._register
         reg2 : QuantumRegister = qubit1._register
         if reg1.name[1] == reg2.name[1]:
             return True
         else:
             return False
-    
+
+    @property
+    def local_swap_count(self):
+        return self.qubit_manager.local_swap_count
+
     def find_common_part(self, qubit0: int, qubit1: int) -> int:
         """
         Finds the common partition for two qubits.

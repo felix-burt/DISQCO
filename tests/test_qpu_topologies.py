@@ -85,6 +85,37 @@ def test_data_only_topology_not_comm_constrained():
     assert network.comm_constrained(0) is False
 
 
+def test_multiple_adjacent_comm_qubits_accepted():
+    """Two comm qubits that are mutually adjacent form a legal comm-inclusive topology."""
+    topo = nx.path_graph(4)                 # data 0-1-2-3
+    topo.add_edges_from([(3, 4), (4, 5), (3, 5)])  # comm 4 and 5 adjacent to each other
+    network = QuantumNetwork([4, 4], comm_sizes=[2, 2], qpu_topologies={0: topo})
+    assert network.comm_constrained(0) is True
+
+
+def test_non_adjacent_comm_qubits_rejected():
+    """Comm qubits at opposite ends of a line cannot relay entanglement
+    (comm<->comm gates have no routing fix), so the topology is rejected."""
+    topo = nx.Graph()
+    topo.add_edges_from([(4, 0), (0, 1), (1, 2), (2, 3), (3, 5)])  # comm 4 - data 0..3 - comm 5
+    with pytest.raises(ValueError, match="not adjacent"):
+        QuantumNetwork([4, 4], comm_sizes=[2, 2], qpu_topologies={0: topo})
+
+
+def test_data_only_topology_with_multiple_comm_sizes_still_accepted():
+    """The adjacency rule applies only to comm-inclusive graphs: a data-only
+    topology on a QPU with comm_sizes >= 2 must remain legal."""
+    network = QuantumNetwork([4, 4], comm_sizes=[2, 2],
+                             qpu_topologies={0: nx.path_graph(4)})
+    assert network.comm_constrained(0) is False
+
+
+def test_single_comm_qubit_has_no_adjacency_requirement():
+    network = QuantumNetwork([4, 4], comm_sizes=[1, 1],
+                             qpu_topologies={0: nx.path_graph(5)})
+    assert network.comm_constrained(0) is True
+
+
 def test_comm_node_labels():
     """Comm qubit k of QPU p is node qpu_sizes[p] + k."""
     network = QuantumNetwork([4, 6], comm_sizes=[2, 2])

@@ -1,6 +1,15 @@
 from qiskit import QuantumRegister, ClassicalRegister, QuantumCircuit
 from qiskit.circuit import Qubit, Clbit
 import copy
+import networkx as nx
+
+def find_swap_path(topology, src_idx, dst_idx) -> list[tuple[int, int]]:
+    """
+    Finds a path of swaps between two qubits in the topology.
+    """
+    path = nx.shortest_path(topology, source=src_idx, target=dst_idx)
+    swap_path = [(path[i], path[i + 1]) for i in range(len(path) - 2)]
+    return swap_path
 
 # -------------------------------------------------------------------
 # CommunicationQubitManager
@@ -143,9 +152,11 @@ class DataQubitManager:
         partition_qregs: list[QuantumRegister],
         num_qubits_log: int,
         partition_assignment: list[list],
-        qc: QuantumCircuit
+        qc: QuantumCircuit,
+        network = None
     ):
         self.qc = qc
+        self.network = network
         self.partition_qregs = partition_qregs
         self.num_qubits_log = num_qubits_log
         self.in_use_data = {}
@@ -160,11 +171,57 @@ class DataQubitManager:
         self.groups = {}
         self.active_receivers = {}
         self.relocated_receivers = {}
+        self.local_swap_count = 0
 
         self.initialise_data_qubits()
         self.initial_placement(partition_assignment)
-
         self.inital_qubit_placement = copy.deepcopy(self.log_to_phys_idx)
+        self.reg_name_to_partition = {reg.name: p for p, reg in enumerate(self.partition_qregs)}
+
+    def locate_data_qubit(self, qubit: Qubit) -> tuple[int, int] | None:
+        """
+        Returns the partition and index of a data qubit if it belongs to a data register, or None otherwise.
+        """
+        p = self.reg_name_to_partition.get(qubit._register.name)
+        if p is None:
+            return None
+        return p, qubit._index
+
+    def locate_comm_qubit(self, qubit: Qubit) -> tuple[int, int] | None:
+            """
+            Returns the partition and index of a comm qubit if it belongs to a comm register, or None otherwise.
+            """
+            name = qubit._register.name
+            if not name.startswith("C"):
+                return None
+            p = int(name[1:].split("_")[0])
+            if name != f"C{p}_0":
+                return None # created register
+            return p, qubit._index
+
+    def route_to_adjacency(self, p: int, qubit: Qubit, target_idx: int) -> Qubit:
+        if self.network is None:
+            return qubit
+        topology = self.network.qpu_topologies.get(p)
+        if topology is None:
+            return qubit
+        if topology.has_edge(qubit._index, target_idx):
+            return qubit
+    
+        reg = self.partition_qregs[p]
+        path = find_swap_path(topology, qubit._index, target_idx)
+        for a, b in path:
+            self.qc.swap(reg[a], reg[b])
+            self.swap_physical_slots(p, reg[a], reg[b])
+            self.local_swap_count += 1
+        return reg[path[-1][1]]
+
+    def route_to_port(self, p, data_qubit, comm_k):
+        if self.network is None or not self.network.comm_constrained(p):
+            return data_qubit
+        if self.locate_data_qubit(data_qubit) is None:
+            return data_qubit
+        return self.route_to_adjacency(p, data_qubit, self.network.comm_node(p, comm_k))
 
     def initialise_data_qubits(self) -> None:
         """
