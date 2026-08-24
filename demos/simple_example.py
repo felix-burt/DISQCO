@@ -25,15 +25,34 @@ print(f"Saved original circuit to {demo_dir / 'circuit.png'}")
 
 hypergraph = QuantumCircuitHyperGraph(circuit, group_gates=True)
 
-# Two QPUs of 5 qubits each. Each QPU's internal coupling is a line
-# (0-1-2-3-4): only neighbouring slots can interact directly. Omitting
-# qpu_topologies (or a QPU's entry) means all-to-all, the old behaviour.
+# Two QPUs of 5 data qubits each. Each QPU's internal coupling is a line
+# (0-1-2-3-4): only neighbouring slots can interact directly. Comm qubits
+# are nodes 5..8, a mutually adjacent clique attached to data slot 4 -- the
+# QPU's "port". comm_sizes must cover the circuit's peak number of
+# simultaneously open links (hard capacity on comm-constrained QPUs).
+NUM_COMM = 3
+
+def line_with_ports(n_data, n_comm):
+    topo = nx.path_graph(n_data)
+    comm_nodes = range(n_data, n_data + n_comm)
+    for c in comm_nodes:
+        topo.add_edge(n_data - 1, c)
+    for a in comm_nodes:
+        for b in comm_nodes:
+            if a < b:
+                topo.add_edge(a, b)
+    return topo
+
 network = QuantumNetwork(
     {0: 5, 1: 5},
     qpu_topologies={
-        0: nx.path_graph(5),
-        1: nx.path_graph(5),
+        0: line_with_ports(5, NUM_COMM),
+        1: line_with_ports(5, NUM_COMM),
     },
+    # every comm qubit of QPU 0 serves the link to QPU 1 and vice versa
+    comm_links={0: {k: 1 for k in range(NUM_COMM)},
+                1: {k: 0 for k in range(NUM_COMM)}},
+    comm_sizes=[NUM_COMM, NUM_COMM],
 )
 
 initial_assignment = set_initial_partition_assignment(hypergraph, network, round_robin=True)

@@ -160,6 +160,73 @@ def test_group_links_unrelated_entries_untouched():
     assert_books_consistent(manager, 1)
 
 
+def make_port_manager():
+    """One QPU: data line 0-1-2 with comm node 3 attached to slot 2.
+    Qubits 0,1 occupy slots 0,1; slot 2 free. Second QPU keeps the
+    network valid."""
+    import networkx as nx
+    from disqco import QuantumNetwork
+    topo = nx.path_graph(3)
+    topo.add_edge(2, 3)  # comm qubit 0 = node 3, port at slot 2
+    network = QuantumNetwork([3, 3], comm_sizes=[1, 1],
+                             qpu_topologies={0: topo})
+    partition_qregs = [
+        QuantumRegister(3, name="Q0_q"),
+        QuantumRegister(3, name="Q1_q"),
+    ]
+    qc = QuantumCircuit(*partition_qregs)
+    manager = DataQubitManager(partition_qregs, 3, [[0, 0, 1]], qc,
+                               network=network)
+    return manager, qc
+
+
+def test_route_hole_through_free_slot_emits_no_gate():
+    """Hole at slot 2 (free, already adjacent to port) -> nothing happens;
+    hole one step away through a free slot relabels without a gate."""
+    manager, qc = make_port_manager()
+    hole = manager.allocate_data_qubit(0)      # pops slot 2 (the free one)
+    gates_before = len(qc.data)
+
+    result = manager.route_hole_to_port(0, hole, 0)
+
+    assert result is hole                      # slot 2 already adjacent to node 3
+    assert len(qc.data) == gates_before        # no gates emitted
+    assert result not in manager.free_data[0]  # still reserved
+    assert result not in manager.in_use_data[0]
+    # with one hole outstanding, ledgers cover reg_size - 1 slots
+    assert len(manager.free_data[0]) + len(manager.in_use_data[0]) == 2
+    for phys, log in manager.in_use_data[0].items():
+        assert manager.log_to_phys_idx[log] is phys
+
+
+def test_route_hole_through_occupied_slots():
+    """Hole at slot 0 must reach the port at slot 2: two occupied hops.
+    States shift back one slot each; hole arrives reserved and empty."""
+    manager, qc = make_port_manager()
+    reg = manager.partition_qregs[0]
+    # occupy slot 2 as well so the hole must displace states: move qubit
+    # from slot 0's occupant is easiest done by allocating slot 2 for a
+    # third logical qubit... instead: free slot 0 by hand-crafting:
+    # swap qubit at slot 0 into slot 2 (occupied<->free) via the manager.
+    manager.swap_physical_slots(0, reg[0], reg[2])   # slot 0 now free
+    hole = manager.allocate_data_qubit(0)            # free list holds only slot 0
+    assert hole is reg[0]
+    gates_before = len(qc.data)
+
+    result = manager.route_hole_to_port(0, hole, 0)
+
+    # path 0 -> 1 -> 2: both hops displace occupied states -> 2 swaps
+    assert result is reg[2]
+    assert len(qc.data) == gates_before + 2
+    assert result not in manager.in_use_data[0]
+    assert result not in manager.free_data[0]
+    # displaced states: previous occupants of slots 1 and 2 now at 0 and 1
+    assert manager.in_use_data[0][reg[0]] is not None
+    assert manager.in_use_data[0][reg[1]] is not None
+    for phys, log in manager.in_use_data[0].items():
+        assert manager.log_to_phys_idx[log] is phys
+
+
 def test_double_swap_restores_original_state():
     """Swapping the same pair twice returns the books to the initial state."""
     manager = make_manager()

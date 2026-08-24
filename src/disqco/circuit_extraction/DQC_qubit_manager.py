@@ -223,6 +223,35 @@ class DataQubitManager:
             return data_qubit
         return self.route_to_adjacency(p, data_qubit, self.network.comm_node(p, comm_k))
 
+    def route_hole_to_port(self, p: int, hole: Qubit, comm_k: int) -> Qubit:
+        """Walk an allocated-but-unassigned (empty) slot adjacent to comm port
+        comm_k, swapping through occupied slots and relabelling through free
+        ones. Returns the hole's final slot (still allocated, still empty)."""
+        if self.network is None or not self.network.comm_constrained(p):
+            return hole
+        topology = self.network.qpu_topologies.get(p)
+        target_idx = self.network.comm_node(p, comm_k)
+        if topology is None or topology.has_edge(hole._index, target_idx):
+            return hole
+        reg = self.partition_qregs[p]
+        path = find_swap_path(topology, hole._index, target_idx)
+        for a, b in path:
+            slot_a, slot_b = reg[a], reg[b]
+            if slot_b in self.in_use_data[p]:
+                # real state moves b -> a; the hole moves to b
+                self.qc.swap(slot_a, slot_b)
+                log = self.in_use_data[p].pop(slot_b)
+                self.in_use_data[p][slot_a] = log
+                self.log_to_phys_idx[log] = slot_a
+                self._update_group_links(slot_a, slot_b)
+                self.local_swap_count += 1
+            else:
+                # both empty: no gate needed, just relabel which slot is "ours"
+                self.free_data[p].remove(slot_b)
+                self.free_data[p].append(slot_a)
+        return reg[path[-1][1]]
+
+
     def initialise_data_qubits(self) -> None:
         """
         Initialize the free_data and in_use_data dictionaries.

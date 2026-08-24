@@ -294,7 +294,7 @@ class TeleportationManager:
             data_q = self.qubit_manager.allocate_data_qubit(partition)
             k = self.comm_manager.comm_index(partition, data_loc)
             if k is not None:
-                data_q = self.qubit_manager.route_to_port(partition, data_q, k)
+                data_q = self.qubit_manager.route_hole_to_port(partition, data_q, k)
             self.transfer_state(data_loc, data_q)
             self.qubit_manager.assign_to_physical(partition, data_q, qubit_idx)
             self.comm_manager.release_comm_qubit(partition, data_loc)
@@ -350,11 +350,21 @@ class TeleportationManager:
             if not success:
                 remaining_swaps.append((qubit_idx, p_dest, comm_dest))
 
+        failures_since_success = 0
         while len(remaining_swaps) > 0:
             qubit_idx, p_dest, comm_dest = remaining_swaps.pop(0)
             success = self.swap_qubits_to_physical(int(qubit_idx), int(p_dest), comm_dest)
-            if not success:
+            if success:
+                failures_since_success = 0
+            else:
                 remaining_swaps.append((qubit_idx, p_dest, comm_dest))
+                failures_since_success += 1
+                if failures_since_success > len(remaining_swaps):
+                    raise RuntimeError(
+                        f"Teleportation placement stalled: "
+                        f"{len(remaining_swaps)} qubit(s) cannot be placed. "
+                        f"Queue: {[(q, p) for q, p, _ in remaining_swaps]}"
+                    )
 
     def gate_teleport(self, root_q: int, rec_q: int, gate: dict, p_root: int, p_rec: int) -> None:
         """
