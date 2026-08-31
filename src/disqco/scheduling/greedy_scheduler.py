@@ -1,15 +1,64 @@
+import heapq
 from collections import defaultdict
 import networkx as nx
-
 from qiskit import QuantumCircuit
-from qiskit.converters import circuit_to_dag
 from qiskit.circuit import CommutationChecker
+from disqco.scheduling.evaluator import wires_of, duration_of
 
-# Example duractions: {'u': 1, 'cp': 2, "swap": 6, 'measure': 5, 'EPR': 100}
 cc = CommutationChecker()
 
-def greedy_scheduler(grouped_circuit: QuantumCircuit, durations: dict):
-    return
+# Example duractions: {'u': 1, 'cp': 2, "swap": 6, 'measure': 5, 'EPR': 100}
+def greedy_scheduler(circuit: QuantumCircuit, durations: dict, priority="critical_path", include_clbits=True):
+    total_quantum_runtime = 0
+    schedule = []
+    grouped = group_commutative_gates(circuit)
+    grouped_graph = create_grouped_graph(circuit, grouped)
+    weight = downstream_weights(grouped_graph, circuit, durations)
+
+    if priority == "fifo":
+        weight = {n: -n for n in grouped_graph.nodes}
+
+    pred_count = {n: d for n, d in grouped_graph.in_degree()}
+    ready = {n for n, d in pred_count.items() if d == 0}
+    free_at = {}
+    running = [] # heap of (finish, op_idx)
+    clock = 0
+
+    while ready or running:
+        startable = sorted(
+            (op for op in ready
+            if all(free_at.get(w, 0) <= clock for w in wires_of(circuit.data[op], include_clbits))),
+            key=lambda op: weight[op], reverse=True)
+
+        for op in startable:
+            wires = wires_of(circuit.data[op], include_clbits)
+            if any(free_at.get(w, 0) > clock for w in wires):
+                 continue
+            finish = clock + duration_of(circuit.data[op].operation.name, durations)
+            schedule.append({"op_idx": op, "name": circuit.data[op].operation.name, "qubits": list(circuit.data[op].qubits), "start": clock, "finish": finish})
+            heapq.heappush(running, (finish, op))
+            for w in wires:
+                free_at[w] = finish
+            ready.discard(op)
+            total_quantum_runtime = max(total_quantum_runtime, finish)
+
+        if running:
+            clock = running[0][0]
+            while running and running[0][0] == clock:
+                _, done = heapq.heappop(running)
+                for s in grouped_graph.successors(done):
+                    pred_count[s] -= 1
+                    if pred_count[s] == 0:
+                        ready.add(s)
+
+    assert len(schedule) == len(circuit.data), "dispatcher stalled"
+    return (total_quantum_runtime, schedule)
+
+def downstream_weights(graph, circuit, durations):
+    weight = {}
+    for n in reversed(list(nx.topological_sort(graph))):
+        weight[n] = duration_of(circuit.data[n].operation.name, durations) + max((weight[s] for s in graph.successors(n)), default=0)
+    return weight
 
 def create_grouped_graph(circuit, grouped_wire_ops):
     graph = nx.DiGraph()
@@ -20,7 +69,6 @@ def create_grouped_graph(circuit, grouped_wire_ops):
             for a in g_prev:
                 for b in g_next:
                     graph.add_edge(a, b)
-
     return graph
 
 def group_commutative_gates(circuit: QuantumCircuit):
@@ -52,8 +100,8 @@ def group_commutative_gates(circuit: QuantumCircuit):
 def operations_per_wire(circuit: QuantumCircuit) -> dict:
     wire_ops = defaultdict(list)
     for i, inst in enumerate(circuit.data):
-        for q in list (inst.qubits) + list(inst.clbits):
-            wire_ops[q].append(i)
+        for w in wires_of(inst):
+            wire_ops[w].append(i)
     return wire_ops
 
 def operation_commutes(inst_a, inst_b):

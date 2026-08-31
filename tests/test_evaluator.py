@@ -1,4 +1,4 @@
-"""
+﻿"""
 Test suite for the makespan evaluator (disqco.scheduling.evaluator).
 
 The evaluator is an ASAP critical-path walk: every op starts as soon as all
@@ -21,6 +21,11 @@ from disqco.scheduling.evaluator import evaluate_quantum_runtime
 UNIT = {}
 
 
+def makespan(*args, **kwargs):
+    """Unwrap just the number from the (makespan, schedule) return."""
+    return evaluate_quantum_runtime(*args, **kwargs)[0]
+
+
 def extract(num_qubits=8, depth=16, qpu_topologies=None, comm_sizes=None):
     circuit = cp_fraction(num_qubits=num_qubits, depth=depth,
                           fraction=0.5, seed=42)
@@ -41,7 +46,7 @@ def test_parallel_chains_overlap():
     qc = QuantumCircuit(2)
     qc.h(0); qc.h(0)
     qc.h(1); qc.h(1)
-    assert evaluate_quantum_runtime(qc, UNIT) == 2
+    assert makespan(qc, UNIT) == 2
 
 
 def test_dependent_chain_serialises():
@@ -50,7 +55,7 @@ def test_dependent_chain_serialises():
     qc.h(0)          # q0: 0 -> 1
     qc.cx(0, 1)      # needs q0(1), q1(0) -> starts 1, ends 2
     qc.h(1)          # q1: 2 -> 3
-    assert evaluate_quantum_runtime(qc, UNIT) == 3
+    assert makespan(qc, UNIT) == 3
 
 
 def test_durations_are_respected():
@@ -58,7 +63,7 @@ def test_durations_are_respected():
     qc = QuantumCircuit(2)
     qc.h(0)          # 0 -> 1
     qc.x(1)          # 0 -> 5 with x: 5
-    assert evaluate_quantum_runtime(qc, {"x": 5, "h": 1}) == 5
+    assert makespan(qc, {"x": 5, "h": 1}) == 5
 
 
 def test_barrier_costs_nothing():
@@ -66,7 +71,7 @@ def test_barrier_costs_nothing():
     qc.h(0)
     qc.barrier()
     qc.h(0)
-    assert evaluate_quantum_runtime(qc, UNIT) == 2
+    assert makespan(qc, UNIT) == 2
 
 
 def test_classical_dependency_serialises_when_included():
@@ -77,10 +82,10 @@ def test_classical_dependency_serialises_when_included():
     qc.measure(0, 0)                 # writes clbit 0
     qc.x(1).c_if(qc.cregs[0], 1)     # waits on clbit 0
 
-    with_cl = evaluate_quantum_runtime(qc, UNIT, include_clbits=True)
-    without = evaluate_quantum_runtime(qc, UNIT, include_clbits=False)
+    with_cl = makespan(qc, UNIT, include_clbits=True)
+    without = makespan(qc, UNIT, include_clbits=False)
     assert with_cl == 3   # h -> measure -> conditioned x, serialised
-    assert without == 1   # x(1) shares no qubit wire with the rest
+    assert without == 2   # x(1) detaches; critical path is h -> measure
     assert with_cl > without
 
 
@@ -89,24 +94,24 @@ def test_unit_durations_match_depth_on_classical_free_circuit():
     classical bits the evaluator must reproduce it exactly."""
     circuit = cp_fraction(num_qubits=8, depth=16, fraction=0.5, seed=42)
     circuit = transpile(circuit, basis_gates=["u", "cp"])
-    assert evaluate_quantum_runtime(circuit, UNIT) == circuit.depth()
+    assert makespan(circuit, UNIT) == circuit.depth()
 
 
 def test_extracted_circuit_evaluates():
     qc = extract()
-    makespan = evaluate_quantum_runtime(qc, UNIT)
-    assert makespan > 0
+    full = makespan(qc, UNIT)
+    assert full > 0
     # clbit dependencies can only add constraints, never remove them
-    qubit_only = evaluate_quantum_runtime(qc, UNIT, include_clbits=False)
-    assert makespan >= qubit_only
+    qubit_only = makespan(qc, UNIT, include_clbits=False)
+    assert full >= qubit_only
 
 
 def test_epr_duration_dominates_makespan():
     """Raising the EPR cost must strictly stretch a circuit that uses EPR."""
     qc = extract()
     assert qc.count_ops().get("EPR", 0) > 0
-    fast = evaluate_quantum_runtime(qc, {"EPR": 1})
-    slow = evaluate_quantum_runtime(qc, {"EPR": 100})
+    fast = makespan(qc, {"EPR": 1})
+    slow = makespan(qc, {"EPR": 100})
     assert slow > fast
 
 
@@ -124,10 +129,11 @@ def test_port_topology_costs_runtime():
         return t
 
     durations = {"EPR": 20, "swap": 6, "cp": 2, "u": 1, "measure": 5}
-    plain = evaluate_quantum_runtime(extract(), durations)
+    plain = makespan(extract(), durations)
     qpu = 8 // 2 + 1
-    ported = evaluate_quantum_runtime(
+    ported = makespan(
         extract(qpu_topologies={0: topo(qpu), 1: topo(qpu)},
                 comm_sizes=[4, 4]),
         durations)
     assert ported >= plain
+
