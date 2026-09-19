@@ -21,10 +21,9 @@ from disqco import (
     set_initial_partition_assignment,
 )
 from disqco.circuits.cp_fraction import cp_fraction
-from disqco.scheduling.evaluator import evaluate_quantum_runtime
+from disqco.scheduling.evaluator import evaluate_quantum_runtime, emit_schedule
 from disqco.scheduling.greedy_scheduler import (
     greedy_scheduler,
-    emit_schedule,
     group_commutative_gates,
     create_grouped_graph,
 )

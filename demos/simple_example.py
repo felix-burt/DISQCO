@@ -12,6 +12,7 @@ import networkx as nx
 from disqco.scheduling.evaluator import evaluate_quantum_runtime
 from disqco.scheduling.schedule_graph import plot_schedule
 from disqco.scheduling.greedy_scheduler import greedy_scheduler
+from disqco.scheduling.sessions import rename_classical_bits
 
 demo_dir = Path(__file__).parent
 
@@ -83,6 +84,8 @@ extractor = PartitionedCircuitExtractor(
     hypergraph, network, partition_assignment=assignment
 )
 partitioned_circuit = extractor.extract_partitioned_circuit()
+
+print('---rename: ' + str(rename_classical_bits(partitioned_circuit)))
 
 print("Number of e-bits requested:", partitioned_circuit.count_ops().get("EPR", 0))
 print("Local routing SWAPs inserted:", extractor.local_swap_count)
