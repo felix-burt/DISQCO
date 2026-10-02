@@ -1,0 +1,34 @@
+[project]
+name = "disqco"
+version = "0.0.5"
+description = "DIStributed Quantum Circuit Optimisation"
+authors = [
+    {name = "Felix Burt", email = "ftaburt@gmail.com"},
+]
+maintainers = [
+    {name = "Felix Burt", email = "ftaburt@gmail.com"},
+]
+readme = "README.md"
+license = "MIT"
+requires-python = ">=3.11,<3.13" # qiskit-aer does not build for >3.12
+dependencies = [
+    "numpy",
+    "qiskit==1.2.4",
+    "qiskit-aer",
+    "qiskit-qasm3-import",
+    "networkx",
+    "matplotlib",
+    "pylatexenc",
+    "jupyter-tikz",
+    "ipykernel",
+    "pytest",
+    "tqdm",
+]
+
+[build-system]
+requires = ["setuptools>=61.0"]
+build-backend = "setuptools.build_meta"
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "-v"
