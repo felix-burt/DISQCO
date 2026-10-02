@@ -74,6 +74,7 @@ benchmarking/*.dat
 
 benchmarking/old/
 benchmarking/old/
+CLAUDE.md
 
 # uv-related
 .python-version
