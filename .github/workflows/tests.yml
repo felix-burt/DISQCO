@@ -24,5 +24,8 @@ jobs:
       - name: Install dependencies
         run: uv sync --frozen
 
+      - name: Check C++ FM extension built
+        run: uv run python -c "import disqco._fm_cpp"
+
       - name: Run tests
         run: uv run pytest
