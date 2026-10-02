@@ -1,49 +1,11 @@
-import re
-from qiskit import ClassicalRegister, QuantumCircuit
+from qiskit import QuantumCircuit
 from qiskit.circuit import Qubit
-
-_DATA_REG = re.compile(r"^Q(\d+)_q$")
-_COMM_REG = re.compile(r"^C(\d+)_(\d+)$")
-
-def rename_classical_bits(circuit: QuantumCircuit):
-    """Assign unique wire to each classical bit to remove false dependencies when scheduling the circuit."""
-    clbit_collisions = {}
-    for _, inst  in enumerate(circuit.data):
-        for clbit in inst.clbits:
-            if clbit in clbit_collisions:
-                clbit_collisions[clbit] += 1
-            else:
-                clbit_collisions[clbit] = 0
-
-    if any(count > 0 for count in clbit_collisions.values()):
-        extra = ClassicalRegister(sum(clbit_collisions.values()), "schedule_extra")
-        new_circuit = QuantumCircuit(*circuit.qregs, *circuit.cregs, extra, name=circuit.name)
-        new_circuit.global_phase = circuit.global_phase
-
-        fresh = iter(extra)
-        current = {}
-        touched = set()
-        for _, inst in enumerate(circuit.data):
-            new_clbits = []
-            for clbit in inst.clbits:
-                if clbit in touched:
-                    current[clbit] = next(fresh)
-                touched.add(clbit)
-                new_clbits.append(current.get(clbit, clbit))
-
-            op = inst.operation.copy()
-            condition = getattr(op, "condition", None)
-            if condition is not None:
-                touched.add(condition[0])
-                op.condition = (current.get(condition[0], condition[0]), condition[1])
-            new_circuit.append(op, inst.qubits, new_clbits)
-        return new_circuit
-    return circuit
+from disqco.scheduling.helper import DATA_REG, COMM_REG
 
 def map_comm_qubits_to_qpus(circuit: QuantumCircuit):
     qpu_of = {}
     for register in circuit.qregs:
-        match = _COMM_REG.match(register.name)
+        match = COMM_REG.match(register.name)
         if match is None:
             continue
         for comm_qubit in register:
@@ -55,7 +17,7 @@ def local_data_qubit(circuit: QuantumCircuit, inst, comm_qubit, qpu):
     if not others:
         return None
     register, index = circuit.find_bit(others[0]).registers[0]
-    match = _DATA_REG.match(register.name)
+    match = DATA_REG.match(register.name)
 
     # Other end is a communication qubit
     if match is None:
@@ -116,3 +78,20 @@ def find_sessions(circuit: QuantumCircuit):
 
     assert not open_session, f"{len(open_session)} open sessions at the end of the circuit"
     return sessions, session_of, meta
+
+def sessions_opening_at(sessions):
+    """{instruction index: [sessions opening at that instruction]}"""
+    opening = {}
+    for session_id, instructions in enumerate(sessions):
+        opening.setdefault(instructions[0], []).append(session_id)
+    return opening
+
+def sessions_ending_at(sessions):
+    """"Returns map of instruction index to list of sessions that finish at that instruction"""
+    ending = {}
+    for session_id, insts in enumerate(sessions):
+        last_inst = insts[-1]
+        if last_inst not in ending:
+            ending[last_inst] = []
+        ending[last_inst].append(session_id)
+    return ending

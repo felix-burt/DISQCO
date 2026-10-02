@@ -1,4 +1,3 @@
-from collections import defaultdict
 import matplotlib.pyplot as plt
 
 KIND_COLORS = {"EPR": "#2a78d6", "swap": "#eb6834", "two-qubit": "#1baf7a",
