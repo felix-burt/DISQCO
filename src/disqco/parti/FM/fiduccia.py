@@ -318,58 +318,61 @@ class FiducciaMattheyses(QuantumCircuitPartitioner):
         qpu_sizes = np.array(list(self.qpu_sizes.values()), dtype=np.int32)
 
         # ── Build C++ coarsening chain ─────────────────────────────────────
-        cpp_hg_list    = [initial_cpp_hg]   # finest first
-        active_ids_list = [                  # all nodes active at finest level
-            np.array([t * Q + q for t in range(D) for q in range(Q)], dtype=np.int32)
-        ]
+        # Each coarse hypergraph is compacted: it holds only its surviving
+        # layers, renumbered 0..D'-1 in original order.  layers_list[i][j] is
+        # the original timestep of local layer j at level i.
+        cpp_hg_list  = [initial_cpp_hg]   # finest first
+        layers_list  = [np.arange(D)]
         # Cumulative mapping: mapping[super_t] = set of original timesteps.
         mapping_list = [{t: {t} for t in range(D)}]
         current_layers = list(range(D))
 
         while len(current_layers) > 1:
-            rev = list(reversed(current_layers))
-            pairs = [(rev[i], rev[i + 1]) for i in range(0, len(rev) - 1, 2)]
-            pairs_src = np.array([p[0] for p in pairs], dtype=np.int32)
-            pairs_dst = np.array([p[1] for p in pairs], dtype=np.int32)
+            # Merge pairs from the end, in local layer indices.
+            n = len(current_layers)
+            local_src = np.arange(n - 1, 0, -2, dtype=np.int32)
+            local_dst = local_src - 1
 
-            new_hg, active_ids = _fm_cpp.coarsen_one_level(
-                cpp_hg_list[-1], pairs_src, pairs_dst
+            cpp_hg_list.append(
+                _fm_cpp.coarsen_one_level(cpp_hg_list[-1], local_src, local_dst)
             )
-            cpp_hg_list.append(new_hg)
-            active_ids_list.append(active_ids)
 
-            src_set = set(pairs_src.tolist())
             mapping = {**mapping_list[-1]}
-            for src, dst in pairs:
+            for s, d in zip(local_src, local_dst):
+                src, dst = current_layers[s], current_layers[d]
                 mapping[dst] = mapping[dst] | mapping.pop(src)
             mapping_list.append(mapping)
 
-            current_layers = [l for l in current_layers if l not in src_set]
+            src_set = set(local_src.tolist())
+            current_layers = [l for j, l in enumerate(current_layers) if j not in src_set]
+            layers_list.append(np.array(current_layers))
 
         # Reverse so index 0 = coarsest, -1 = finest
-        cpp_hg_list    = cpp_hg_list[::-1]
-        active_ids_list = active_ids_list[::-1]
-        mapping_list   = mapping_list[::-1]
-        n_levels       = len(cpp_hg_list)
+        cpp_hg_list  = cpp_hg_list[::-1]
+        layers_list  = layers_list[::-1]
+        mapping_list = mapping_list[::-1]
+        n_levels     = len(cpp_hg_list)
 
         # ── FM passes at each level ────────────────────────────────────────
         assignment = self.initial_assignment.copy()
         cost_list  = []
 
-        for i, (cpp_hg, active_ids, mapping) in enumerate(
-                zip(cpp_hg_list, active_ids_list, mapping_list)):
+        for i, (cpp_hg, layers, mapping) in enumerate(
+                zip(cpp_hg_list, layers_list, mapping_list)):
 
             self.max_gain = self.find_max_gain(mapping)
-            limit = int(len(active_ids) * 0.125)
+            limit = int(cpp_hg.N * 0.125)
 
             # Run all passes at this level with FMState kept alive across passes.
-            result     = _fm_cpp.fm_level(
-                cpp_hg, assignment, qpu_sizes, self.max_gain, limit,
-                active_ids, passes_per_level, stochastic
+            # The level sees only its own layers; write the result back into
+            # the full-depth assignment.
+            result = _fm_cpp.fm_level(
+                cpp_hg, assignment[layers], qpu_sizes, self.max_gain, limit,
+                None, passes_per_level, stochastic
             )
-            assignment = result['best_assignment']
-            level_best_cost = _fm_cpp.calculate_full_cost(cpp_hg, assignment)
-            cost_list.append(level_best_cost)
+            level_assignment = result['best_assignment']
+            assignment[layers] = level_assignment
+            cost_list.append(_fm_cpp.calculate_full_cost(cpp_hg, level_assignment))
 
             # Refine assignment to next (finer) level
             if i < n_levels - 1:

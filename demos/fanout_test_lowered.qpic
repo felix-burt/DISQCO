@@ -1,0 +1,12 @@
+q0p0 W q_{0}^{(0)}
+gap_p0 W type=o
+q1p1 W q_{1}^{(1)}
+q0p1 W q_{0}^{(1)}
+gap_p1 W type=o
+gap_p2 W type=o
+
+q0p0 H ; q1p1 H
+% StateTransfer q0 p0->p1
+q0p0 q0p1 starting
+q0p1 q0p0 ending
+q0p1 q1p1

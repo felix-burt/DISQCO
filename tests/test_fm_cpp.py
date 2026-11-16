@@ -218,3 +218,61 @@ def test_fm_pass_cost_vs_python(setup_32):
         f"Cost inconsistency: calculate_full_cost={cpp_best_cost}, "
         f"initial_cost+best_gain={expected_best_cost}"
     )
+
+
+def _coarsening_chain(hg_cpp):
+    """Yield (coarse_hg, layers, groups) for each level of the C++ coarsening chain.
+
+    layers[j] is the original timestep of local layer j; groups[l] lists the
+    original timesteps merged into layer l.
+    """
+    layers = list(range(hg_cpp.D))
+    groups = {t: [t] for t in layers}
+    hg = hg_cpp
+    while len(layers) > 1:
+        src = np.arange(len(layers) - 1, 0, -2, dtype=np.int32)
+        dst = src - 1
+        hg = _fm_cpp.coarsen_one_level(hg, src, dst)
+        for s, d in zip(src, dst):
+            groups[layers[d]] += groups.pop(layers[s])
+        src_set = set(src.tolist())
+        layers = [l for j, l in enumerate(layers) if j not in src_set]
+        yield hg, layers, groups
+
+
+def test_coarsen_one_level_compacts_and_preserves_cost(setup_32):
+    """
+    Each coarse level holds only its surviving layers, and the cost of any
+    coarse assignment equals the fine-level cost of that assignment expanded
+    to every merged timestep (merged parallel edges are counted by weight).
+    """
+    _, _, _, hg_cpp = setup_32
+    D, Q, K = hg_cpp.D, hg_cpp.Q, hg_cpp.K
+    rng = np.random.default_rng(0)
+
+    for hg, layers, groups in _coarsening_chain(hg_cpp):
+        assert hg.D == len(layers)
+        assert hg.N == len(layers) * Q
+        assert all(hg.edge_weight(e) >= 1 for e in range(hg.E))
+
+        for _ in range(3):
+            coarse = rng.integers(0, K, size=(hg.D, Q)).astype(np.int32)
+            fine = np.empty((D, Q), dtype=np.int32)
+            for j, l in enumerate(layers):
+                fine[groups[l]] = coarse[j]
+            assert (_fm_cpp.calculate_full_cost(hg, coarse)
+                    == _fm_cpp.calculate_full_cost(hg_cpp, fine))
+
+
+def test_fm_pass_gain_consistent_on_coarse_levels(setup_32):
+    """Weighted gains/delta updates: initial_cost + gain == recomputed cost."""
+    fm, _, asgn, hg_cpp = setup_32
+    qpu_sizes = np.array(list(fm.qpu_sizes.values()), dtype=np.int32)
+
+    for hg, layers, groups in _coarsening_chain(hg_cpp):
+        level_asgn = np.ascontiguousarray(asgn[layers], dtype=np.int32)
+        max_gain = fm.find_max_gain({l: groups[l] for l in layers})
+        result = _fm_cpp.fm_pass(hg, level_asgn, qpu_sizes, max_gain, int(hg.N * 0.125))
+        initial_cost = _fm_cpp.calculate_full_cost(hg, level_asgn)
+        for arr, gain in zip(result['assignment_list'][1:], result['gain_list'][1:]):
+            assert _fm_cpp.calculate_full_cost(hg, arr) == initial_cost + gain

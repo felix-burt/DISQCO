@@ -4,7 +4,8 @@
 #include <random>
 #include <cstring>
 #include <numeric>
-#include <unordered_set>
+#include <algorithm>
+#include <stdexcept>
 
 #include "hgraph.hpp"
 #include "indexed_set.hpp"
@@ -50,6 +51,7 @@ FMHyperGraph build_hgraph(
     hg.rec_offsets  = copy_vec(rec_offsets_arr);
     hg.node_edges   = copy_vec(node_edges_arr);
     hg.node_offsets = copy_vec(node_offsets_arr);
+    hg.edge_weight.assign(hg.E, 1);
 
     return hg;
 }
@@ -97,7 +99,7 @@ void map_counts_and_configs(
             if (rcc(e,k) > 0 && rc(e,k) == 0)
                 config |= (1 << k);
         cfg(e) = config;
-        cst(e) = __builtin_popcount(config);
+        cst(e) = hg.weight(e) * __builtin_popcount(config);
     }
 }
 
@@ -123,7 +125,7 @@ int32_t calculate_full_cost(const FMHyperGraph& hg, arr_i32 assignment_arr) {
         }
         for (int32_t k = 0; k < hg.K; ++k)
             if (rcc[k] > 0 && rc[k] == 0) config |= (1 << k);
-        total += __builtin_popcount(config);
+        total += hg.weight(e) * __builtin_popcount(config);
     }
     return total;
 }
@@ -194,17 +196,22 @@ py::dict fm_pass(
 }
 
 // ---------------------------------------------------------------------------
-// coarsen_one_level: merge a batch of timestep pairs in the CSR hypergraph.
+// coarsen_one_level: merge a batch of layer pairs and compact the result.
 //
-// pairs_src / pairs_dst: parallel int32 arrays of length n_pairs.
-// Each pair (pairs_src[i], pairs_dst[i]) merges all pins at timestep
-// pairs_src[i] into timestep pairs_dst[i].
+// pairs_src / pairs_dst: parallel int32 arrays of layer indices in hg
+// (0..D-1).  Each pair (pairs_src[i], pairs_dst[i]) merges all pins at layer
+// pairs_src[i] into layer pairs_dst[i].
 //
-// Returns (new_FMHyperGraph, active_node_ids) where active_node_ids is a
-// flat int32 numpy array of node IDs whose timestep was NOT a source
-// (i.e. nodes that are actually present in the coarsened level).
+// The returned hypergraph keeps only the surviving (non-source) layers,
+// renumbered 0..D'-1 in their original order (D' = D - n_pairs), so every
+// node in it is live and per-level FM state is sized to the coarse level
+// rather than the original circuit.
+//
+// Edges that become trivial (root set == receiver set) are dropped, and
+// edges with identical pin sets are merged into one edge whose weight is the
+// sum of their weights.
 // ---------------------------------------------------------------------------
-py::tuple coarsen_one_level(
+FMHyperGraph coarsen_one_level(
     const FMHyperGraph& hg,
     arr_i32 pairs_src_arr,
     arr_i32 pairs_dst_arr)
@@ -213,108 +220,107 @@ py::tuple coarsen_one_level(
 
     auto src_buf = pairs_src_arr.request();
     auto dst_buf = pairs_dst_arr.request();
+    if (src_buf.size != dst_buf.size)
+        throw std::invalid_argument("pairs_src and pairs_dst must have the same length");
     int32_t n_pairs = static_cast<int32_t>(src_buf.size);
     const int32_t* src_ptr = static_cast<const int32_t*>(src_buf.ptr);
     const int32_t* dst_ptr = static_cast<const int32_t*>(dst_buf.ptr);
 
-    // t_remap[t]: timestep t maps to this representative after merging.
+    // t_remap[t]: layer t maps to this representative after merging.
     std::vector<int32_t> t_remap(D);
     std::iota(t_remap.begin(), t_remap.end(), 0);
-    std::vector<bool> is_src(D, false);
+    std::vector<char> is_src(D, 0);
     for (int32_t i = 0; i < n_pairs; ++i) {
-        t_remap[src_ptr[i]] = dst_ptr[i];
-        is_src[src_ptr[i]] = true;
+        int32_t s = src_ptr[i], d = dst_ptr[i];
+        if (s < 0 || s >= D || d < 0 || d >= D || s == d || is_src[s])
+            throw std::invalid_argument("invalid layer pair");
+        t_remap[s] = d;
+        is_src[s]  = 1;
     }
+    for (int32_t i = 0; i < n_pairs; ++i)
+        if (is_src[dst_ptr[i]])
+            throw std::invalid_argument("a destination layer is also a source");
 
-    // Active node IDs: nodes whose timestep is NOT a source.
-    std::vector<int32_t> active_ids;
-    active_ids.reserve((D - n_pairs) * Q);
-    for (int32_t t = 0; t < D; ++t) {
-        if (!is_src[t]) {
-            for (int32_t q = 0; q < Q; ++q)
-                active_ids.push_back(t * Q + q);
-        }
-    }
+    // new_layer[t]: compacted index of surviving layer t (-1 for sources).
+    std::vector<int32_t> new_layer(D, -1);
+    int32_t D_new = 0;
+    for (int32_t t = 0; t < D; ++t)
+        if (!is_src[t]) new_layer[t] = D_new++;
 
-    // Build remapped pin sets per edge.  Keep the same E edge slots so that
-    // edge indices are stable; trivial edges get empty spans.
-    std::vector<int32_t> new_root_pins, new_root_offsets;
-    std::vector<int32_t> new_rec_pins,  new_rec_offsets;
-    new_root_offsets.reserve(E + 1);
-    new_rec_offsets.reserve(E + 1);
-    new_root_offsets.push_back(0);
-    new_rec_offsets.push_back(0);
+    auto remap = [&](int32_t n) { return new_layer[t_remap[n / Q]] * Q + n % Q; };
 
-    // node_edge_lists[n] = list of edge indices incident to node n.
-    std::vector<std::vector<int32_t>> node_edge_lists(hg.N);
-
-    std::unordered_set<int32_t> root_set, rec_set;
+    // Canonical (sorted, deduplicated) pin lists for each non-trivial edge.
+    struct Candidate {
+        std::vector<int32_t> root, rec;
+        int32_t weight;
+    };
+    std::vector<Candidate> cands;
+    cands.reserve(E);
     for (int32_t e = 0; e < E; ++e) {
-        root_set.clear();
-        rec_set.clear();
-
-        {
-            auto [rb, re] = hg.root_span(e);
-            for (const int32_t* p = rb; p != re; ++p)
-                root_set.insert(t_remap[*p / Q] * Q + (*p % Q));
+        Candidate c;
+        auto [rb, re] = hg.root_span(e);
+        for (const int32_t* p = rb; p != re; ++p) c.root.push_back(remap(*p));
+        auto [reb, ree] = hg.rec_span(e);
+        for (const int32_t* p = reb; p != ree; ++p) c.rec.push_back(remap(*p));
+        for (auto* v : {&c.root, &c.rec}) {
+            std::sort(v->begin(), v->end());
+            v->erase(std::unique(v->begin(), v->end()), v->end());
         }
-        {
-            auto [reb, ree] = hg.rec_span(e);
-            for (const int32_t* p = reb; p != ree; ++p)
-                rec_set.insert(t_remap[*p / Q] * Q + (*p % Q));
-        }
+        if (c.root == c.rec) continue;  // trivial after merging
+        c.weight = hg.weight(e);
+        cands.push_back(std::move(c));
+    }
 
-        // Trivial edge: root and receiver sets are identical after remapping.
-        if (root_set == rec_set) {
-            new_root_offsets.push_back(static_cast<int32_t>(new_root_pins.size()));
-            new_rec_offsets.push_back(static_cast<int32_t>(new_rec_pins.size()));
+    // Sort so identical edges are adjacent, then merge runs into one edge.
+    std::vector<int32_t> order(cands.size());
+    std::iota(order.begin(), order.end(), 0);
+    std::sort(order.begin(), order.end(), [&](int32_t a, int32_t b) {
+        if (cands[a].root != cands[b].root) return cands[a].root < cands[b].root;
+        return cands[a].rec < cands[b].rec;
+    });
+
+    FMHyperGraph new_hg;
+    new_hg.Q = Q; new_hg.D = D_new; new_hg.K = K;
+    new_hg.N = Q * D_new;
+    new_hg.root_offsets.push_back(0);
+    new_hg.rec_offsets.push_back(0);
+
+    const Candidate* prev = nullptr;
+    for (int32_t i : order) {
+        const Candidate& c = cands[i];
+        if (prev && prev->root == c.root && prev->rec == c.rec) {
+            new_hg.edge_weight.back() += c.weight;
             continue;
         }
-
-        // Add root pins; register edge in node_edge_lists.
-        for (int32_t n : root_set) {
-            new_root_pins.push_back(n);
-            node_edge_lists[n].push_back(e);
-        }
-        // Add rec pins; add to node_edge_lists only if not already via root.
-        for (int32_t n : rec_set) {
-            new_rec_pins.push_back(n);
-            if (root_set.find(n) == root_set.end())
-                node_edge_lists[n].push_back(e);
-        }
-
-        new_root_offsets.push_back(static_cast<int32_t>(new_root_pins.size()));
-        new_rec_offsets.push_back(static_cast<int32_t>(new_rec_pins.size()));
+        new_hg.root_pins.insert(new_hg.root_pins.end(), c.root.begin(), c.root.end());
+        new_hg.rec_pins.insert(new_hg.rec_pins.end(), c.rec.begin(), c.rec.end());
+        new_hg.root_offsets.push_back(static_cast<int32_t>(new_hg.root_pins.size()));
+        new_hg.rec_offsets.push_back(static_cast<int32_t>(new_hg.rec_pins.size()));
+        new_hg.edge_weight.push_back(c.weight);
+        prev = &c;
     }
+    new_hg.E = static_cast<int32_t>(new_hg.edge_weight.size());
 
-    // Build node_edges CSR.
-    std::vector<int32_t> node_edges, node_offsets;
-    node_offsets.reserve(hg.N + 1);
-    node_offsets.push_back(0);
-    for (int32_t n = 0; n < hg.N; ++n) {
-        for (int32_t ei : node_edge_lists[n])
-            node_edges.push_back(ei);
-        node_offsets.push_back(static_cast<int32_t>(node_edges.size()));
-    }
+    // Build node -> incident-edges CSR (a pin in both root and receiver sets
+    // is listed once).
+    std::vector<int32_t> degree(new_hg.N + 1, 0);
+    auto for_each_incidence = [&](auto&& fn) {
+        for (int32_t e = 0; e < new_hg.E; ++e) {
+            auto [rb, re] = new_hg.root_span(e);
+            for (const int32_t* p = rb; p != re; ++p) fn(*p, e);
+            auto [reb, ree] = new_hg.rec_span(e);
+            for (const int32_t* p = reb; p != ree; ++p)
+                if (!std::binary_search(rb, re, *p)) fn(*p, e);
+        }
+    };
+    for_each_incidence([&](int32_t n, int32_t) { degree[n + 1]++; });
+    new_hg.node_offsets.assign(new_hg.N + 1, 0);
+    std::partial_sum(degree.begin(), degree.end(), new_hg.node_offsets.begin());
+    new_hg.node_edges.resize(new_hg.node_offsets.back());
+    std::vector<int32_t> fill(new_hg.node_offsets.begin(), new_hg.node_offsets.end() - 1);
+    for_each_incidence([&](int32_t n, int32_t e) { new_hg.node_edges[fill[n]++] = e; });
 
-    // Assemble new FMHyperGraph.
-    FMHyperGraph new_hg;
-    new_hg.Q = Q; new_hg.D = D; new_hg.K = K;
-    new_hg.N = hg.N; new_hg.E = E;
-    new_hg.root_pins    = std::move(new_root_pins);
-    new_hg.root_offsets = std::move(new_root_offsets);
-    new_hg.rec_pins     = std::move(new_rec_pins);
-    new_hg.rec_offsets  = std::move(new_rec_offsets);
-    new_hg.node_edges   = std::move(node_edges);
-    new_hg.node_offsets = std::move(node_offsets);
-
-    // Return active_ids as a numpy array.
-    auto active_arr = py::array_t<int32_t>(static_cast<py::ssize_t>(active_ids.size()));
-    if (!active_ids.empty())
-        std::memcpy(active_arr.mutable_data(), active_ids.data(),
-                    active_ids.size() * sizeof(int32_t));
-
-    return py::make_tuple(std::move(new_hg), active_arr);
+    return new_hg;
 }
 
 // ---------------------------------------------------------------------------
@@ -335,6 +341,7 @@ PYBIND11_MODULE(_fm_cpp, m) {
         .def("root_degree", &FMHyperGraph::root_degree, "Root-pin count for edge e")
         .def("rec_degree",  &FMHyperGraph::rec_degree,  "Receiver-pin count for edge e")
         .def("node_degree", &FMHyperGraph::node_degree, "Incident-edge count for node n")
+        .def("edge_weight", &FMHyperGraph::weight, "Multiplicity of edge e (merged parallel edges)")
         // Return pin / edge lists as Python lists (for validation only, not hot path)
         .def("get_root_pins", [](const FMHyperGraph& hg, int32_t e) {
             auto [b, end] = hg.root_span(e);
@@ -368,8 +375,9 @@ PYBIND11_MODULE(_fm_cpp, m) {
 
     m.def("coarsen_one_level", &coarsen_one_level,
           py::arg("hg"), py::arg("pairs_src"), py::arg("pairs_dst"),
-          "Merge a batch of timestep pairs in the CSR hypergraph.\n"
-          "Returns (new_FMHyperGraph, active_node_ids_int32).");
+          "Merge a batch of layer pairs and return the compacted coarse FMHyperGraph.\n"
+          "Surviving layers are renumbered 0..D'-1 in order; trivial edges are dropped\n"
+          "and identical edges merged (edge_weight = multiplicity).");
 
     m.def("fm_pass", &fm_pass,
           py::arg("hg"), py::arg("assignment"),

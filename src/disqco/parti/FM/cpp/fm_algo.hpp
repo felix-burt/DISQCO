@@ -32,7 +32,7 @@ void do_map_counts(FMState& state, const FMHyperGraph& hg) {
             if (state.rec_count(e, k) > 0 && state.root_count(e, k) == 0)
                 config |= (1 << k);
         state.edge_config[e] = config;
-        state.edge_cost[e]   = __builtin_popcount(config);
+        state.edge_cost[e]   = hg.weight(e) * __builtin_popcount(config);
     }
 }
 
@@ -71,7 +71,7 @@ int32_t compute_gain(const FMState& state, const FMHyperGraph& hg,
             else
                 new_conf &= ~(1 << dest);
         }
-        gain += __builtin_popcount(new_conf) - old_cost;
+        gain += hg.weight(e) * __builtin_popcount(new_conf) - old_cost;
     }
     return gain;
 }
@@ -83,11 +83,7 @@ void find_all_gains_and_fill_buckets(FMState& state, const FMHyperGraph& hg,
                                       const int32_t* active_nodes = nullptr,
                                       int32_t n_active = 0) {
     int32_t K = hg.K;
-    for (auto& b : state.buckets.buckets) {
-        for (int32_t a : b.items) b.pos[a] = -1;
-        b.items.clear();
-    }
-    state.buckets.best_idx = -1;
+    state.buckets.clear();
 
     if (active_nodes != nullptr && n_active > 0) {
         // Fast path: iterate only the active subset.
@@ -125,11 +121,13 @@ std::pair<int32_t, int32_t> find_action(FMState& state, const FMHyperGraph& hg,
     int32_t K     = hg.K;
     int32_t nbkts = state.buckets.nbuckets();
 
-    for (int32_t idx = 0; idx < nbkts; ++idx) {
-        IndexedSet& bkt = state.buckets.buckets[idx];
+    int32_t first = state.buckets.best_idx;
+    if (first < 0) return {-1, 0};
+
+    for (int32_t idx = first; idx < nbkts; ++idx) {
+        const Bucket& bkt = state.buckets.buckets[idx];
         if (bkt.empty()) continue;
 
-        int32_t gain = state.buckets.idx_to_gain(idx);
         int32_t n    = bkt.size();
         int32_t start = (n > 1) ? static_cast<int32_t>(rng() % static_cast<uint32_t>(n)) : 0;
 
@@ -141,7 +139,8 @@ std::pair<int32_t, int32_t> find_action(FMState& state, const FMHyperGraph& hg,
 
             if (!state.locked[node] && state.space(t, dest) > 0) {
                 state.locked[node] = true;
-                return {action, gain};
+                // True gain (bucket index may be clamped for out-of-range gains).
+                return {action, state.gains[action]};
             }
         }
     }
@@ -170,6 +169,7 @@ void apply_move_and_update(FMState& state, const FMHyperGraph& hg,
     auto [eb, ee] = hg.node_edge_span(node);
     for (const int32_t* ep = eb; ep != ee; ++ep) {
         int32_t e = *ep;
+        int32_t w = hg.weight(e);
 
         // Pre-move values (live in state before we update at end of edge block)
         const int32_t* base_rc  = &state.edge_root_counts[e * K];
@@ -196,7 +196,7 @@ void apply_move_and_update(FMState& state, const FMHyperGraph& hg,
         else                                        post_conf &= ~(1 << src);
         if (post_rcc_dst > 0 && post_rc_dst == 0) post_conf |= (1 << dest);
         else                                        post_conf &= ~(1 << dest);
-        int32_t post_cost = __builtin_popcount(post_conf);
+        int32_t post_cost = w * __builtin_popcount(post_conf);
 
         // Helpers: post counts at partition k
         auto post_rc = [&](int32_t k) -> int32_t {
@@ -223,14 +223,14 @@ void apply_move_and_update(FMState& state, const FMHyperGraph& hg,
                     if (base_rcc[ns] > 0 && base_rc[ns] == 1)
                         conf_b |= (1 << ns); else conf_b &= ~(1 << ns);
                     conf_b &= ~(1 << nd);                   // rc[nd]+=1 always clears
-                    int32_t cost_b = __builtin_popcount(conf_b);
+                    int32_t cost_b = w * __builtin_popcount(conf_b);
 
                     // cost_ab: post state + nbr's root move
                     int32_t conf_ab = post_conf;
                     if (post_rcc(ns) > 0 && post_rc(ns) == 1)
                         conf_ab |= (1 << ns); else conf_ab &= ~(1 << ns);
                     conf_ab &= ~(1 << nd);
-                    int32_t cost_ab = __builtin_popcount(conf_ab);
+                    int32_t cost_ab = w * __builtin_popcount(conf_ab);
 
                     int32_t delta = post_cost - pre_cost - cost_ab + cost_b;
                     if (delta != 0) {
@@ -259,7 +259,7 @@ void apply_move_and_update(FMState& state, const FMHyperGraph& hg,
                         conf_b |= (1 << ns); else conf_b &= ~(1 << ns);
                     if (base_rc[nd] == 0)
                         conf_b |= (1 << nd); else conf_b &= ~(1 << nd);
-                    int32_t cost_b = __builtin_popcount(conf_b);
+                    int32_t cost_b = w * __builtin_popcount(conf_b);
 
                     // cost_ab: post state + nbr's rec move
                     int32_t conf_ab = post_conf;
@@ -267,7 +267,7 @@ void apply_move_and_update(FMState& state, const FMHyperGraph& hg,
                         conf_ab |= (1 << ns); else conf_ab &= ~(1 << ns);
                     if (post_rc(nd) == 0)
                         conf_ab |= (1 << nd); else conf_ab &= ~(1 << nd);
-                    int32_t cost_ab = __builtin_popcount(conf_ab);
+                    int32_t cost_ab = w * __builtin_popcount(conf_ab);
 
                     int32_t delta = post_cost - pre_cost - cost_ab + cost_b;
                     if (delta != 0) {

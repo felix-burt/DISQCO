@@ -32,6 +32,11 @@ struct FMHyperGraph {
     std::vector<int32_t> node_edges;
     std::vector<int32_t> node_offsets;  // length N+1
 
+    // --- edge multiplicity ---
+    // edge_weight[e] = number of original edges merged into e (1 at the finest
+    // level).  An edge's cost is weight * popcount(config).
+    std::vector<int32_t> edge_weight;   // length E
+
     // --- per-pin role flag ---
     // root_flag[root_offsets[e] + i] = 1 (always, for symmetry with rec_flag)
     // rec_flag[rec_offsets[e]  + i] = 1 (always)
@@ -65,6 +70,7 @@ struct FMHyperGraph {
     int32_t root_degree(int32_t e) const { return root_offsets[e+1] - root_offsets[e]; }
     int32_t rec_degree(int32_t e)  const { return rec_offsets[e+1]  - rec_offsets[e];  }
     int32_t node_degree(int32_t n) const { return node_offsets[n+1] - node_offsets[n]; }
+    int32_t weight(int32_t e)      const { return edge_weight[e]; }
 
     // Returns true if node n is a root pin of edge e.
     // Used in take_action_and_update to choose which count array to update.
