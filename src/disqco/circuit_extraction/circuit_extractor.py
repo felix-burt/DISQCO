@@ -789,9 +789,11 @@ class PartitionedCircuitExtractor:
         name = gate['name']
         if name == 'u' or name == 'u3':
             theta = gate['params'][0]
-            if round(theta % mt.pi*2, 2) == round(0, 2):
+            # Same rule as graphs/greedy_gate_grouping.check_diag_gate: diagonal if theta = 0 (mod 2pi),
+            # anti-diagonal if theta = pi (mod 2pi).
+            if round(theta % (mt.pi*2), 2) == 0.00:
                 return 'diagonal'
-            elif round(theta % mt.pi*2, 2) == round(mt.pi/2, 2):
+            elif round(theta % (mt.pi*2), 2) == round(mt.pi, 2):
                 return 'anti-diagonal'
             else:
                 return 'non-diagonal'
@@ -806,21 +808,22 @@ class PartitionedCircuitExtractor:
                 return 'non-diagonal'
 
     def apply_linked_single_qubit_gate(self, gate: dict) -> None:
+        """
+        Applies a single-qubit gate on the root of a group. A diagonal gate acts on the root only. An
+        anti-diagonal gate also flips every linked copy of the root (an X on each linked qubit), while the
+        group's links are open, so that the copies keep the root's value.
+        """
         q = gate['qargs'][0]
-        p_root = self.current_assignment[q]
         diagonality = self.check_diag_gate(gate)
         if diagonality == 'diagonal':
             self.apply_single_qubit_gate(gate)
         elif diagonality == 'anti-diagonal':
-            for p in range(self.num_partitions):
-                if p != p_root:
-                    if self.current_assignment[q] not in self.qubit_manager.groups[q][p]:
-                        continue
-                    for linked_part in self.qubit_manager.groups[q]['linked_qubits']:
-                        comm_q = self.qubit_manager.groups[q][linked_part]
-                        if comm_q == q:
-                            continue 
-                        self.qc.x(comm_q)
+            group = self.qubit_manager.groups.get(q)
+            if group is not None and group['init_time'] <= gate['time'] < group['final_time']:
+                root_phys = self.qubit_manager.log_to_phys_idx[q]
+                for linked_q in group['linked_qubits'].values():
+                    if linked_q != root_phys:
+                        self.qc.x(linked_q)
             self.apply_single_qubit_gate(gate)
         else:
             raise ValueError(f"Gate {gate} is not diagonal or anti-diagonal and shouldn't be in group.")
@@ -945,14 +948,15 @@ class PartitionedCircuitExtractor:
                 time_step = sub_gate['time']
                 new_gate = {
                         'type': 'single-qubit-linked',
+                        'name': sub_gate['name'],
                         'qargs': [q],
                         'params': sub_gate['params'],
                         'time': time_step
                     }
                 if time_step == t:
-                    self.apply_linked_single_qubit_gate(sub_gate)
+                    self.apply_linked_single_qubit_gate(new_gate)
                 else:
-                    self.layer_dict[time_step].append(sub_gate)
+                    self.layer_dict[time_step].append(new_gate)
 
     def extract_partitioned_circuit(self) -> QuantumCircuit:
         """
@@ -998,6 +1002,9 @@ class PartitionedCircuitExtractor:
 
                 elif gtype == "group":
                     self.process_group_gate(gate, i)
+
+                elif gtype == "single-qubit-linked":
+                    self.apply_linked_single_qubit_gate(gate)
 
                 elif gtype == "two-qubit-linked":
 

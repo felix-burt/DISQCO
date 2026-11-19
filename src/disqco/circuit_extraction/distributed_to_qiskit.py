@@ -9,6 +9,7 @@ is itself a named sub-instruction inside each FanOut block.
 
 from __future__ import annotations
 
+import math
 import copy
 from collections import deque
 from typing import TYPE_CHECKING
@@ -176,6 +177,14 @@ def _make_fan_out_instruction(
     return sub_qc.to_instruction(label=label)
 
 
+def _is_anti_diagonal(name: str, params: list) -> bool:
+    """True for single-qubit gates that map |0> to |1> up to phase (x, y, and u/u3 with theta = pi mod 2pi),
+    the same rule as graphs/greedy_gate_grouping.check_diag_gate."""
+    if name in ('u', 'u3'):
+        return bool(params) and round(params[0] % (math.pi * 2), 2) == round(math.pi, 2)
+    return name in ('x', 'y')
+
+
 class DistributedCircuitToQiskit:
     """Lower a DistributedCircuit to a Qiskit QuantumCircuit.
 
@@ -297,6 +306,13 @@ class DistributedCircuitToQiskit:
         if len(event.qubits) == 1:
             q, _ = event.qubits[0]
             phys = self.qubit_manager.log_to_phys_idx[q]
+            group = self.group_state.get(q)
+            if group is not None and _is_anti_diagonal(name, params):
+                # An anti-diagonal gate on a group root must also flip every linked copy of the root, or the
+                # copies keep the root's old value for the group's remaining remote gates.
+                for linked_q in group['linked_qubits'].values():
+                    if linked_q != phys:
+                        self.qc.x(linked_q)
             self._apply_single_qubit(name, params, phys)
         elif len(event.qubits) == 2:
             (q0, _), (q1, _) = event.qubits
