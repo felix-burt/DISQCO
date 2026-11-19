@@ -11,7 +11,8 @@ def check_diag_gate(gate, include_anti_diags = False):
             theta = params[0]
             if round(theta % (mt.pi*2), 2) == 0.00:
                 return True
-            elif round(theta % (mt.pi*2), 2) == round(mt.pi/2, 2):
+            elif round(theta % (mt.pi*2), 2) == round(mt.pi, 2):
+
                 return True if include_anti_diags else False
         return False
     else:
@@ -55,6 +56,11 @@ def group_distributable_packets_sym(layers,group_anti_diags=True):
                         start_layer = group['time']
                         if qubit in unchosen_groups:
                             partner = unchosen_groups[qubit]
+                            for subgate in group['sub-gates']:
+                                if subgate['type'] == 'single-qubit':
+                                    gate_time = subgate['time']
+                                    del subgate['time']
+                                    new_layers[gate_time].append(subgate)
                             del unchosen_groups[qubit]
                             del unchosen_groups[partner]
                             del live_controls[qubit] 
