@@ -11,7 +11,8 @@ def check_diag_gate(gate, include_anti_diags = False):
             theta = params[0]
             if round(theta % (mt.pi*2), 2) == 0.00:
                 return True
-            elif round(theta % (mt.pi*2), 2) == round(mt.pi/2, 2):
+            elif round(theta % (mt.pi*2), 2) == round(mt.pi, 2):
+
                 return True if include_anti_diags else False
         return False
     else:
